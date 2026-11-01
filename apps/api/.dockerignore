@@ -1,0 +1,15 @@
+# Ne jamais embarquer dans l'image Docker : secrets, données locales,
+# environnements Windows — l'image doit être reproductible et sûre.
+.env
+venv/
+.venv/
+__pycache__/
+.pytest_cache/
+*.db
+*.db-journal
+storage_data/
+tests/
+nettoyer_pages_orphelines.py
+run_windows.bat
+Dockerfile
+.dockerignore

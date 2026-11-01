@@ -1,0 +1,368 @@
+{
+  "Common": {
+    "appName": "Taurge",
+    "loading": "Loading…",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "back": "Back"
+  },
+  "Nav": {
+    "login": "Log in",
+    "register": "Create an account",
+    "dashboard": "My projects",
+    "newProject": "New project",
+    "profile": "My profile",
+    "settings": "Settings",
+    "logout": "Log out",
+    "accountMenu": "User account menu",
+    "userMenu": "User menu",
+    "projectRoles": "Project roles",
+    "credits": "credits",
+    "creditsTitle": "Work credit balance",
+    "refillCredits": "Top up credits",
+    "refillTitle": "Top-up coming soon — payments are not open yet",
+    "refillSoon": "Coming soon",
+    "lightMode": "Light mode",
+    "darkMode": "Dark mode",
+    "light": "Light",
+    "dark": "Dark",
+    "home": "Taurge — home"
+  },
+  "Language": {
+    "label": "Language",
+    "fr": "Français",
+    "en": "English",
+    "switchTo": "Switch the interface to {language}"
+  },
+  "Roles": {
+    "owner": "Owner",
+    "translator": "Translator",
+    "cleaner": "Cleaner",
+    "typesetter": "Typesetter",
+    "proofreader": "Proofreader"
+  },
+  "Home": {
+    "metaTitle": "Taurge — From raw to translated page, bubble by bubble",
+    "tagline": "Manga · Manhwa · Manhua · Webtoon",
+    "titleStart": "From raw to translated page.",
+    "titleHighlight": "Bubble by bubble",
+    "subtitle": "Taurge does the repetitive work — spotting bubbles, reading text, drafting translations, erasing — so you spend your time where it matters: tone, rhythm, the perfect line.",
+    "start": "Start a chapter",
+    "alreadyHaveAccount": "I already have an account",
+    "pipelineTitle": "The production pipeline",
+    "pipelineIntro": "Every step is visible, reversible, and keeps you in control before moving to the next one.",
+    "steps": [
+      {
+        "title": "Import",
+        "body": "A chapter PDF or page images. 50 MB max."
+      },
+      {
+        "title": "Pages",
+        "body": "The PDF is split into numbered pages, ready to read."
+      },
+      {
+        "title": "OCR",
+        "body": "Each bubble is located, its text extracted with a confidence score."
+      },
+      {
+        "title": "Translation",
+        "body": "An automatic first draft, block by block."
+      },
+      {
+        "title": "Proofreading",
+        "body": "You fix the original and the translation, bubble by bubble."
+      },
+      {
+        "title": "Cleaning + export",
+        "body": "Bubbles erased, ZIP ready for lettering."
+      }
+    ],
+    "featuresTitle": "What this version does",
+    "features": [
+      "Japanese, Korean, Chinese, English OCR (Tesseract)",
+      "Automatic translation, editable block by block",
+      "Bubble cleaning by inpainting",
+      "ZIP export: cleaned pages + texts as JSON"
+    ],
+    "notYetTitle": "Not yet",
+    "notYetBody": "Automatic lettering, hand-drawn SFX detection and team workflows are coming later. Taurge prepares the page; final lettering stays in your usual tool.",
+    "footerTagline": "Built for translators, not to replace them."
+  },
+  "Dashboard": {
+    "metaTitle": "My projects",
+    "studio": "Studio",
+    "title": "Your projects",
+    "newProject": "New project",
+    "emptyTitle": "No projects yet",
+    "emptyBody": "One project = one chapter, one source language, one target language. Create one to import your first pages.",
+    "createFirst": "Create my first project",
+    "deleteTitle": "Delete this project",
+    "confirmDelete": "Really delete the project \"{name}\"? This action is irreversible.",
+    "loadingProjects": "Loading projects",
+    "to": "to"
+  },
+  "Auth": {
+    "loginTitle": "Back to work",
+    "loginSubtitle": "Your chapters are waiting right where you left them.",
+    "loginSubmit": "Log in",
+    "registerTitle": "Open your studio",
+    "registerSubtitle": "One account for your localization projects. No credit card.",
+    "registerSubmit": "Create the account",
+    "noAccount": "No account yet?",
+    "createAccount": "Create an account",
+    "alreadyRegistered": "Already registered?",
+    "email": "Email",
+    "password": "Password",
+    "passwordHint": "8 characters minimum.",
+    "passwordTooShort": "Password must be at least 8 characters.",
+    "accountCreated": "Account created. Log in to get started.",
+    "genericError": "Something went wrong.",
+    "acceptTerms": "I accept the Terms of Service and the Privacy Policy.",
+    "confirmAge": "I confirm I am at least 15 years old or have permission from a parent or legal guardian.",
+    "newsletter": "I want to receive the newsletter (optional, unsubscribe anytime).",
+    "consentRequired": "Please accept the Terms and confirm your age to create an account."
+  },
+  "NotFound": {
+    "code": "Error 404",
+    "title": "Page not found",
+    "body": "The project or resource you are looking for does not exist or has been moved.",
+    "backToProjects": "Back to projects"
+  },
+  "Demo": {
+    "badge": "Demo",
+    "body": "Fictional in-memory data, simulated OCR and translation. Set NEXT_PUBLIC_API_URL to plug in your FastAPI backend."
+  },
+  "Shell": {
+    "dashboard": "Dashboard",
+    "projects": "Projects",
+    "glossary": "Glossary",
+    "billing": "Subscription",
+    "settings": "Settings",
+    "newProject": "New project",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar"
+  },
+  "DashboardExtra": {
+    "rename": "Rename",
+    "renameProject": "Rename project",
+    "projectName": "Project name",
+    "save": "Save",
+    "deleteProject": "Delete project",
+    "deleteConfirmTitle": "Delete this project?",
+    "deleteConfirmBody": "“{name}” and all its pages, translations and exports will be permanently deleted.",
+    "confirmDelete": "Delete permanently",
+    "renameError": "Could not rename the project.",
+    "openProject": "Open project"
+  },
+  "GlossaryPage": {
+    "title": "Glossary",
+    "subtitle": "Glossary entries from your projects.",
+    "searchPlaceholder": "Search a term…",
+    "empty": "No glossary entries yet.",
+    "noResult": "No term matches your search.",
+    "noProjects": "Create a project to build its glossary.",
+    "locked": "Locked",
+    "unlocked": "Unlocked",
+    "openProject": "Open project",
+    "category": "Category",
+    "note": "Note"
+  },
+  "Billing": {
+    "title": "Subscription and usage",
+    "hypothesis": "Pricing under test — paid subscriptions are not open yet.",
+    "perMonth": "/month",
+    "currentPlan": "Current plan",
+    "soon": "Coming soon",
+    "earlyAccess": "Early access",
+    "onQuote": "Custom quote",
+    "notPurchasable": "Not purchasable yet",
+    "consumptionTitle": "Your credits",
+    "balance": "Available balance",
+    "monthUsed": "Used this month",
+    "howItWorks": "1 credit = 1 page processed per action (OCR reading, translation or cleaning). Credits are charged only after a successful job.",
+    "historyTitle": "Usage history",
+    "historyEmpty": "No operation recorded yet.",
+    "creditsUnit": "credits",
+    "free": "Free",
+    "creator": "Creator",
+    "team": "Team",
+    "studio": "Studio",
+    "freeDesc": "To discover Taurge and try the localization flow on a small project.",
+    "creatorDesc": "For independent translators who work regularly.",
+    "teamDesc": "For a small translation team. Billed per workspace.",
+    "studioDesc": "For studios with larger volumes and support needs.",
+    "features": "Features",
+    "types": {
+      "ocr": "OCR reading",
+      "translate": "Translation",
+      "clean": "Cleaning",
+      "batch": "Batch processing",
+      "recharge": "Top-up (test mode)",
+      "other": "Operation"
+    },
+    "plans": {
+      "free": [
+        "1 active project",
+        "Up to 20 OCR pages per month",
+        "Up to 10,000 translated characters per month",
+        "50 MB storage",
+        "Glossary limited to 30 entries",
+        "ZIP, CBZ or PDF export"
+      ],
+      "creator": [
+        "Up to 5 active projects",
+        "Up to 200 OCR pages per month",
+        "Up to 100,000 translated characters per month",
+        "2 GB storage",
+        "Per-project glossary",
+        "ZIP, CBZ or PDF export",
+        "Usage history"
+      ],
+      "team": [
+        "Up to 3 members included (per project)",
+        "Up to 10 active projects",
+        "Up to 600 OCR pages per month for the workspace",
+        "Up to 300,000 translated characters per month",
+        "10 GB shared storage",
+        "Per-project roles (owner, translator, proofreader…)"
+      ],
+      "studio": [
+        "Quotas and storage defined by your needs",
+        "Multi-project organization",
+        "Terms and integrations discussed before subscribing"
+      ]
+    },
+    "fromPrice": "from ",
+    "compareTitle": "Compare quotas",
+    "compareNote": "Price per workspace, per month. Quotas renew every month. These are pricing hypotheses: they are not enforced automatically yet — only the credit meter below applies today.",
+    "quotasNotEnforced": "Indicative quotas, not enforced automatically yet.",
+    "colFeature": "Limit",
+    "rows": {
+      "projects": "Active projects",
+      "ocr": "OCR pages / month",
+      "chars": "Translated characters / month",
+      "storage": "Storage",
+      "glossary": "Glossary",
+      "members": "Members included",
+      "export": "Export",
+      "history": "Usage history"
+    },
+    "quotas": {
+      "free": {
+        "projects": "1",
+        "ocr": "20",
+        "chars": "10,000",
+        "storage": "50 MB",
+        "glossary": "30 entries",
+        "members": "1",
+        "export": "ZIP, CBZ, PDF",
+        "history": "No"
+      },
+      "creator": {
+        "projects": "5",
+        "ocr": "200",
+        "chars": "100,000",
+        "storage": "2 GB",
+        "glossary": "Per project",
+        "members": "1",
+        "export": "ZIP, CBZ, PDF",
+        "history": "Yes"
+      },
+      "team": {
+        "projects": "10",
+        "ocr": "600 (workspace)",
+        "chars": "300,000",
+        "storage": "10 GB shared",
+        "glossary": "Per project",
+        "members": "3",
+        "export": "ZIP, CBZ, PDF",
+        "history": "Yes"
+      },
+      "studio": {
+        "projects": "Custom quote",
+        "ocr": "Custom quote",
+        "chars": "Custom quote",
+        "storage": "Custom quote",
+        "glossary": "Custom quote",
+        "members": "Custom quote",
+        "export": "ZIP, CBZ, PDF",
+        "history": "Custom quote"
+      }
+    }
+  },
+  "EditorTabs": {
+    "pages": "Pages",
+    "page": "Page",
+    "text": "Text"
+  },
+  "Editor": {
+    "studio": "Page studio",
+    "glossary": "Glossary",
+    "team": "Team & roles",
+    "projects": "Projects",
+    "bubbles": "Bubbles",
+    "reviewed": "reviewed",
+    "selected": "Bubble {n} selected",
+    "selectedHint": "Edit the source text or translation below, then save.",
+    "noSelection": "Select a bubble to edit its text.",
+    "emptyTitle": "No text detected yet.",
+    "emptyBody": "Run OCR on this page: each detected bubble will appear here with its text, ready to translate.",
+    "ocrRunning": "OCR reading in progress…",
+    "translateRunning": "Translation in progress…",
+    "cleanRunning": "Cleaning in progress…",
+    "working": "Processing…",
+    "ocrDone": "OCR done — check each bubble.",
+    "notTranslated": "Not translated yet",
+    "translatePageHint": "Translate the page to edit this bubble's translation.",
+    "original": "Original",
+    "translation": "Translation",
+    "retranslate": "Retranslate",
+    "save": "Save",
+    "cancel": "Cancel",
+    "skipBubble": "Skip bubble",
+    "lowConfidence": "Uncertain reading: check the original text before translating.",
+    "retranslateHint": "Original modified: remember to retranslate after saving.",
+    "reviewedBadge": "Reviewed",
+    "confidence": "OCR confidence",
+    "retry": "Retry",
+    "backToProjects": "Back to projects",
+    "projectUnavailable": "Project unavailable"
+  },
+  "Credits": {
+    "title": "Out of credits",
+    "body": "This job needs credits. Pick a pack to continue — payment happens on the provider's secure page, and your credits arrive as soon as it confirms.",
+    "close": "Close",
+    "buy": "Buy",
+    "credits": "credits",
+    "provider": "Payment method",
+    "fedapay": "FedaPay — Mobile Money / card (Africa)",
+    "paddle": "Paddle — card (international)",
+    "unavailable": "Payments coming soon: no provider is configured yet.",
+    "loading": "Loading packs…",
+    "error": "Could not start the payment. Please retry.",
+    "discovery": "Discovery Pack",
+    "regular": "Regular Scanlator Pack",
+    "studio": "Studio Pack",
+    "taxIncluded": "VAT included"
+  },
+  "Legal": {
+    "privacy": "Privacy",
+    "terms": "Terms",
+    "refunds": "Refunds",
+    "cookies": "Cookies",
+    "legalNotice": "Legal notice",
+    "allRights": "All rights reserved.",
+    "cookieTitle": "Cookies and audience measurement",
+    "cookieBody": "We use cookies required for the site to work. Only with your consent, Vercel Analytics measures traffic anonymously. Refusing changes nothing to how Taurge works.",
+    "accept": "Accept",
+    "refuse": "Refuse",
+    "learnMore": "Read the cookie policy",
+    "taxIncluded": "VAT included",
+    "deleteAccount": "Delete my account and data",
+    "deleteAccountBody": "Permanent deletion: account, projects, uploaded files, glossaries, usage history and transactions. This cannot be undone.",
+    "deleteConfirmEmail": "Type your email to confirm",
+    "deleteButton": "Delete permanently",
+    "cancel": "Cancel"
+  }
+}

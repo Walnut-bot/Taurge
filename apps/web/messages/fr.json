@@ -1,0 +1,368 @@
+{
+  "Common": {
+    "appName": "Taurge",
+    "loading": "Chargement…",
+    "retry": "Réessayer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "back": "Retour"
+  },
+  "Nav": {
+    "login": "Se connecter",
+    "register": "Créer un compte",
+    "dashboard": "Mes projets",
+    "newProject": "Nouveau projet",
+    "profile": "Mon profil",
+    "settings": "Paramètres",
+    "logout": "Déconnexion",
+    "accountMenu": "Menu du compte utilisateur",
+    "userMenu": "Menu utilisateur",
+    "projectRoles": "Rôles projets",
+    "credits": "crédits",
+    "creditsTitle": "Solde de crédits de travail",
+    "refillCredits": "Recharger des crédits",
+    "refillTitle": "Recharge bientôt disponible — aucun paiement n'est encore ouvert",
+    "refillSoon": "Bientôt disponible",
+    "lightMode": "Mode clair",
+    "darkMode": "Mode sombre",
+    "light": "Clair",
+    "dark": "Sombre",
+    "home": "Taurge — accueil"
+  },
+  "Language": {
+    "label": "Langue",
+    "fr": "Français",
+    "en": "English",
+    "switchTo": "Passer l'interface en {language}"
+  },
+  "Roles": {
+    "owner": "Propriétaire",
+    "translator": "Traducteur",
+    "cleaner": "Clean",
+    "typesetter": "Lettrage",
+    "proofreader": "Relecture"
+  },
+  "Home": {
+    "metaTitle": "Taurge — De la page brute à la page traduite, bulle par bulle",
+    "tagline": "Manga · Manhwa · Manhua · Webtoon",
+    "titleStart": "De la page brute à la page traduite.",
+    "titleHighlight": "Bulle par bulle",
+    "subtitle": "Taurge fait le travail répétitif — repérer les bulles, lire le texte, brouillon de traduction, nettoyage — pour que vous gardiez la main là où ça compte : le ton, le rythme, la réplique juste.",
+    "start": "Commencer un chapitre",
+    "alreadyHaveAccount": "J'ai déjà un compte",
+    "pipelineTitle": "La chaîne de production",
+    "pipelineIntro": "Chaque étape est visible, réversible, et vous garde aux commandes avant de passer à la suivante.",
+    "steps": [
+      {
+        "title": "Import",
+        "body": "Un PDF de chapitre ou des images de pages. 50 Mo max."
+      },
+      {
+        "title": "Pages",
+        "body": "Le PDF est découpé en pages numérotées, prêtes à lire."
+      },
+      {
+        "title": "OCR",
+        "body": "Chaque bulle est localisée, son texte extrait avec un score de confiance."
+      },
+      {
+        "title": "Traduction",
+        "body": "Un premier brouillon automatique, bloc par bloc."
+      },
+      {
+        "title": "Relecture",
+        "body": "Vous corrigez l'original et la traduction, bulle par bulle."
+      },
+      {
+        "title": "Nettoyage + export",
+        "body": "Bulles effacées, ZIP prêt pour le lettrage."
+      }
+    ],
+    "featuresTitle": "Ce que fait cette version",
+    "features": [
+      "OCR japonais, coréen, chinois, anglais (Tesseract)",
+      "Traduction automatique, modifiable bloc par bloc",
+      "Nettoyage des bulles par inpainting",
+      "Export ZIP : pages nettoyées + textes en JSON"
+    ],
+    "notYetTitle": "Pas encore",
+    "notYetBody": "Le lettrage automatique, la détection des SFX dessinés et les flux d'équipe arrivent plus tard. Taurge prépare la page ; le lettrage final reste dans votre outil habituel.",
+    "footerTagline": "Pensé pour les traducteurs, pas pour les remplacer."
+  },
+  "Dashboard": {
+    "metaTitle": "Mes projets",
+    "studio": "Studio",
+    "title": "Vos projets",
+    "newProject": "Nouveau projet",
+    "emptyTitle": "Aucun projet pour le moment",
+    "emptyBody": "Un projet = un chapitre, une langue source, une langue cible. Créez-en un pour importer vos premières pages.",
+    "createFirst": "Créer mon premier projet",
+    "deleteTitle": "Supprimer ce projet",
+    "confirmDelete": "Supprimer vraiment le projet « {name} » ? Cette action est irréversible.",
+    "loadingProjects": "Chargement des projets",
+    "to": "vers"
+  },
+  "Auth": {
+    "loginTitle": "Au travail",
+    "loginSubtitle": "Vos chapitres vous attendent là où vous les avez laissés.",
+    "loginSubmit": "Se connecter",
+    "registerTitle": "Ouvrez votre studio",
+    "registerSubtitle": "Un compte pour vos projets de localisation. Sans carte bancaire.",
+    "registerSubmit": "Créer le compte",
+    "noAccount": "Pas encore de compte ?",
+    "createAccount": "Créer un compte",
+    "alreadyRegistered": "Déjà inscrit ?",
+    "email": "E-mail",
+    "password": "Mot de passe",
+    "passwordHint": "8 caractères minimum.",
+    "passwordTooShort": "Le mot de passe doit contenir au moins 8 caractères.",
+    "accountCreated": "Compte créé. Connectez-vous pour commencer.",
+    "genericError": "Une erreur est survenue.",
+    "acceptTerms": "J’accepte les conditions générales d’utilisation et la politique de confidentialité.",
+    "confirmAge": "Je confirme avoir au moins 15 ans ou l’accord d’un parent ou tuteur légal.",
+    "newsletter": "Je souhaite recevoir la newsletter (optionnel, désactivable à tout moment).",
+    "consentRequired": "Veuillez accepter les CGU et confirmer votre âge pour créer un compte."
+  },
+  "NotFound": {
+    "code": "Erreur 404",
+    "title": "Page introuvable",
+    "body": "Le projet ou la ressource que vous recherchez n'existe pas ou a été déplacé.",
+    "backToProjects": "Retour aux projets"
+  },
+  "Demo": {
+    "badge": "Démo",
+    "body": "Données fictives en mémoire, OCR et traduction simulés. Définissez NEXT_PUBLIC_API_URL pour brancher votre backend FastAPI."
+  },
+  "Shell": {
+    "dashboard": "Tableau de bord",
+    "projects": "Projets",
+    "glossary": "Glossaire",
+    "billing": "Abonnement",
+    "settings": "Paramètres",
+    "newProject": "Nouveau projet",
+    "collapseSidebar": "Replier la barre latérale",
+    "expandSidebar": "Déplier la barre latérale"
+  },
+  "DashboardExtra": {
+    "rename": "Renommer",
+    "renameProject": "Renommer le projet",
+    "projectName": "Nom du projet",
+    "save": "Enregistrer",
+    "deleteProject": "Supprimer le projet",
+    "deleteConfirmTitle": "Supprimer ce projet ?",
+    "deleteConfirmBody": "« {name} » et toutes ses pages, traductions et exports seront définitivement supprimés.",
+    "confirmDelete": "Supprimer définitivement",
+    "renameError": "Impossible de renommer le projet.",
+    "openProject": "Ouvrir le projet"
+  },
+  "GlossaryPage": {
+    "title": "Glossaire",
+    "subtitle": "Entrées de glossaire de vos projets.",
+    "searchPlaceholder": "Rechercher un terme…",
+    "empty": "Aucune entrée de glossaire pour le moment.",
+    "noResult": "Aucun terme ne correspond à votre recherche.",
+    "noProjects": "Créez un projet pour constituer son glossaire.",
+    "locked": "Verrouillé",
+    "unlocked": "Non verrouillé",
+    "openProject": "Ouvrir le projet",
+    "category": "Catégorie",
+    "note": "Note"
+  },
+  "Billing": {
+    "title": "Abonnement et consommation",
+    "hypothesis": "Tarifs en cours de test — les abonnements payants ne sont pas encore ouverts.",
+    "perMonth": "/mois",
+    "currentPlan": "Formule actuelle",
+    "soon": "Bientôt disponible",
+    "earlyAccess": "Accès anticipé",
+    "onQuote": "Sur devis",
+    "notPurchasable": "Non achetable pour le moment",
+    "consumptionTitle": "Vos crédits",
+    "balance": "Solde disponible",
+    "monthUsed": "Consommés ce mois-ci",
+    "howItWorks": "1 crédit = 1 page traitée par action (lecture OCR, traduction ou nettoyage). Le débit n'a lieu qu'après un traitement réussi.",
+    "historyTitle": "Historique de consommation",
+    "historyEmpty": "Aucune opération enregistrée pour le moment.",
+    "creditsUnit": "crédits",
+    "free": "Gratuit",
+    "creator": "Creator",
+    "team": "Team",
+    "studio": "Studio",
+    "freeDesc": "Pour découvrir Taurge et tester le flux de localisation sur un petit projet.",
+    "creatorDesc": "Pour les traducteurs indépendants qui travaillent régulièrement.",
+    "teamDesc": "Pour une petite équipe de traduction. Facturation par espace de travail.",
+    "studioDesc": "Pour les studios avec des volumes importants et un accompagnement.",
+    "features": "Fonctionnalités",
+    "types": {
+      "ocr": "Lecture OCR",
+      "translate": "Traduction",
+      "clean": "Nettoyage",
+      "batch": "Traitement par lot",
+      "recharge": "Recharge (mode test)",
+      "other": "Opération"
+    },
+    "plans": {
+      "free": [
+        "1 projet actif",
+        "Jusqu'à 20 pages OCR par mois",
+        "Jusqu'à 10 000 caractères traduits par mois",
+        "50 Mo de stockage",
+        "Glossaire limité à 30 entrées",
+        "Export ZIP, CBZ ou PDF"
+      ],
+      "creator": [
+        "Jusqu'à 5 projets actifs",
+        "Jusqu'à 200 pages OCR par mois",
+        "Jusqu'à 100 000 caractères traduits par mois",
+        "2 Go de stockage",
+        "Glossaire par projet",
+        "Export ZIP, CBZ ou PDF",
+        "Historique de consommation"
+      ],
+      "team": [
+        "Jusqu'à 3 membres inclus (par projet)",
+        "Jusqu'à 10 projets actifs",
+        "Jusqu'à 600 pages OCR par mois pour l'espace de travail",
+        "Jusqu'à 300 000 caractères traduits par mois",
+        "10 Go de stockage partagé",
+        "Rôles par projet (propriétaire, traducteur, relecture…)"
+      ],
+      "studio": [
+        "Quotas et stockage définis selon les besoins",
+        "Organisation de plusieurs projets",
+        "Conditions et intégrations discutées avant souscription"
+      ]
+    },
+    "fromPrice": "dès ",
+    "compareTitle": "Comparer les quotas",
+    "compareNote": "Prix par espace de travail, par mois. Les quotas se renouvellent chaque mois. Ce sont des hypothèses de tarification : elles ne sont pas encore appliquées automatiquement — seul le compteur de crédits ci-dessous s'applique aujourd'hui.",
+    "quotasNotEnforced": "Quotas indicatifs, pas encore appliqués automatiquement.",
+    "colFeature": "Limite",
+    "rows": {
+      "projects": "Projets actifs",
+      "ocr": "Pages OCR / mois",
+      "chars": "Caractères traduits / mois",
+      "storage": "Stockage",
+      "glossary": "Glossaire",
+      "members": "Membres inclus",
+      "export": "Export",
+      "history": "Historique de consommation"
+    },
+    "quotas": {
+      "free": {
+        "projects": "1",
+        "ocr": "20",
+        "chars": "10 000",
+        "storage": "50 Mo",
+        "glossary": "30 entrées",
+        "members": "1",
+        "export": "ZIP, CBZ, PDF",
+        "history": "Non"
+      },
+      "creator": {
+        "projects": "5",
+        "ocr": "200",
+        "chars": "100 000",
+        "storage": "2 Go",
+        "glossary": "Par projet",
+        "members": "1",
+        "export": "ZIP, CBZ, PDF",
+        "history": "Oui"
+      },
+      "team": {
+        "projects": "10",
+        "ocr": "600 (espace de travail)",
+        "chars": "300 000",
+        "storage": "10 Go partagés",
+        "glossary": "Par projet",
+        "members": "3",
+        "export": "ZIP, CBZ, PDF",
+        "history": "Oui"
+      },
+      "studio": {
+        "projects": "Sur devis",
+        "ocr": "Sur devis",
+        "chars": "Sur devis",
+        "storage": "Sur devis",
+        "glossary": "Sur devis",
+        "members": "Sur devis",
+        "export": "ZIP, CBZ, PDF",
+        "history": "Sur devis"
+      }
+    }
+  },
+  "EditorTabs": {
+    "pages": "Pages",
+    "page": "Page",
+    "text": "Texte"
+  },
+  "Editor": {
+    "studio": "Studio de page",
+    "glossary": "Glossaire",
+    "team": "Équipe et rôles",
+    "projects": "Projets",
+    "bubbles": "Bulles",
+    "reviewed": "relues",
+    "selected": "Bulle {n} sélectionnée",
+    "selectedHint": "Modifiez le texte source ou la traduction ci-dessous, puis enregistrez.",
+    "noSelection": "Sélectionnez une bulle pour modifier son texte.",
+    "emptyTitle": "Aucun texte détecté pour le moment.",
+    "emptyBody": "Lancez l'OCR sur cette page : chaque bulle détectée apparaîtra ici avec son texte, prête à traduire.",
+    "ocrRunning": "Lecture OCR en cours…",
+    "translateRunning": "Traduction en cours…",
+    "cleanRunning": "Nettoyage en cours…",
+    "working": "Traitement en cours…",
+    "ocrDone": "OCR terminé — vérifiez chaque bulle.",
+    "notTranslated": "Pas encore traduit",
+    "translatePageHint": "Traduisez la page pour modifier la traduction de cette bulle.",
+    "original": "Original",
+    "translation": "Traduction",
+    "retranslate": "Retraduire",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "skipBubble": "Ignorer cette bulle",
+    "lowConfidence": "Lecture incertaine : vérifiez le texte original avant de traduire.",
+    "retranslateHint": "Original modifié : pensez à retraduire après l'enregistrement.",
+    "reviewedBadge": "Relue",
+    "confidence": "Confiance OCR",
+    "retry": "Réessayer",
+    "backToProjects": "Retour aux projets",
+    "projectUnavailable": "Projet indisponible"
+  },
+  "Credits": {
+    "title": "Crédits épuisés",
+    "body": "Ce traitement demande des crédits. Choisissez un pack pour continuer — le paiement se fait sur la page sécurisée de la passerelle, et vos crédits arrivent dès sa confirmation.",
+    "close": "Fermer",
+    "buy": "Acheter",
+    "credits": "crédits",
+    "provider": "Moyen de paiement",
+    "fedapay": "FedaPay — Mobile Money / carte (Afrique)",
+    "paddle": "Paddle — carte (international)",
+    "unavailable": "Paiement bientôt disponible : aucune passerelle n'est encore configurée.",
+    "loading": "Chargement des packs…",
+    "error": "Impossible de préparer le paiement. Réessayez.",
+    "discovery": "Pack Découverte",
+    "regular": "Pack Scanlateur Régulier",
+    "studio": "Pack Studio",
+    "taxIncluded": "TVA incluse"
+  },
+  "Legal": {
+    "privacy": "Confidentialité",
+    "terms": "CGU",
+    "refunds": "Remboursements",
+    "cookies": "Cookies",
+    "legalNotice": "Mentions légales",
+    "allRights": "Tous droits réservés.",
+    "cookieTitle": "Cookies et mesure d’audience",
+    "cookieBody": "Nous utilisons des cookies nécessaires au fonctionnement. Avec votre accord seulement, Vercel Analytics mesure la fréquentation de façon anonymisée. Refuser ne change rien à l’utilisation de Taurge.",
+    "accept": "Accepter",
+    "refuse": "Refuser",
+    "learnMore": "Lire la politique cookies",
+    "taxIncluded": "TVA incluse",
+    "deleteAccount": "Supprimer mon compte et mes données",
+    "deleteAccountBody": "Suppression définitive : compte, projets, fichiers importés, glossaires, historique de consommation et transactions. Cette action est irréversible.",
+    "deleteConfirmEmail": "Retapez votre e-mail pour confirmer",
+    "deleteButton": "Supprimer définitivement",
+    "cancel": "Annuler"
+  }
+}

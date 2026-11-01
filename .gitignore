@@ -1,0 +1,27 @@
+# Python
+.venv/
+venv/
+ENV/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.db
+*.db-journal
+.env
+
+# Node
+node_modules/
+.next/
+*.tsbuildinfo
+.env.local
+dist/
+
+# OS
+.DS_Store
+
+# Taurge runtime data (uploads, pages rendues, exports)
+storage_data/
+
+# Modèle LaMa (198 Mo > limite GitHub de 100 Mo/fichier, jamais activé
+# en production : le code gère son absence proprement)
+*.onnx

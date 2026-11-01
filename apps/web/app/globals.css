@@ -1,0 +1,174 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-comic: var(--font-comic-neue), cursive, sans-serif;
+  --font-bangers: var(--font-bangers), cursive, impact, sans-serif;
+  --font-cinzel: var(--font-cinzel), serif;
+  --font-marker: var(--font-permanent-marker), cursive, sans-serif;
+
+  --color-paper: var(--paper);
+  --color-sheet: var(--sheet);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-hairline: var(--hairline);
+  --color-seal: var(--seal);
+  --color-seal-ink: var(--seal-ink);
+  --color-seal-wash: var(--seal-wash);
+  --color-ok: var(--ok);
+  --color-ok-wash: var(--ok-wash);
+  --color-caution: var(--caution);
+  --color-caution-wash: var(--caution-wash);
+  --color-danger: var(--danger);
+  --color-danger-wash: var(--danger-wash);
+
+  --color-background: var(--paper);
+  --color-foreground: var(--ink);
+}
+
+:root {
+  color-scheme: light;
+  --paper: oklch(0.962 0.013 84);
+  --sheet: oklch(0.988 0.007 84);
+  --ink: oklch(0.205 0.012 60);
+  --ink-soft: oklch(0.47 0.016 62);
+  --hairline: oklch(0.86 0.016 80);
+  /* Légèrement assombri : texte seal sur paper ≥ 4.5:1 (WCAG AA) */
+  --seal: oklch(0.55 0.195 31);
+  --seal-ink: oklch(0.985 0.01 84);
+  --seal-wash: oklch(0.93 0.045 40);
+  --ok: oklch(0.47 0.09 155);
+  --ok-wash: oklch(0.93 0.035 155);
+  --caution: oklch(0.52 0.11 70);
+  --caution-wash: oklch(0.94 0.05 85);
+  --danger: oklch(0.5 0.19 27);
+  --danger-wash: oklch(0.94 0.04 27);
+  --tone-dot: oklch(0.205 0.012 60 / 0.14);
+  --font-bangers: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
+  --font-cinzel: Georgia, 'Times New Roman', serif;
+  --font-comic-neue: 'Comic Sans MS', 'Trebuchet MS', sans-serif;
+  --font-permanent-marker: 'Comic Sans MS', 'Segoe Print', cursive;
+}
+
+/* ─── Mode Sombre ───────────────────────────────────────────── */
+.dark {
+  color-scheme: dark;
+  --paper: oklch(0.16 0.012 60);
+  --sheet: oklch(0.20 0.013 62);
+  --ink: oklch(0.92 0.008 80);
+  --ink-soft: oklch(0.62 0.012 70);
+  --hairline: oklch(0.30 0.014 65);
+  --seal: oklch(0.62 0.195 31);
+  /* Texte sombre sur fond seal : contraste WCAG AA ≥ 4.5:1 en mode sombre */
+  --seal-ink: oklch(0.16 0.012 60);
+  --seal-wash: oklch(0.24 0.045 35);
+  --ok: oklch(0.58 0.09 155);
+  --ok-wash: oklch(0.22 0.04 155);
+  --caution: oklch(0.65 0.11 70);
+  --caution-wash: oklch(0.24 0.05 75);
+  --danger: oklch(0.62 0.19 27);
+  --danger-wash: oklch(0.22 0.05 27);
+  --tone-dot: oklch(0.92 0.008 80 / 0.10);
+}
+
+/* Specialized manhwa scanlation styles */
+.font-manhwa-dialogue {
+  font-family: var(--font-comic);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.font-manhwa-scream {
+  font-family: var(--font-bangers);
+  letter-spacing: 0.06em;
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+
+.font-manhwa-system {
+  font-family: var(--font-cinzel);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.font-manhwa-thought {
+  font-family: var(--font-comic);
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.font-manhwa-sfx {
+  font-family: var(--font-marker);
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+/* Secret scanlation rule: the outline goes UNDER the fill */
+.scanlation-stroke {
+  paint-order: stroke fill;
+  -webkit-text-stroke-position: outside;
+}
+
+@utility tone {
+  background-image: radial-gradient(var(--tone-dot) 1px, transparent 1.2px);
+  background-size: 7px 7px;
+}
+
+@utility panel {
+  border: 1.5px solid var(--ink);
+  background: var(--sheet);
+}
+
+@utility label-mono {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ─── Studio grid (collapsible side panels) ─── */
+@media (min-width: 1024px) {
+  .atelier-grid {
+    grid-template-columns: var(--atelier-left, 15rem) minmax(0, 1fr) var(--atelier-right, 23rem);
+  }
+}
+
+/* ─── Taurge scrollbar ─── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--seal) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--seal);
+  border: 2px solid var(--paper);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
