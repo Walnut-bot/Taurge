@@ -13,6 +13,7 @@ from app.models.cleaned_page import CleanedPage
 from app.models.page import Page
 from app.models.project import Project
 from app.models.user import User
+from app.projects.access import user_has_project_access
 from app.storage.dependencies import get_storage_provider
 from app.storage.provider import StorageProvider
 
@@ -78,9 +79,9 @@ def get_page_image(
             status_code=status.HTTP_404_NOT_FOUND, detail="Page introuvable."
         )
     project = session.get(Project, page.project_id)
-    if not project or project.owner_id != current_user.id:
+    if not user_has_project_access(session, project, current_user.id):
         # Toujours 404, jamais 403 : on ne révèle pas qu'une page
-        # appartenant à quelqu'un d'autre existe.
+        # appartenant à une autre équipe existe.
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Page introuvable."
         )
@@ -111,7 +112,7 @@ def get_cleaned_page_image(
             status_code=status.HTTP_404_NOT_FOUND, detail="Page introuvable."
         )
     project = session.get(Project, page.project_id)
-    if not project or project.owner_id != current_user.id:
+    if not user_has_project_access(session, project, current_user.id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Page introuvable."
         )

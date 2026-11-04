@@ -10,6 +10,7 @@ from app.core.db import get_session
 from app.models.glossary import GlossaryEntry
 from app.models.project import Project
 from app.models.user import User
+from app.projects.access import get_accessible_project
 
 router = APIRouter(prefix="/projects/{project_id}/glossary", tags=["glossary"])
 
@@ -33,12 +34,7 @@ class GlossaryEntryResponse(BaseModel):
 
 
 def _get_project(project_id: uuid.UUID, user: User, session: Session) -> Project:
-    project = session.get(Project, project_id)
-    if not project or project.owner_id != user.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Projet introuvable."
-        )
-    return project
+    return get_accessible_project(session, project_id, user.id)
 
 
 @router.get("", response_model=list[GlossaryEntryResponse])

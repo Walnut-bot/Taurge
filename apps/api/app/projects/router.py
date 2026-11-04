@@ -278,6 +278,13 @@ def delete_project(
     session: Session = Depends(get_session),
 ):
     project = _get_owned_project(project_id, current_user, session)
+    if project.owner_id != current_user.id:
+        # Même garde que le renommage : un membre invité peut travailler
+        # sur le projet, pas le supprimer.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Action réservée au propriétaire.",
+        )
     session.delete(project)
     session.commit()
     return None

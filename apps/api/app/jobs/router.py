@@ -23,6 +23,7 @@ from app.models.subscription import ProjectMember
 from app.models.translation import Translation
 from app.models.user import User
 from app.ocr.dependencies import get_ocr_provider
+from app.projects.access import user_has_project_access
 from app.projects.cleaning import clean_image
 from app.projects.extraction import RENDER_DPI, extract_pages_from_image
 from app.storage.dependencies import get_storage_provider
@@ -326,7 +327,7 @@ def start_batch_job(
 ):
     """Démarre le traitement global du chapitre en tâche d'arrière-plan sans timeout."""
     project = session.get(Project, project_id)
-    if not project or project.owner_id != current_user.id:
+    if not user_has_project_access(session, project, current_user.id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Projet introuvable.")
 
     job = Job(
@@ -422,7 +423,12 @@ def get_job_status(
 ):
     """Retourne l'état courant et l'avancement d'une tâche."""
     job = session.get(Job, job_id)
-    if not job or job.user_id != current_user.id:
+    if not job or (
+        job.user_id != current_user.id
+        and not user_has_project_access(
+            session, session.get(Project, job.project_id), current_user.id
+        )
+    ):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tâche introuvable.")
 
     return {
@@ -446,7 +452,12 @@ def cancel_job(
 ):
     """Arrête immédiatement l'exécution d'une tâche en cours."""
     job = session.get(Job, job_id)
-    if not job or job.user_id != current_user.id:
+    if not job or (
+        job.user_id != current_user.id
+        and not user_has_project_access(
+            session, session.get(Project, job.project_id), current_user.id
+        )
+    ):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tâche introuvable.")
 
     job.status = "cancelled"

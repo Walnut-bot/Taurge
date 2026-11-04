@@ -10,6 +10,7 @@ from app.core.db import get_session
 from app.models.export import Export
 from app.models.project import Project
 from app.models.user import User
+from app.projects.access import user_has_project_access
 from app.storage.dependencies import get_storage_provider
 from app.storage.provider import StorageProvider
 
@@ -36,7 +37,7 @@ def download_export(
             status_code=status.HTTP_404_NOT_FOUND, detail="Export introuvable."
         )
     project = session.get(Project, export.project_id)
-    if not project or project.owner_id != current_user.id:
+    if not user_has_project_access(session, project, current_user.id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Export introuvable."
         )

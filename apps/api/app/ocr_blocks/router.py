@@ -19,6 +19,7 @@ from app.models.page import Page
 from app.models.project import Project
 from app.models.translation import Translation
 from app.models.user import User
+from app.projects.access import user_has_project_access
 from app.projects.schemas import OCRBlockResponse, TranslationResponse
 from app.ocr.dependencies import get_ocr_provider
 from app.ocr.provider import OCRProvider
@@ -74,7 +75,7 @@ async def create_ocr_block(
     if not page:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Page introuvable.")
     project = session.get(Project, page.project_id)
-    if not project or project.owner_id != current_user.id:
+    if not user_has_project_access(session, project, current_user.id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Projet introuvable.")
 
     extracted_text = (payload.text or "").strip()
@@ -135,11 +136,11 @@ async def create_ocr_block(
     return OCRBlockResponse(**block.model_dump(mode="json"), translation=tr_response)
 
 
-def _get_owned_block(block_id: uuid.UUID, current_user: User, session: Session) -> tuple[OCRBlock, Project]:
+def _get_accessible_block(block_id: uuid.UUID, current_user: User, session: Session) -> tuple[OCRBlock, Project]:
     block = session.get(OCRBlock, block_id)
     page = session.get(Page, block.page_id) if block else None
     project = session.get(Project, page.project_id) if page else None
-    if not block or not page or not project or project.owner_id != current_user.id:
+    if not block or not page or not user_has_project_access(session, project, current_user.id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bloc introuvable.")
     return block, project
 
@@ -151,7 +152,7 @@ def update_ocr_block(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
-    block, _ = _get_owned_block(block_id, current_user, session)
+    block, _ = _get_accessible_block(block_id, current_user, session)
     if payload.text is not None:
         block.text = payload.text
     if payload.bbox_x is not None:
@@ -194,7 +195,7 @@ async def retranslate_block(
     session: Session = Depends(get_session),
     translator: TranslationProvider = Depends(get_translation_provider),
 ):
-    block, project = _get_owned_block(block_id, current_user, session)
+    block, project = _get_accessible_block(block_id, current_user, session)
     ensure_credits(current_user.id, CREDIT_COSTS["translate"], session)
     try:
         translated_text = await translator.translate(block.text, project.source_lang, project.target_lang)
@@ -222,7 +223,7 @@ def delete_ocr_block(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
-    block, _ = _get_owned_block(block_id, current_user, session)
+    block, _ = _get_accessible_block(block_id, current_user, session)
     session.exec(sql_delete(Translation).where(Translation.ocr_block_id == block.id))
     session.delete(block)
     session.commit()

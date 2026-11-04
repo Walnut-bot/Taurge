@@ -12,6 +12,7 @@ from app.models.page import Page
 from app.models.project import Project
 from app.models.translation import Translation
 from app.models.user import User
+from app.projects.access import user_has_project_access
 from app.projects.schemas import TranslationResponse
 
 router = APIRouter(prefix="/translations", tags=["translations"])
@@ -35,7 +36,7 @@ def update_translation(
     page = session.get(Page, block.page_id) if block else None
     project = session.get(Project, page.project_id) if page else None
 
-    if not translation or not project or project.owner_id != current_user.id:
+    if not translation or not user_has_project_access(session, project, current_user.id):
         # Toujours 404, jamais 403 : on ne révèle pas qu'une traduction
         # appartenant à quelqu'un d'autre existe.
         raise HTTPException(

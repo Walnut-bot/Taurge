@@ -15,3 +15,4 @@ _db_path = Path(tempfile.mkdtemp(prefix="taurge-tests-")) / "test.db"
 os.environ["DATABASE_URL"] = f"sqlite:///{_db_path.as_posix()}"
 os.environ["ENVIRONMENT"] = "development"
 os.environ["SECRET_KEY"] = "test-secret-key"
+os.environ["STORAGE_PATH"] = str(Path(tempfile.mkdtemp(prefix="taurge-storage-")))
