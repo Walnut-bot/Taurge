@@ -24,6 +24,7 @@ export function DashboardView() {
   const [renameError, setRenameError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
 
   const deletingProject = projects?.find((p) => p.id === deletingId)
@@ -54,10 +55,16 @@ export function DashboardView() {
   async function confirmDelete() {
     if (!deletingId) return
     setDeleting(true)
+    setDeleteError(null)
     try {
       await api.deleteProject(deletingId)
       setDeletingId(null)
       await mutate()
+    } catch (err) {
+      // Sans ce catch, un échec serveur laissait la modale ouverte
+      // sans aucun message : l'utilisateur croyait que la demande
+      // n'était même pas partie.
+      setDeleteError(err instanceof Error ? err.message : tExtra('deleteError'))
     } finally {
       setDeleting(false)
     }
@@ -157,6 +164,7 @@ export function DashboardView() {
                     onClick={(e) => {
                       e.preventDefault()
                       e.stopPropagation()
+                      setDeleteError(null)
                       setDeletingId(p.id)
                     }}
                   >
@@ -229,6 +237,11 @@ export function DashboardView() {
             <p id="delete-body" className="mt-3 text-sm leading-relaxed text-ink-soft">
               {tExtra('deleteConfirmBody', { name: deletingProject.name })}
             </p>
+            {deleteError && (
+              <p role="alert" className="mt-3 text-sm text-danger">
+                {tExtra('deleteError')} {deleteError}
+              </p>
+            )}
             <div className="mt-6 flex justify-end gap-2">
               <Button variant="outline" onClick={() => setDeletingId(null)}>
                 {tCommon('cancel')}

@@ -153,6 +153,7 @@
     "deleteConfirmBody": "“{name}” and all its pages, translations and exports will be permanently deleted.",
     "confirmDelete": "Delete permanently",
     "renameError": "Could not rename the project.",
+    "deleteError": "Could not delete the project.",
     "openProject": "Open project"
   },
   "GlossaryPage": {

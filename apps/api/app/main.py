@@ -10,7 +10,7 @@ from app.billing.router import router as billing_router
 from app.billing.payment_webhooks import router as payment_webhooks_router
 from app.billing.payments_router import router as payments_router
 from app.exports.router import router as exports_router
-from app.jobs.router import router as jobs_router
+from app.jobs.router import fail_orphaned_jobs, router as jobs_router
 from app.ocr_blocks.router import router as ocr_blocks_router
 from app.pages.router import router as pages_router
 from app.projects.router import router as projects_router
@@ -77,6 +77,15 @@ async def localized_http_exception_handler(
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
+    # Après un crash (OOM…), les jobs pending/running sont orphelins :
+    # les marquer échoués évite un suivi client sans fin.
+    recovered = fail_orphaned_jobs()
+    if recovered:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "%s job(s) orphelin(s) marqué(s) comme échoués au démarrage.", recovered
+        )
 
 
 app.include_router(auth_router)

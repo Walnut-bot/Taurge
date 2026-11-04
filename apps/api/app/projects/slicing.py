@@ -70,11 +70,15 @@ def find_best_cut_point(
     return search_start + best_local_idx
 
 
-def slice_webtoon_image(content: bytes) -> list[tuple[bytes, int, int]]:
-    """Découpe une image webtoon géante en plusieurs tranches de hauteur raisonnable.
-    
-    Retourne une liste de tuples : (png_bytes, width, height)
-    Si l'image n'est pas une bande webtoon, retourne une liste avec l'image unique.
+def iter_webtoon_slices(content: bytes):
+    """Produit les tranches une par une : (png_bytes, width, height).
+
+    L'image décodée complète doit vivre en mémoire (on y découpe),
+    mais ni la copie niveaux de gris après le calcul des coupes, ni
+    l'ensemble des tranches encodées ne sont conservés : chaque PNG
+    est émis puis libéré. Sur une bande de 25 000 px, la version liste
+    gardait toutes les pages encodées en RAM en plus de l'image —
+    de quoi dépasser un plafond mémoire de 512 Mo.
     """
     # Décodage OpenCV
     nparr = np.frombuffer(content, np.uint8)
@@ -89,7 +93,8 @@ def slice_webtoon_image(content: bytes) -> list[tuple[bytes, int, int]]:
     # Si ce n'est pas un webtoon géant, on conserve l'image telle quelle
     if not is_webtoon_strip(width, height):
         success, encoded = cv2.imencode(".png", image)
-        return [(encoded.tobytes() if success else content, width, height)]
+        yield (encoded.tobytes() if success else content, width, height)
+        return
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
@@ -109,12 +114,13 @@ def slice_webtoon_image(content: bytes) -> list[tuple[bytes, int, int]]:
     # Dernier point de coupe = fin de l'image
     cut_points.append(height)
 
-    slices: list[tuple[bytes, int, int]] = []
+    # Les coupes sont connues : la copie niveaux de gris ne sert plus.
+    del gray
 
     for i in range(len(cut_points) - 1):
         y0 = cut_points[i]
         y1 = cut_points[i + 1]
-        
+
         # Ignorer les tranches minuscules aberrantes
         if y1 - y0 < 100:
             continue
@@ -124,6 +130,16 @@ def slice_webtoon_image(content: bytes) -> list[tuple[bytes, int, int]]:
 
         success, encoded = cv2.imencode(".png", slice_bgr)
         if success:
-            slices.append((encoded.tobytes(), slice_w, slice_h))
+            yield (encoded.tobytes(), slice_w, slice_h)
 
-    return slices
+
+def slice_webtoon_image(content: bytes) -> list[tuple[bytes, int, int]]:
+    """Découpe une image webtoon géante en plusieurs tranches de hauteur raisonnable.
+
+    Retourne une liste de tuples : (png_bytes, width, height)
+    Si l'image n'est pas une bande webtoon, retourne une liste avec l'image unique.
+
+    Conservé pour compatibilité ; préférer `iter_webtoon_slices` dès
+    que les tranches peuvent être écrites au fil de l'eau (mémoire).
+    """
+    return list(iter_webtoon_slices(content))

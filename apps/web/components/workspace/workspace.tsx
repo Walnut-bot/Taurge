@@ -70,9 +70,16 @@ export function Workspace({ projectId }: { projectId: string }) {
   useEffect(() => {
     if (!activeJobId) return
 
+    // Au-delà de 10 échecs d'affilée (~40 s), le serveur est très
+    // probablement mort (crash/redémarrage) : on arrête de boucler
+    // au lieu d'afficher « Retrying… » indéfiniment. Au redémarrage,
+    // le backend marque de toute façon ces jobs comme échoués.
+    let consecutiveFailures = 0
+
     async function checkStatus() {
       try {
         const job = await api.getJobStatus(activeJobId!)
+        consecutiveFailures = 0
         setJobProgress({
           percent: job.progress_percent,
           message: job.message,
@@ -96,6 +103,17 @@ export function Workspace({ projectId }: { projectId: string }) {
           pollTimerRef.current = setTimeout(checkStatus, 1500)
         }
       } catch {
+        consecutiveFailures += 1
+        if (consecutiveFailures >= 10) {
+          setActiveJobId(null)
+          setJobProgress(null)
+          setBusy(null)
+          setNotice({
+            tone: 'error',
+            text: 'Connection lost while tracking. The server may have restarted — check the project, then retry.',
+          })
+          return
+        }
         setNotice({ tone: 'error', text: 'Connection lost while tracking. Retrying…' })
         pollTimerRef.current = setTimeout(checkStatus, 4000)
       }

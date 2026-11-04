@@ -25,10 +25,12 @@ from app.models.project import Project
 from app.models.source_file import SourceFile
 from app.models.user import User
 from app.models.glossary import GlossaryEntry
+from app.models.job import Job
 from app.ocr.dependencies import get_ocr_provider
 from app.ocr.provider import OCRProvider
 from app.projects.cleaning import clean_image
-from app.projects.extraction import extract_pages_from_pdf, get_image_dimensions, extract_pages_from_image
+from app.projects.extraction import get_image_dimensions, iter_pages_from_image, iter_pages_from_pdf
+from app.projects.slicing import is_webtoon_strip
 from app.projects.file_validation import detect_file_type
 from app.projects.typesetting import render_text_in_bubble
 from app.projects.schemas import (
@@ -271,6 +273,64 @@ def reorder_project_pages(
     return {"page_ids": [str(page_id) for page_id in payload.page_ids]}
 
 
+def _delete_project_cascade(
+    project: Project, session: Session, storage: StorageProvider
+) -> None:
+    """Supprime tout ce qui rattache le projet à la base et au disque.
+
+    Sans ça, `session.delete(project)` seul échoue sur PostgreSQL
+    (violation de clé étrangère dès qu'il existe des pages) et laisse
+    des fichiers orphelins. Les fichiers sont supprimés au mieux :
+    le provider local ignore déjà les clés absentes.
+    """
+    pages = session.exec(select(Page).where(Page.project_id == project.id)).all()
+    page_ids = [page.id for page in pages]
+    blocks = (
+        session.exec(select(OCRBlock).where(OCRBlock.page_id.in_(page_ids))).all()
+        if page_ids
+        else []
+    )
+    block_ids = [block.id for block in blocks]
+    if block_ids:
+        for translation in session.exec(
+            select(Translation).where(Translation.ocr_block_id.in_(block_ids))
+        ).all():
+            session.delete(translation)
+    for block in blocks:
+        session.delete(block)
+    if page_ids:
+        for cleaned in session.exec(
+            select(CleanedPage).where(CleanedPage.page_id.in_(page_ids))
+        ).all():
+            storage.delete(cleaned.storage_key)
+            session.delete(cleaned)
+    for page in pages:
+        # Une page image unique peut partager la clé du fichier source :
+        # la suppression est idempotente, aucun risque à passer deux fois.
+        storage.delete(page.storage_key)
+        session.delete(page)
+    for source in session.exec(
+        select(SourceFile).where(SourceFile.project_id == project.id)
+    ).all():
+        storage.delete(source.storage_key)
+        session.delete(source)
+    for entry in session.exec(
+        select(GlossaryEntry).where(GlossaryEntry.project_id == project.id)
+    ).all():
+        session.delete(entry)
+    for export in session.exec(
+        select(Export).where(Export.project_id == project.id)
+    ).all():
+        storage.delete(export.storage_key)
+        session.delete(export)
+    for job in session.exec(select(Job).where(Job.project_id == project.id)).all():
+        session.delete(job)
+    for member in session.exec(
+        select(ProjectMember).where(ProjectMember.project_id == project.id)
+    ).all():
+        session.delete(member)
+
+
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_project(
     project_id: uuid.UUID,
@@ -285,6 +345,7 @@ def delete_project(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Action réservée au propriétaire.",
         )
+    _delete_project_cascade(project, session, get_storage_provider())
     session.delete(project)
     session.commit()
     return None
@@ -383,7 +444,7 @@ def extract_pages(
 
     if source_file.file_type == "pdf":
         for index, (png_bytes, width, height) in enumerate(
-            extract_pages_from_pdf(content), start=1
+            iter_pages_from_pdf(content), start=1
         ):
             page = Page(
                 project_id=project_id,
@@ -402,8 +463,9 @@ def extract_pages(
         # Image déjà uploadée : si c'est une bande webtoon longue, on la découpe
         # intelligemment aux gouttières pour créer plusieurs pages séquentielles.
         # Sinon, on conserve la page unique.
-        slices = extract_pages_from_image(content)
-        if len(slices) > 1:
+        img_width, img_height = get_image_dimensions(content)
+        slices = iter_pages_from_image(content) if is_webtoon_strip(img_width, img_height) else None
+        if slices is not None:
             for index, (png_bytes, width, height) in enumerate(slices, start=1):
                 page = Page(
                     project_id=project_id,
@@ -419,7 +481,7 @@ def extract_pages(
                 session.add(page)
                 created_pages.append(page)
         else:
-            width, height = slices[0][1], slices[0][2]
+            width, height = img_width, img_height
             page = Page(
                 project_id=project_id,
                 source_file_id=source_file.id,

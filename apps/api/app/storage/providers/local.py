@@ -26,6 +26,11 @@ class LocalStorageProvider:
             raise ValueError("Clé de stockage invalide.")
         return full
 
+    def path_for(self, key: str) -> Path:
+        """Chemin disque d'une clé (lecture à la demande, sans tout
+        charger en RAM — utilisé pour ouvrir les gros PDF avec fitz)."""
+        return self._full_path(key)
+
     def save(self, key: str, content: bytes) -> None:
         path = self._full_path(key)
         path.parent.mkdir(parents=True, exist_ok=True)

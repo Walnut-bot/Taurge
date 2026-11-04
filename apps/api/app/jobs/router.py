@@ -25,13 +25,41 @@ from app.models.user import User
 from app.ocr.dependencies import get_ocr_provider
 from app.projects.access import user_has_project_access
 from app.projects.cleaning import clean_image
-from app.projects.extraction import RENDER_DPI, extract_pages_from_image
+from app.projects.extraction import RENDER_DPI, get_image_dimensions, iter_pages_from_image
+from app.projects.slicing import TARGET_SLICE_HEIGHT, is_webtoon_strip
 from app.storage.dependencies import get_storage_provider
 from app.translation.dependencies import get_translation_provider
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+
+
+def fail_orphaned_jobs() -> int:
+    """Marque « failed » les jobs restés pending/running en base.
+
+    Un crash du processus (typiquement l'OOM 512 Mo de l'offre gratuite
+    Render) tue les tâches d'arrière-plan sans mettre à jour leur ligne :
+    au redémarrage, elles resteraient « running » pour toujours et le
+    frontend bouclerait sur « Connection lost while tracking ». Comme
+    l'API tourne en une seule instance, tout job non terminé au
+    démarrage est forcément orphelin. Retourne leur nombre.
+    """
+    with Session(engine) as session:
+        orphaned = session.exec(
+            select(Job).where(Job.status.in_(["pending", "running"]))
+        ).all()
+        for job in orphaned:
+            job.status = "failed"
+            job.message = (
+                "Traitement interrompu (redémarrage du serveur). "
+                "Relancez l'opération."
+            )
+            job.error_message = "orphaned_after_restart"
+            job.completed_at = datetime.now(timezone.utc)
+            session.add(job)
+        session.commit()
+        return len(orphaned)
 
 
 def _set_extraction_job_progress(
@@ -88,17 +116,32 @@ def _run_extraction_in_background(job_id: uuid.UUID, file_id: uuid.UUID) -> None
             ).first():
                 raise ValueError("Ce fichier a déjà été extrait en pages.")
 
-            content = storage.read(source_file.storage_key)
             if source_file.file_type == "pdf":
+                # Ouverture depuis le disque quand le stockage est local :
+                # fitz lit le fichier a la demande au lieu de charger tout
+                # le PDF en RAM (un chapitre peut peser des dizaines de Mo,
+                # de quoi depasser un plafond memoire de 512 Mo).
+                pdf_path = (
+                    storage.path_for(source_file.storage_key)
+                    if hasattr(storage, "path_for")
+                    else None
+                )
+                document_ctx = (
+                    fitz.open(pdf_path)
+                    if pdf_path is not None
+                    else fitz.open(
+                        stream=storage.read(source_file.storage_key), filetype="pdf"
+                    )
+                )
                 zoom = RENDER_DPI / 72
                 matrix = fitz.Matrix(zoom, zoom)
-                with fitz.open(stream=content, filetype="pdf") as document:
+                with document_ctx as document:
                     total = document.page_count
                     if total == 0:
                         raise ValueError("Le PDF ne contient aucune page.")
                     _set_extraction_job_progress(
                         session, job, current=0, total=total,
-                        message=f"Extraction de {total} pages…",
+                        message=f"Extraction de {total} pages\u2026",
                     )
                     for index in range(total):
                         session.refresh(job)
@@ -119,21 +162,33 @@ def _run_extraction_in_background(job_id: uuid.UUID, file_id: uuid.UUID) -> None
                         generated_page_ids.append(page.id)
                         generated_storage_keys.append(page.storage_key)
                         storage.save(page.storage_key, pixmap.tobytes("png"))
+                        # Libere le tampon brut avant la page suivante :
+                        # seule la page en cours doit vivre en memoire.
+                        pixmap = None
+                        page_document = None
                         session.add(page)
                         _set_extraction_job_progress(
                             session, job, current=index + 1, total=total,
-                            message=f"Extraction de la page {index + 1}/{total}…",
+                            message=f"Extraction de la page {index + 1}/{total}\u2026",
                         )
             else:
-                slices = extract_pages_from_image(content)
-                total = len(slices)
-                if total == 0:
-                    raise ValueError("Aucune page n’a pu être extraite de l’image.")
+                content = storage.read(source_file.storage_key)
+                img_width, img_height = get_image_dimensions(content)
+                single_image = not is_webtoon_strip(img_width, img_height)
+                if single_image:
+                    total = 1
+                    slices_iter = iter([(content, img_width, img_height)])
+                else:
+                    # Total estime pour la progression ; les tranches
+                    # reelles sont produites et ecrites une par une.
+                    total = max(1, img_height // TARGET_SLICE_HEIGHT)
+                    slices_iter = iter_pages_from_image(content)
                 _set_extraction_job_progress(
                     session, job, current=0, total=total,
-                    message=f"Préparation de {total} page(s)…",
+                    message=f"Preparation de {total} page(s)\u2026",
                 )
-                for index, (image_bytes, width, height) in enumerate(slices, start=1):
+                created = 0
+                for index, (image_bytes, width, height) in enumerate(slices_iter, start=1):
                     session.refresh(job)
                     if job.status == "cancelled":
                         remove_partial_extraction(session)
@@ -146,7 +201,7 @@ def _run_extraction_in_background(job_id: uuid.UUID, file_id: uuid.UUID) -> None
                         width=width,
                         height=height,
                     )
-                    if total == 1:
+                    if single_image:
                         page.storage_key = source_file.storage_key
                     else:
                         page.storage_key = f"pages/{job.project_id}/{page.id}.png"
@@ -154,10 +209,14 @@ def _run_extraction_in_background(job_id: uuid.UUID, file_id: uuid.UUID) -> None
                         storage.save(page.storage_key, image_bytes)
                     generated_page_ids.append(page.id)
                     session.add(page)
+                    created = index
                     _set_extraction_job_progress(
                         session, job, current=index, total=total,
-                        message=f"Préparation de la page {index}/{total}…",
+                        message=f"Preparation de la page {index}/{total}\u2026",
                     )
+                if created == 0:
+                    raise ValueError("Aucune page n\u2019a pu etre extraite de l\u2019image.")
+                total = created
 
             session.refresh(job)
             if job.status == "cancelled":

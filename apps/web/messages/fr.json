@@ -153,6 +153,7 @@
     "deleteConfirmBody": "« {name} » et toutes ses pages, traductions et exports seront définitivement supprimés.",
     "confirmDelete": "Supprimer définitivement",
     "renameError": "Impossible de renommer le projet.",
+    "deleteError": "Impossible de supprimer le projet.",
     "openProject": "Ouvrir le projet"
   },
   "GlossaryPage": {
