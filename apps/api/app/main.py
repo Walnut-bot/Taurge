@@ -1,3 +1,5 @@
+import re
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -20,6 +22,29 @@ from app.core.db import init_db
 from app.core.i18n import get_locale, parse_accept_language, translate_detail
 
 app = FastAPI(title="Taurge API", version="0.4.0")
+
+
+class NormalizePathMiddleware:
+    """Fusionne les slashes multiples du chemin avant le routage.
+
+    Un client qui concatène une URL de base terminée par `/` avec un
+    chemin commençant par `/` envoie `//auth/register` : aucune route
+    FastAPI ne correspond, d'où un 404 « Not Found » alors que la route
+    existe. On normalise ici pour que l'API y réponde quand même.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            path = scope.get("path", "")
+            normalized = re.sub(r"/{2,}", "/", path)
+            if normalized != path:
+                scope = dict(scope)
+                scope["path"] = normalized
+                scope["raw_path"] = normalized.encode()
+        await self.app(scope, receive, send)
 
 
 class LocaleMiddleware(BaseHTTPMiddleware):
@@ -81,6 +106,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Ajouté en dernier = exécuté en premier : normalise le chemin avant
+# le préflight CORS et le routage.
+app.add_middleware(NormalizePathMiddleware)
 
 
 @app.get("/health")

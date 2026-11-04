@@ -9,7 +9,9 @@ import type {
   User,
 } from './types'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+// Normalisée sans slash final : `https://api…/` + `/auth/register`
+// produirait `//auth/register`, que FastAPI ne reconnaît pas (404).
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').trim().replace(/\/+$/, '')
 export const IS_DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === '1'
 
 const TOKEN_KEY = 'taurge_token'
