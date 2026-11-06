@@ -1,4 +1,6 @@
 from io import BytesIO
+import threading
+import time
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -17,6 +19,7 @@ from app.auth.schemas import (
     UserResponse,
 )
 from app.billing.credit_service import SIGNUP_FREE_CREDITS, get_or_create_subscription
+from app.core.config import settings
 from app.core.db import get_session
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.cleaned_page import CleanedPage
@@ -34,6 +37,21 @@ from app.models.user import User
 from app.storage.dependencies import storage_provider
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# Anti force-brute : échecs récents par email (en mémoire, l'API tourne
+# en une seule instance — même hypothèse que fail_orphaned_jobs).
+_failed_logins: dict[str, list[float]] = {}
+_failed_logins_lock = threading.Lock()
+
+
+def _recent_failed_logins(email: str) -> list[float]:
+    cutoff = time.monotonic() - settings.login_block_window_minutes * 60
+    with _failed_logins_lock:
+        recent = [t for t in _failed_logins.get(email, []) if t > cutoff]
+        _failed_logins[email] = recent
+        return recent
+
+
 MAX_PROFILE_IMAGE_BYTES = 8 * 1024 * 1024
 MAX_PROFILE_IMAGE_PIXELS = 25_000_000
 PROFILE_IMAGE_FORMATS = {
@@ -136,12 +154,22 @@ def register(payload: RegisterRequest, session: Session = Depends(get_session)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, session: Session = Depends(get_session)):
+    email = payload.email.lower()
+    if len(_recent_failed_logins(email)) >= settings.login_max_failed_attempts:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Trop de tentatives de connexion. Réessayez dans quelques minutes.",
+        )
     user = session.exec(select(User).where(User.email == payload.email)).first()
     if not user or not verify_password(payload.password, user.password_hash):
+        with _failed_logins_lock:
+            _failed_logins.setdefault(email, []).append(time.monotonic())
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email ou mot de passe incorrect.",
         )
+    with _failed_logins_lock:
+        _failed_logins.pop(email, None)
     token = create_access_token(subject=str(user.id))
     return TokenResponse(access_token=token)
 

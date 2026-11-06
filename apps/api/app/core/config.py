@@ -24,6 +24,9 @@ class Settings:
     secret_key: str = os.getenv("SECRET_KEY", "dev-secret-change-me")
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24 * 7  # 7 jours
+    # Anti force-brute sur /auth/login : échecs max par email avant blocage temporaire
+    login_max_failed_attempts: int = int(os.getenv("LOGIN_MAX_FAILED_ATTEMPTS", "5"))
+    login_block_window_minutes: int = int(os.getenv("LOGIN_BLOCK_WINDOW_MINUTES", "15"))
 
     # Stockage fichiers
     storage_path: str = os.getenv("STORAGE_PATH", "./storage_data")

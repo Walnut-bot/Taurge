@@ -1,3 +1,4 @@
+import { resolveApiUrl } from './api-url'
 import { demo } from './demo-store'
 import type {
   ExportRecord,
@@ -9,9 +10,12 @@ import type {
   User,
 } from './types'
 
-// Normalisée sans slash final : `https://api…/` + `/auth/register`
-// produirait `//auth/register`, que FastAPI ne reconnaît pas (404).
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').trim().replace(/\/+$/, '')
+// Sans NEXT_PUBLIC_API_URL, resolveApiUrl cible l'API Render en
+// production (hostname non-local) et localhost:8000 en dev local.
+const API_URL = resolveApiUrl(
+  process.env.NEXT_PUBLIC_API_URL,
+  typeof window !== 'undefined' ? window.location.hostname : null,
+)
 export const IS_DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === '1'
 
 const TOKEN_KEY = 'taurge_token'
@@ -91,7 +95,7 @@ async function request<T>(path: string, options: RequestInit & { timeoutMs?: num
     if (err?.name === 'AbortError') {
       throw new ApiError(`The server is taking too long to respond (${Math.round(timeoutMs / 1000)}s timeout exceeded).`, 408)
     }
-    throw new ApiError('Cannot reach the Taurge server. Make sure the FastAPI service is running on http://localhost:8000.', 0)
+    throw new ApiError(`Cannot reach the Taurge server at ${API_URL}. Check your connection and try again.`, 0)
   }
   if (!res.ok) {
     if (res.status === 402 && typeof window !== 'undefined') {

@@ -26,7 +26,7 @@ ASSETS_FONTS_DIR.mkdir(parents=True, exist_ok=True)
 FONTS_MANIFEST = {
     "dialogue": {
         "file": ASSETS_FONTS_DIR / "ComicNeue-Bold.ttf",
-        "url": "https://raw.githubusercontent.com/googlefonts/comic-neue/main/fonts/ttf/ComicNeue-Bold.ttf",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/comicneue/ComicNeue-Bold.ttf",
     },
     "scream": {
         "file": ASSETS_FONTS_DIR / "Bangers-Regular.ttf",
@@ -34,13 +34,16 @@ FONTS_MANIFEST = {
     },
     "system": {
         "file": ASSETS_FONTS_DIR / "Cinzel-Bold.ttf",
-        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/cinzel/static/Cinzel-Bold.ttf",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/cinzel/Cinzel%5Bwght%5D.ttf",
     },
     "sfx": {
         "file": ASSETS_FONTS_DIR / "PermanentMarker-Regular.ttf",
         "url": "https://raw.githubusercontent.com/google/fonts/main/apache/permanentmarker/PermanentMarker-Regular.ttf",
     },
 }
+
+
+_download_failed_styles: set[str] = set()
 
 
 def _ensure_font(style: str) -> str | None:
@@ -51,12 +54,16 @@ def _ensure_font(style: str) -> str | None:
     if font_path.exists():
         return str(font_path)
 
+    if style in _download_failed_styles:
+        return None
+
     try:
         logger.info("Téléchargement de la police Manhwa (%s)...", style)
         urllib.request.urlretrieve(entry["url"], str(font_path))
         logger.info("Police Manhwa installée : %s", font_path)
         return str(font_path)
     except Exception as exc:
+        _download_failed_styles.add(style)
         logger.warning("Échec téléchargement police %s: %s", style, exc)
         return None
 

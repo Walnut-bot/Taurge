@@ -103,7 +103,7 @@ app.include_router(jobs_router)
 
 app.add_middleware(LocaleMiddleware)
 
-_cors_origins = ["http://localhost:3000", "http://127.0.0.1:3000"] + [
+_cors_origins = ["http://localhost:3000", "http://127.0.0.1:3000", "https://taurge.vercel.app"] + [
     origin.strip()
     for origin in settings.cors_origins.split(",")
     if origin.strip()
@@ -111,6 +111,7 @@ _cors_origins = ["http://localhost:3000", "http://127.0.0.1:3000"] + [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
+    allow_origin_regex=r"https://taurge(-[a-z0-9-]+)?\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

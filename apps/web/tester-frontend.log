@@ -1,0 +1,44 @@
+npm notice run my-project@0.1.0 dev
+npm notice run next dev --port 3000
+▲ Next.js 16.3.3 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.100.5:3000
+✓ Ready in 23.2s
+⚠ Warning: Next.js ignored package-lock.json in C:\Users\hp because it is outside the current Git repository (C:\Users\hp\Videos\Taurge Lcm\MVP 1 Test\taurgev2.1\taurge).
+ To use this directory, set `turbopack.root` in your Next.js config.
+
+✓ Running next.config.mjs took 1669ms
+⚠ Slow filesystem detected. The benchmark took 983ms. If \\?\C:\Users\hp\Videos\Taurge Lcm\MVP 1 Test\taurgev2.1\taurge\apps\web\.next\dev is a network drive, consider moving it to a local folder.
+See more: https://nextjs.org/docs/app/guides/local-development
+○ Compiling middleware ...
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead.
+
+  To migrate automatically, run:
+  npx @next/codemod@canary middleware-to-proxy .
+
+  Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+
+○ Compiling /[locale] ...
+ GET /fr 200 in 1511ms (next.js: 264ms, proxy.ts: 69ms, generate-params: 104ms, application-code: 1073ms)
+ GET /fr 200 in 1401ms (next.js: 208ms, proxy.ts: 30ms, generate-params: 58ms, application-code: 1105ms)
+ GET /en 200 in 1167ms (next.js: 136ms, proxy.ts: 55ms, generate-params: 0.3ms, application-code: 975ms)
+○ Compiling /[locale]/login ...
+ GET /fr/login 200 in 40s (next.js: 29.4s, proxy.ts: 34ms, generate-params: 9.9s, application-code: 984ms)
+○ Compiling /[locale]/register ...
+ GET /fr/register 200 in 15.5s (next.js: 7.2s, proxy.ts: 24ms, generate-params: 7.7s, application-code: 548ms)
+○ Compiling /[locale]/dashboard ...
+ GET /fr/dashboard 200 in 17.9s (next.js: 7.7s, proxy.ts: 34ms, generate-params: 9.4s, application-code: 753ms)
+○ Compiling /[locale]/projects ...
+ GET /fr/projects 307 in 14.9s (next.js: 6.2s, proxy.ts: 27ms, generate-params: 7.5s, application-code: 1199ms)
+○ Compiling /[locale]/projects/new ...
+ GET /fr/projects/new 200 in 16.5s (next.js: 7.4s, proxy.ts: 33ms, generate-params: 8.2s, application-code: 816ms)
+○ Compiling /[locale]/billing ...
+ GET /fr/billing 200 in 16.0s (next.js: 6.6s, proxy.ts: 40ms, generate-params: 7.8s, application-code: 1518ms)
+○ Compiling /[locale]/glossary ...
+ GET /fr/glossary 200 in 18.5s (next.js: 6.9s, proxy.ts: 21ms, generate-params: 10.4s, application-code: 1180ms)
+○ Compiling /[locale]/profile ...
+ GET /fr/profile 200 in 20.3s (next.js: 11.5s, proxy.ts: 30ms, generate-params: 8.1s, application-code: 634ms)
+○ Compiling /[locale]/settings ...
+ GET /fr/settings 200 in 15.3s (next.js: 6.4s, proxy.ts: 21ms, generate-params: 8.3s, application-code: 591ms)
+○ Compiling /[locale]/legal/privacy ...
+ GET /fr/legal/privacy 200 in 16.9s (next.js: 6.5s, proxy.ts: 25ms, generate-params: 9.3s, application-code: 1026ms)

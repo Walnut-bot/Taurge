@@ -8,7 +8,8 @@ import {
 import { countryFromHeaders, detectLocale } from './i18n/detect'
 
 /**
- * Middleware i18n — détection automatique de la langue (Étape 1).
+ * Proxy i18n — détection automatique de la langue (Étape 1).
+ * (Convention `proxy` de Next 16, anciennement `middleware`.)
  *
  * Priorité de détection (voir `i18n/detect.ts`) :
  *   1. Cookie `NEXT_LOCALE` (choix manuel — jamais écrasé, Étape 3)
@@ -32,7 +33,7 @@ function withLocaleCookie(response: NextResponse, locale: Locale): NextResponse 
   return response
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Déjà préfixé par une locale supportée (/fr/…, /en/…) : on sert la page

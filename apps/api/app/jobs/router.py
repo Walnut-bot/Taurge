@@ -529,9 +529,18 @@ def cancel_job(
 @router.get("/{job_id}/stream")
 async def stream_job_progress(
     job_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
     """Flux Server-Sent Events (SSE) diffusant en direct l'avancement de la tâche."""
+    job = session.get(Job, job_id)
+    if not job or (
+        job.user_id != current_user.id
+        and not user_has_project_access(
+            session, session.get(Project, job.project_id), current_user.id
+        )
+    ):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tâche introuvable.")
     async def event_generator():
         while True:
             with Session(engine) as fresh_session:
