@@ -1,23 +1,26 @@
-// Régression : le site déployé (Vercel) ne doit jamais appeler
-// http://localhost:8000 quand NEXT_PUBLIC_API_URL est absente.
-// Lancer : node --test lib/api-url.test.mjs  (depuis apps/web)
+// Architecture : frontend Vercel + API locale sur le PC.
+// Sans configuration, le site doit appeler localhost:8000 — jamais
+// un ancien hébergeur distant. L'URL de tunnel (?api=…) mémorisée
+// dans le navigateur a priorité sur tout.
+// Lancer : npm test (depuis apps/web)
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { resolveApiUrl } from './api-url.ts'
 
-test('production sans variable: cible l API Render, pas localhost', () => {
-  assert.equal(resolveApiUrl(undefined, 'taurge.vercel.app'), 'https://taurge-api.onrender.com')
-  assert.equal(resolveApiUrl('', 'taurge.vercel.app'), 'https://taurge-api.onrender.com')
-})
-
-test('developpement local: garde localhost', () => {
-  assert.equal(resolveApiUrl(undefined, 'localhost'), 'http://localhost:8000')
-  assert.equal(resolveApiUrl(undefined, '127.0.0.1'), 'http://localhost:8000')
+test('sans configuration: localhost, le backend du PC', () => {
   assert.equal(resolveApiUrl(undefined, null), 'http://localhost:8000')
+  assert.equal(resolveApiUrl('', ''), 'http://localhost:8000')
 })
 
-test('variable explicite: prioritaire et sans slash final', () => {
-  assert.equal(resolveApiUrl('https://api.example.com/', 'taurge.vercel.app'), 'https://api.example.com')
-  assert.equal(resolveApiUrl(' http://localhost:8000/ ', 'localhost'), 'http://localhost:8000')
+test('override tunnel du navigateur: prioritaire, sans slash final', () => {
+  assert.equal(
+    resolveApiUrl('http://localhost:8000', 'https://abc.trycloudflare.com/'),
+    'https://abc.trycloudflare.com',
+  )
+  assert.equal(resolveApiUrl(undefined, 'https://abc.trycloudflare.com'), 'https://abc.trycloudflare.com')
+})
+
+test('variable de build: utilisee sans override', () => {
+  assert.equal(resolveApiUrl('https://api.example.com/', null), 'https://api.example.com')
 })

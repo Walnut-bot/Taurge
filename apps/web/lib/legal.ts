@@ -10,6 +10,6 @@ export const LEGAL = {
   address: 'Quartier Sainte-Rita, près de la Station MRS, Cotonou, Bénin',
   contactEmail: 'lysthene.assogba@gmail.com',
   privacyEmail: 'lysthene.assogba@gmail.com',
-  hostName: 'Vercel Inc. et Render Networks, Inc',
-  hostAddress: 'Vercel: 340 S Lemon Ave #4133, Walnut, CA 91789, USA | Render: 525 3rd Street, Suite 200, San Francisco, CA 94107, USA',
+  hostName: 'Vercel Inc. (site web) — API hébergée par l’éditeur',
+  hostAddress: 'Vercel: 340 S Lemon Ave #4133, Walnut, CA 91789, USA',
 } as const

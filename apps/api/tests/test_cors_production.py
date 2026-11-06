@@ -1,8 +1,8 @@
 """Régression : le frontend déployé doit pouvoir appeler l'API.
 
 Sans origine CORS de production par défaut, le navigateur bloque
-les requêtes https://taurge.vercel.app -> https://taurge-api.onrender.com
-dès que CORS_ORIGINS n'est pas posée sur Render, et l'inscription
+les requêtes du site Vercel vers l'API locale exposée par tunnel HTTPS
+dès que CORS_ORIGINS n'est pas posée en local, et l'inscription
 échoue côté client alors que l'API répond.
 """
 from fastapi.testclient import TestClient

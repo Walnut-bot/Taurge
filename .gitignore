@@ -25,3 +25,6 @@ storage_data/
 # Modèle LaMa (198 Mo > limite GitHub de 100 Mo/fichier, jamais activé
 # en production : le code gère son absence proprement)
 *.onnx
+
+# Tunnel local (binaire cloudflared telecharge par le lanceur)
+tools/

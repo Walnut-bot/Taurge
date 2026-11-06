@@ -2,7 +2,7 @@
 
 Bug vécu en production : « The server is taking too long to respond
 (300s timeout exceeded) » — premier chargement des modèles OCR sur
-Render + page lourde, le tout en synchrone. L'OCR passe désormais
+premier chargement des modèles + page lourde, le tout en synchrone. L'OCR passe désormais
 par un job d'arrière-plan (202 + suivi de statut), et le service OCR
 a un budget temps qui échoue proprement au lieu de pendre.
 """

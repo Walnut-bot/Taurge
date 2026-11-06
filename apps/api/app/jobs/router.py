@@ -39,7 +39,7 @@ def fail_orphaned_jobs() -> int:
     """Marque « failed » les jobs restés pending/running en base.
 
     Un crash du processus (typiquement l'OOM 512 Mo de l'offre gratuite
-    Render) tue les tâches d'arrière-plan sans mettre à jour leur ligne :
+    du processus) tue les tâches d'arrière-plan sans mettre à jour leur ligne :
     au redémarrage, elles resteraient « running » pour toujours et le
     frontend bouclerait sur « Connection lost while tracking ». Comme
     l'API tourne en une seule instance, tout job non terminé au
@@ -479,7 +479,7 @@ async def _run_page_ocr(job_id: uuid.UUID, page_id: uuid.UUID) -> None:
 
     Avant, l'OCR d'une page tenait une requête HTTP synchrone : au
     premier lancement, le moteur télécharge/charge ses modèles
-    (disque éphémère Render), et une page lourde prenait des minutes
+    (premier lancement), et une page lourde prenait des minutes
     — le client expirait à 300 s et l'API entière semblait morte.
     Ici le job avance en tâche de fond, avec les mêmes règles que
     l'endpoint synchrone : purge des anciens blocs seulement après

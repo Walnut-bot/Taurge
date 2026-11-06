@@ -1,4 +1,4 @@
-"""Régression : création de compte via l'API déployée (Vercel -> Render).
+"""Régression : création de compte via l'API (Vercel -> API locale).
 
 Le frontend construit ses URL par concaténation
 (`${NEXT_PUBLIC_API_URL}/auth/register`). Si la variable se termine

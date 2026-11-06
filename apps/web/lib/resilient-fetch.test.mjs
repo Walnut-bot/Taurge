@@ -1,4 +1,4 @@
-// Régression : un échec réseau (serveur Render en démarrage à
+// Régression : un échec réseau (API locale en démarrage à
 // froid) doit déclencher réveil /health + nouvel essai, pas un
 // abandon immédiat « Cannot reach the Taurge server ».
 // Lancer : npm test (depuis apps/web)

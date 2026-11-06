@@ -1,4 +1,4 @@
-import { resolveApiUrl } from './api-url'
+import { readRuntimeApiOverride, resolveApiUrl } from './api-url'
 import { attemptsForMethod, resilientFetch } from './resilient-fetch'
 import { demo } from './demo-store'
 import type {
@@ -11,12 +11,9 @@ import type {
   User,
 } from './types'
 
-// Sans NEXT_PUBLIC_API_URL, resolveApiUrl cible l'API Render en
-// production (hostname non-local) et localhost:8000 en dev local.
-const API_URL = resolveApiUrl(
-  process.env.NEXT_PUBLIC_API_URL,
-  typeof window !== 'undefined' ? window.location.hostname : null,
-)
+// Backend local (PC de l'utilisateur) : localhost par défaut, ou
+// l'URL de tunnel mémorisée via ?api=https://… (voir api-url.ts).
+const API_URL = resolveApiUrl(process.env.NEXT_PUBLIC_API_URL, readRuntimeApiOverride())
 export const IS_DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === '1'
 
 const TOKEN_KEY = 'taurge_token'
@@ -81,14 +78,14 @@ function unreachableError(err: unknown, timeoutMs: number): ApiError {
   if ((err as { name?: string })?.name === 'AbortError') {
     return new ApiError(`The server is taking too long to respond (${Math.round(timeoutMs / 1000)}s timeout exceeded).`, 408)
   }
-  return new ApiError(`Cannot reach the Taurge server at ${API_URL}. Check your connection and try again.`, 0)
+  return new ApiError(`Cannot reach the Taurge server at ${API_URL}. Start the local backend on this PC (LANCER_TAURGE_TUNNEL.bat), then try again.`, 0)
 }
 
 async function request<T>(path: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
   let res: Response
   const timeoutMs = options.timeoutMs ?? 30000
   try {
-    // Retry + réveil du serveur (démarrage à froid Render) : un échec
+    // Retry + réveil du serveur (API locale en démarrage, tunnel en reconnexion) : un échec
     // réseau ne signifie plus « serveur mort » au premier essai.
     res = await resilientFetch(
       `${API_URL}${path}`,
@@ -253,7 +250,7 @@ export const api = {
   async runOcr(projectId: string, pageId: string) {
     // OCR en tâche de fond : l'ancien appel synchrone expirait à
     // 300 s dès que le moteur chargeait ses modèles (premier
-    // lancement sur Render) ou lisait une page lourde. On lance le
+    // lancement sur le PC) ou lisait une page lourde. On lance le
     // job puis on suit son statut — aucun délai global ne peut
     // expirer, et un polling raté (serveur occupé) ne tue pas le job.
     if (IS_DEMO) return demo.runOcr(projectId, pageId)

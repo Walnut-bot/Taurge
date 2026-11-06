@@ -7,7 +7,16 @@ and export. See `docs/` for the MVP scope, full architecture and roadmap.
 
 No Docker required for local development: the project runs natively with
 SQLite by default (a single `taurge.db` file, no server to install).
-PostgreSQL stays available for production via `DATABASE_URL`.
+PostgreSQL stays available via `DATABASE_URL` if ever needed again.
+
+**Current deployment shape:** the frontend lives on Vercel
+(https://taurge.vercel.app) and the FastAPI backend runs **locally on
+the owner's PC** — there is no hosted backend anymore. Double-click
+`LANCER_TAURGE_TUNNEL.bat` at the repo root: it starts the local API,
+opens a free Cloudflare tunnel to it, and opens the Vercel site
+already pointed at that tunnel (`?api=…`, remembered by the browser).
+The tunnel URL changes at every launch, so use the launcher for each
+working session, and do not share the tunnel URL.
 
 ## Features
 

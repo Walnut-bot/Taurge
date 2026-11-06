@@ -1,24 +1,48 @@
 // Résolution de l'URL de l'API FastAPI.
 //
-// Piège corrigé : sur Vercel (taurge.vercel.app), NEXT_PUBLIC_API_URL
-// n'était pas définie, donc le code retombait sur http://localhost:8000.
-// Le navigateur de chaque visiteur cherchait alors un serveur sur SA
-// propre machine et l'inscription échouait avec « Cannot reach the
-// Taurge server ». En production on cible l'API Render ; localhost
-// n'est utilisé qu'en développement local.
-export const PRODUCTION_API_URL = 'https://taurge-api.onrender.com'
+// Architecture actuelle : le frontend est déployé sur Vercel, mais
+// l'API tourne EN LOCAL sur le PC de l'utilisateur (plus aucun
+// hébergeur backend). Deux façons de la joindre depuis le navigateur :
+// 1. même machine : http://localhost:8000 (défaut) ;
+// 2. via un tunnel HTTPS (Cloudflare, voir LANCER_TAURGE_TUNNEL.bat) :
+//    ouvrir le site avec ?api=https://<tunnel> — l'URL est mémorisée
+//    dans le navigateur (localStorage) pour les visites suivantes,
+//    ?api=local l'efface et revient à localhost.
+//
+// Priorité : override du navigateur > NEXT_PUBLIC_API_URL (build
+// Vercel, si un jour un backend distant revient) > localhost.
 export const LOCAL_API_URL = 'http://localhost:8000'
-
-const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1', '[::1]', ''])
+export const API_URL_STORAGE_KEY = 'taurge_api_url'
 
 export function resolveApiUrl(
   configured?: string | null,
-  hostname?: string | null,
+  runtimeOverride?: string | null,
 ): string {
+  const override = (runtimeOverride ?? '').trim().replace(/\/+$/, '')
+  if (override) return override
   const fromEnv = (configured ?? '').trim().replace(/\/+$/, '')
   if (fromEnv) return fromEnv
-  if (hostname != null && !LOCAL_HOSTNAMES.has(hostname.trim().toLowerCase())) {
-    return PRODUCTION_API_URL
-  }
   return LOCAL_API_URL
+}
+
+/** Override mémorisé dans ce navigateur (posé par ?api=…). */
+export function readRuntimeApiOverride(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const param = new URLSearchParams(window.location.search).get('api')
+    if (param === 'local') {
+      window.localStorage.removeItem(API_URL_STORAGE_KEY)
+      return null
+    }
+    if (param) {
+      const cleaned = param.trim().replace(/\/+$/, '')
+      if (/^https?:\/\//i.test(cleaned)) {
+        window.localStorage.setItem(API_URL_STORAGE_KEY, cleaned)
+        return cleaned
+      }
+    }
+    return window.localStorage.getItem(API_URL_STORAGE_KEY)
+  } catch {
+    return null
+  }
 }

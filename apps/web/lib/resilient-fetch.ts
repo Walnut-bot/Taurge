@@ -1,4 +1,4 @@
-// Fetch résilient au démarrage à froid de l'API (Render).
+// Fetch résilient quand l'API locale démarre ou que le tunnel se reconnecte.
 //
 // Symptôme corrigé : première requête après une période d'inactivité
 // (ou pendant un redéploiement) -> « Failed to fetch », affiché comme
@@ -42,7 +42,7 @@ async function withTimeout(
   }
 }
 
-/** Attend que l'API réponde sur /health (réveil Render). Best effort. */
+/** Attend que l'API réponde sur /health (réveil de l'API locale). Best effort. */
 export async function wakeServer(
   fetchFn: FetchFn,
   apiUrl: string,

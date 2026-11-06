@@ -43,7 +43,7 @@ _UNAVAILABLE_ERRORS = (RuntimeError, ImportError, NameError, OSError)
 # message clair au lieu de laisser le client expirer (300 s côté web)
 # pendant que le serveur télécharge un modèle ou lit une page
 # immense zone par zone. Le premier lancement (téléchargement des
-# modèles sur le disque éphémère de Render) reste le cas lent connu :
+# modèles) reste le cas lent connu :
 # il a lieu dans le job d'arrière-plan, pas dans une requête HTTP.
 OCR_TIMEOUT_SECONDS = float(os.environ.get("OCR_TIMEOUT_SECONDS", "240"))
 # Relecture bulle par bulle : chaque bulle relance Tesseract, on borne.
