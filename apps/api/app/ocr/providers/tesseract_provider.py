@@ -92,10 +92,16 @@ class TesseractOCRProvider:
         # Agrandissement x2 des pages étroites : à taille réelle, les
         # glyphes CJK (~50 px) sont mal lus (信 lu 人, 这 lu 文 sur la
         # page chinoise de référence) ; doublés, ils sont reconnus.
-        scale = 2 if image.width < 2000 else 1
-        if scale > 1:
+        # Plafond absolu : une bande webtoon de 1 200 x 12 000 doublée
+        # faisait travailler Tesseract de longues minutes.
+        scale = 2.0 if image.width < 2000 else 1.0
+        scale = min(scale, 6000 / max(image.width, image.height))
+        if max(image.width, image.height) * scale > 4000:
+            scale = 4000 / max(image.width, image.height)
+        if scale != 1.0:
             image = image.resize(
-                (image.width * scale, image.height * scale), Image.LANCZOS
+                (max(1, int(image.width * scale)), max(1, int(image.height * scale))),
+                Image.LANCZOS,
             )
         # --psm 11 : texte épars (bulles dispersées sur une page de manga).
         data = pytesseract.image_to_data(
@@ -107,7 +113,7 @@ class TesseractOCRProvider:
         return self._group_lines(data, scale=scale)
 
     @staticmethod
-    def _group_lines(data: dict, scale: int = 1) -> list[OCRBlockData]:
+    def _group_lines(data: dict, scale: float = 1) -> list[OCRBlockData]:
         """Regroupe les mots Tesseract par ligne : (bloc, paragraphe, ligne).
 
         ``scale`` ramène les coordonnées de l'image agrandie dans le
@@ -124,9 +130,9 @@ class TesseractOCRProvider:
             if not text or confidence < 0:
                 continue
             key = (data["block_num"][i], data["par_num"][i], data["line_num"][i])
-            x, y = int(data["left"][i]) // scale, int(data["top"][i]) // scale
-            right = x + int(data["width"][i]) // scale
-            bottom = y + int(data["height"][i]) // scale
+            x, y = int(int(data["left"][i]) / scale), int(int(data["top"][i]) / scale)
+            right = x + int(int(data["width"][i]) / scale)
+            bottom = y + int(int(data["height"][i]) / scale)
             line = lines.setdefault(
                 key,
                 {"words": [], "x0": x, "y0": y, "x1": right, "y1": bottom, "confs": []},

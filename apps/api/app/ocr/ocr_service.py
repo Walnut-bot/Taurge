@@ -18,8 +18,10 @@ La sortie est standardisée : `list[OCRBlockData]`, sérialisable en JSON
 structuré via `OCRBlockData.to_dict()` (texte, bbox, confiance).
 """
 
+import asyncio
 import io
 import logging
+import os
 
 from PIL import Image
 
@@ -36,6 +38,20 @@ JAPANESE_CODES = {"ja", "jp", "ja-jp"}
 # Erreurs qui signifient « moteur indisponible sur cette machine »
 # (et non « page illisible ») : elles déclenchent le repli Tesseract.
 _UNAVAILABLE_ERRORS = (RuntimeError, ImportError, NameError, OSError)
+
+# Budget total d'une page OCR. Au-delà, on échoue proprement avec un
+# message clair au lieu de laisser le client expirer (300 s côté web)
+# pendant que le serveur télécharge un modèle ou lit une page
+# immense zone par zone. Le premier lancement (téléchargement des
+# modèles sur le disque éphémère de Render) reste le cas lent connu :
+# il a lieu dans le job d'arrière-plan, pas dans une requête HTTP.
+OCR_TIMEOUT_SECONDS = float(os.environ.get("OCR_TIMEOUT_SECONDS", "240"))
+# Relecture bulle par bulle : chaque bulle relance Tesseract, on borne.
+MAX_REREAD_BUBBLES = 12
+
+
+class OCRTimeoutError(TimeoutError):
+    """Budget temps OCR dépassé pour une page."""
 
 
 def _is_japanese(source_lang: str) -> bool:
@@ -105,7 +121,7 @@ class OCRService:
         remplit les bulles restées vides.
         """
         result = list(blocks)
-        for region in bubbles:
+        for region in bubbles[:MAX_REREAD_BUBBLES]:
             existing = [b for b in result if region.contains_center(b)]
             inset = 10
             x0, y0 = max(0, region.x + inset), max(0, region.y + inset)
@@ -180,6 +196,21 @@ class OCRService:
         """
         if not image_bytes:
             return []
+        try:
+            return await asyncio.wait_for(
+                self._detect_text_unbounded(image_bytes, source_lang),
+                timeout=OCR_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError as exc:
+            raise OCRTimeoutError(
+                f"OCR interrompu après {int(OCR_TIMEOUT_SECONDS)} s : page trop "
+                "lourde ou moteur encore en chargement. Réessayez — le moteur "
+                "reste chargé en mémoire après le premier lancement."
+            ) from exc
+
+    async def _detect_text_unbounded(
+        self, image_bytes: bytes, source_lang: str
+    ) -> list[OCRBlockData]:
         blocks, used_tesseract = await self._run_primary_or_fallback(image_bytes, source_lang)
 
         image = None

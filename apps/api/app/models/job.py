@@ -9,6 +9,7 @@ class Job(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     project_id: uuid.UUID = Field(foreign_key="projects.id", index=True)
     user_id: uuid.UUID = Field(foreign_key="users.id", index=True)
+    page_id: uuid.UUID | None = Field(default=None, foreign_key="pages.id", index=True)
     job_type: str = Field(default="batch_process")  # 'batch_process', 'export'
     status: str = Field(default="pending")  # 'pending', 'running', 'completed', 'failed', 'cancelled'
     current_page: int = Field(default=0)

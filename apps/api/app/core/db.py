@@ -30,6 +30,7 @@ def init_db() -> None:
     _ensure_user_profile_columns()
     _ensure_user_consent_columns()
     _ensure_page_sort_order_column()
+    _ensure_job_page_id_column()
 
 
 def _ensure_user_profile_columns() -> None:
@@ -75,6 +76,18 @@ def _ensure_page_sort_order_column() -> None:
     if "sort_order" not in columns:
         with engine.begin() as connection:
             connection.execute(text("ALTER TABLE pages ADD COLUMN sort_order INTEGER"))
+
+
+def _ensure_job_page_id_column() -> None:
+    # create_all ne rajoute pas de colonne aux tables existantes
+    # (base de production déjà créée sans jobs.page_id).
+    columns = {
+        column["name"]
+        for column in inspect(engine).get_columns("jobs")
+    }
+    if "page_id" not in columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE jobs ADD COLUMN page_id UUID"))
 
 
 def get_session():

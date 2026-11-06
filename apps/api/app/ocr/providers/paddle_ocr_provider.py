@@ -130,10 +130,29 @@ class PaddleOCRProvider:
                 continue
         return blocks
 
+    # Au-delà, la détection Paddle sur CPU prend des minutes (bandes
+    # webtoon très hautes) : on réduit, les coordonnées sont ramenées
+    # à l'échelle d'origine dans _parse_result via `scale`.
+    MAX_OCR_DIMENSION = 2800
+
     def _recognize_sync(self, image_bytes: bytes, engine) -> list[OCRBlockData]:
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        width, height = image.width, image.height
+        scale = min(1.0, self.MAX_OCR_DIMENSION / max(width, height))
+        if scale < 1.0:
+            image = image.resize(
+                (max(1, int(width * scale)), max(1, int(height * scale))),
+                Image.LANCZOS,
+            )
         result = engine.ocr(np.array(image), cls=True)
-        return self._parse_result(result, image.width, image.height)
+        blocks = self._parse_result(result, image.width, image.height)
+        if scale < 1.0:
+            for block in blocks:
+                block.bbox_x = int(block.bbox_x / scale)
+                block.bbox_y = int(block.bbox_y / scale)
+                block.bbox_w = max(1, int(block.bbox_w / scale))
+                block.bbox_h = max(1, int(block.bbox_h / scale))
+        return blocks
 
     async def detect_text(
         self, image_bytes: bytes, source_lang: str

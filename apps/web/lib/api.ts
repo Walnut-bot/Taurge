@@ -250,10 +250,36 @@ export const api = {
           `/jobs/projects/${projectId}/files/${fileId}/start-extraction`,
         )
   },
-  runOcr(projectId: string, pageId: string) {
-    // Premier appel long : chargement du moteur OCR + lecture de la page.
-    // Le délai par défaut (30 s) avortait ce premier essai, le second passait.
-    return IS_DEMO ? demo.runOcr(projectId, pageId) : post(`/projects/${projectId}/pages/${pageId}/ocr`, undefined, 300_000)
+  async runOcr(projectId: string, pageId: string) {
+    // OCR en tâche de fond : l'ancien appel synchrone expirait à
+    // 300 s dès que le moteur chargeait ses modèles (premier
+    // lancement sur Render) ou lisait une page lourde. On lance le
+    // job puis on suit son statut — aucun délai global ne peut
+    // expirer, et un polling raté (serveur occupé) ne tue pas le job.
+    if (IS_DEMO) return demo.runOcr(projectId, pageId)
+    const started = await post<{ job_id: string }>(
+      `/jobs/projects/${projectId}/pages/${pageId}/start-ocr`,
+    )
+    const deadline = Date.now() + 20 * 60_000
+    for (;;) {
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+      let job: Awaited<ReturnType<typeof api.getJobStatus>>
+      try {
+        job = await api.getJobStatus(started.job_id)
+      } catch {
+        if (Date.now() > deadline) {
+          throw new ApiError('OCR status check timed out. The job may still be running — refresh the page.', 408)
+        }
+        continue
+      }
+      if (job.status === 'completed') return
+      if (job.status === 'failed' || job.status === 'cancelled') {
+        throw new ApiError(job.message || 'OCR failed on the server.', 500)
+      }
+      if (Date.now() > deadline) {
+        throw new ApiError('OCR is taking unusually long. It may still finish — refresh the page, or retry.', 408)
+      }
+    }
   },
   translatePage(projectId: string, pageId: string) {
     // Traduction LLM locale lente + repli DeepL : le délai par défaut

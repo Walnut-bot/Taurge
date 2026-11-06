@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import fitz
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from sqlmodel import Session, select
+from sqlmodel import Session, delete, select
 
 from app.auth.dependencies import get_current_user
 from app.billing.router import CREDIT_COSTS, deduct_credits, ensure_credits
@@ -471,6 +471,128 @@ def start_extraction_job(
         "job_id": str(job.id),
         "status": job.status,
         "message": "Extraction lancée en arrière-plan.",
+    }
+
+
+async def _run_page_ocr(job_id: uuid.UUID, page_id: uuid.UUID) -> None:
+    """OCR d'une page en arrière-plan (aucun timeout HTTP).
+
+    Avant, l'OCR d'une page tenait une requête HTTP synchrone : au
+    premier lancement, le moteur télécharge/charge ses modèles
+    (disque éphémère Render), et une page lourde prenait des minutes
+    — le client expirait à 300 s et l'API entière semblait morte.
+    Ici le job avance en tâche de fond, avec les mêmes règles que
+    l'endpoint synchrone : purge des anciens blocs seulement après
+    une détection réussie, crédits débités seulement en cas de succès.
+    """
+    storage = get_storage_provider()
+    ocr = get_ocr_provider()
+    with Session(engine) as session:
+        job = session.get(Job, job_id)
+        if not job or job.status == "cancelled":
+            return
+        job.status = "running"
+        job.total_pages = 1
+        job.current_page = 0
+        job.progress_percent = 10
+        job.message = "Chargement du moteur OCR (premier lancement plus long)…"
+        session.add(job)
+        session.commit()
+        try:
+            project = session.get(Project, job.project_id)
+            page = session.get(Page, page_id)
+            if not project or not page or page.project_id != project.id:
+                raise ValueError("Page ou projet introuvable.")
+            ensure_credits(job.user_id, CREDIT_COSTS["ocr"], session)
+            image_bytes = storage.read(page.storage_key)
+            detected = await ocr.detect_text(image_bytes, project.source_lang)
+            session.refresh(job)
+            if job.status == "cancelled":
+                return
+            for block in session.exec(
+                select(OCRBlock).where(OCRBlock.page_id == page.id)
+            ).all():
+                session.exec(
+                    delete(Translation).where(Translation.ocr_block_id == block.id)
+                )
+                session.delete(block)
+            for data in detected:
+                session.add(OCRBlock(
+                    page_id=page.id, text=data.text, bbox_x=data.bbox_x,
+                    bbox_y=data.bbox_y, bbox_w=data.bbox_w, bbox_h=data.bbox_h,
+                    confidence=data.confidence, provider=data.provider,
+                ))
+            session.commit()
+            deduct_credits(job.user_id, CREDIT_COSTS["ocr"], "ocr", session, project_id=project.id)
+            job.status = "completed"
+            job.current_page = 1
+            job.progress_percent = 100
+            job.message = f"OCR terminé : {len(detected)} bloc(s) détecté(s)."
+            job.completed_at = datetime.now(timezone.utc)
+            session.add(job)
+            session.commit()
+        except Exception as exc:
+            logger.exception("Échec OCR page pour le job %s.", job_id)
+            session.rollback()
+            failed = session.get(Job, job_id)
+            if failed and failed.status != "cancelled":
+                failed.status = "failed"
+                failed.error_message = str(exc)
+                failed.message = f"Échec de l'OCR : {exc}"
+                failed.completed_at = datetime.now(timezone.utc)
+                session.add(failed)
+                session.commit()
+
+
+def _run_page_ocr_in_thread(job_id: uuid.UUID, page_id: uuid.UUID) -> None:
+    asyncio.run(_run_page_ocr(job_id, page_id))
+
+
+@router.post(
+    "/projects/{project_id}/pages/{page_id}/start-ocr",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def start_page_ocr_job(
+    project_id: uuid.UUID,
+    page_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Lance l'OCR d'une page en arrière-plan et renvoie le job à suivre."""
+    project = session.get(Project, project_id)
+    if not user_has_project_access(session, project, current_user.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Projet introuvable.")
+    page = session.get(Page, page_id)
+    if not page or page.project_id != project_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Page introuvable.")
+    active = session.exec(
+        select(Job).where(
+            Job.project_id == project_id,
+            Job.page_id == page_id,
+            Job.job_type == "ocr_page",
+            Job.status.in_(["pending", "running"]),
+        )
+    ).first()
+    if active:
+        return {
+            "job_id": str(active.id),
+            "status": active.status,
+            "message": "OCR déjà en cours pour cette page.",
+        }
+    job = Job(
+        project_id=project_id, user_id=current_user.id, page_id=page_id,
+        job_type="ocr_page", status="pending",
+        message="OCR en attente…", total_pages=1,
+    )
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    background_tasks.add_task(_run_page_ocr_in_thread, job.id, page_id)
+    return {
+        "job_id": str(job.id),
+        "status": job.status,
+        "message": "OCR lancé en arrière-plan.",
     }
 
 

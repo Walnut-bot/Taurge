@@ -102,7 +102,9 @@ class MangaOCRProvider:
             )
         # Lecture verticale : droite -> gauche, puis haut -> bas.
         regions.sort(key=lambda r: (-r[0], r[1]))
-        return regions
+        # Chaque zone = une inférence transformer CPU (1-5 s) : sans
+        # plafond, une page dense dépassait les 300 s du client.
+        return regions[:60]
 
     def _recognize_sync(self, image_bytes: bytes, engine) -> list[OCRBlockData]:
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")

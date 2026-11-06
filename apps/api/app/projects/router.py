@@ -548,6 +548,10 @@ async def run_ocr(
 
     try:
         detected = await ocr.detect_text(image_bytes, project.source_lang)
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail=str(exc)
+        )
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
