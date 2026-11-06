@@ -173,6 +173,67 @@ def test_owner_delete_project_removes_everything(client):
         assert not storage_provider.exists(key), f"fichier non supprimé : {key}"
 
 
+def test_delete_project_detaches_usage_ledger_of_any_user(client):
+    """PostgreSQL rejette DELETE /projects/{id} si une ligne
+    usage_ledgers (crédits consommés par un membre) référence encore
+    le projet. L'historique doit être conservé, détaché (project_id
+    à NULL) — jamais supprimé avec le projet."""
+    from app.models.subscription import UsageLedger
+
+    owner = _register_and_login(client, "ledger-owner")
+    member = _register_and_login(client, "ledger-member")
+    project_id = uuid.UUID(_create_project(client, owner["headers"]))
+    with Session(engine) as session:
+        ledger = UsageLedger(
+            user_id=uuid.UUID(member["id"]), project_id=project_id,
+            action_type="ocr", amount=2, description="OCR",
+        )
+        session.add(ledger)
+        session.commit()
+        session.refresh(ledger)
+        ledger_id = ledger.id
+
+    deleted = client.delete(f"/projects/{project_id}", headers=owner["headers"])
+    assert deleted.status_code == 204, deleted.text
+
+    with Session(engine) as session:
+        kept = session.get(UsageLedger, ledger_id)
+        assert kept is not None
+        assert kept.project_id is None
+
+
+def test_delete_account_with_member_usage_ledger(client):
+    """Même piège via DELETE /auth/me : la cascade compte y réutilise
+    celle des projets, y compris pour les crédits d'un membre."""
+    from app.models.subscription import UsageLedger
+    from app.models.user import User
+
+    owner = _register_and_login(client, "forget-owner")
+    member = _register_and_login(client, "forget-member")
+    project_id = uuid.UUID(_create_project(client, owner["headers"]))
+    with Session(engine) as session:
+        session.add(UsageLedger(
+            user_id=uuid.UUID(member["id"]), project_id=project_id,
+            action_type="translate", amount=3, description="Traduction",
+        ))
+        session.commit()
+
+    deleted = client.request(
+        "DELETE", "/auth/me", headers=owner["headers"],
+        json={"confirm_email": owner["email"]},
+    )
+    assert deleted.status_code == 204, deleted.text
+
+    with Session(engine) as session:
+        assert session.get(Project, project_id) is None
+        assert session.get(User, uuid.UUID(owner["id"])) is None
+        kept = session.exec(
+            select(UsageLedger).where(UsageLedger.user_id == uuid.UUID(member["id"]))
+        ).all()
+        assert len(kept) == 1
+        assert kept[0].project_id is None
+
+
 def test_orphaned_jobs_are_failed_by_recovery(client):
     from app.jobs.router import fail_orphaned_jobs
 

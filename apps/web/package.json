@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node --test lib/api-url.test.mjs"
+    "test": "node --test lib/api-url.test.mjs lib/resilient-fetch.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

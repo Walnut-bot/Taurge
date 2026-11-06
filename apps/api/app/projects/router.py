@@ -54,7 +54,7 @@ from app.models.translation import Translation
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-from app.models.subscription import ProjectMember
+from app.models.subscription import ProjectMember, UsageLedger
 
 
 def _get_owned_project(
@@ -329,6 +329,17 @@ def _delete_project_cascade(
         select(ProjectMember).where(ProjectMember.project_id == project.id)
     ).all():
         session.delete(member)
+    # Historique de facturation : on conserve les lignes (audit des
+    # crédits) mais on les détache du projet. Sans ça, PostgreSQL
+    # rejette la suppression (FK usage_ledgers.project_id) dès qu'un
+    # membre — pas forcément le propriétaire — a consommé des crédits
+    # sur le projet ; SQLite ne contrôle pas les FK, d'où le bug
+    # invisible en local et le 500 en production.
+    for ledger in session.exec(
+        select(UsageLedger).where(UsageLedger.project_id == project.id)
+    ).all():
+        ledger.project_id = None
+        session.add(ledger)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)

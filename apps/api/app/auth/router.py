@@ -330,48 +330,16 @@ def delete_account(
             detail="L'e-mail de confirmation ne correspond pas à votre compte.",
         )
     user_id = current_user.id
+    # Cascade unique et testée (celle de DELETE /projects/{id}) :
+    # la copie locale ici avait divergé — fichiers nettoyés/exports
+    # non supprimés du disque et historique crédits non détaché,
+    # ce qui fait échouer la suppression sur PostgreSQL.
+    # Import différé : app.projects.router importe app.auth.
+    from app.projects.router import _delete_project_cascade
+
     projects = session.exec(select(Project).where(Project.owner_id == user_id)).all()
     for project in projects:
-        pages = session.exec(select(Page).where(Page.project_id == project.id)).all()
-        page_ids = [page.id for page in pages]
-        blocks = (
-            session.exec(select(OCRBlock).where(OCRBlock.page_id.in_(page_ids))).all()
-            if page_ids
-            else []
-        )
-        block_ids = [block.id for block in blocks]
-        if block_ids:
-            for translation in session.exec(
-                select(Translation).where(Translation.ocr_block_id.in_(block_ids))
-            ).all():
-                session.delete(translation)
-        for block in blocks:
-            session.delete(block)
-        if page_ids:
-            for cleaned in session.exec(
-                select(CleanedPage).where(CleanedPage.page_id.in_(page_ids))
-            ).all():
-                session.delete(cleaned)
-        for page in pages:
-            storage_provider.delete(page.storage_key)
-            session.delete(page)
-        for source in session.exec(
-            select(SourceFile).where(SourceFile.project_id == project.id)
-        ).all():
-            storage_provider.delete(source.storage_key)
-            session.delete(source)
-        for entry in session.exec(
-            select(GlossaryEntry).where(GlossaryEntry.project_id == project.id)
-        ).all():
-            session.delete(entry)
-        for export in session.exec(select(Export).where(Export.project_id == project.id)).all():
-            session.delete(export)
-        for job in session.exec(select(Job).where(Job.project_id == project.id)).all():
-            session.delete(job)
-        for member in session.exec(
-            select(ProjectMember).where(ProjectMember.project_id == project.id)
-        ).all():
-            session.delete(member)
+        _delete_project_cascade(project, session, storage_provider)
         session.delete(project)
     for member in session.exec(select(ProjectMember).where(ProjectMember.user_id == user_id)).all():
         session.delete(member)

@@ -1,4 +1,5 @@
 import { resolveApiUrl } from './api-url'
+import { attemptsForMethod, resilientFetch } from './resilient-fetch'
 import { demo } from './demo-store'
 import type {
   ExportRecord,
@@ -76,26 +77,29 @@ async function parseError(res: Response) {
   return new ApiError(detail || `Error ${res.status}`, res.status)
 }
 
+function unreachableError(err: unknown, timeoutMs: number): ApiError {
+  if ((err as { name?: string })?.name === 'AbortError') {
+    return new ApiError(`The server is taking too long to respond (${Math.round(timeoutMs / 1000)}s timeout exceeded).`, 408)
+  }
+  return new ApiError(`Cannot reach the Taurge server at ${API_URL}. Check your connection and try again.`, 0)
+}
+
 async function request<T>(path: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
   let res: Response
   const timeoutMs = options.timeoutMs ?? 30000
   try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-    try {
-      res = await fetch(`${API_URL}${path}`, {
+    // Retry + réveil du serveur (démarrage à froid Render) : un échec
+    // réseau ne signifie plus « serveur mort » au premier essai.
+    res = await resilientFetch(
+      `${API_URL}${path}`,
+      {
         ...options,
-        signal: options.signal || controller.signal,
         headers: { 'Content-Type': 'application/json', ...localeHeaders(), ...authHeaders(), ...options.headers },
-      })
-    } finally {
-      clearTimeout(timeoutId)
-    }
-  } catch (err: any) {
-    if (err?.name === 'AbortError') {
-      throw new ApiError(`The server is taking too long to respond (${Math.round(timeoutMs / 1000)}s timeout exceeded).`, 408)
-    }
-    throw new ApiError(`Cannot reach the Taurge server at ${API_URL}. Check your connection and try again.`, 0)
+      },
+      { apiUrl: API_URL, attempts: attemptsForMethod(options.method), timeoutMs },
+    )
+  } catch (err) {
+    throw unreachableError(err, timeoutMs)
   }
   if (!res.ok) {
     if (res.status === 402 && typeof window !== 'undefined') {
@@ -109,8 +113,29 @@ async function request<T>(path: string, options: RequestInit & { timeoutMs?: num
   return res.json().catch(() => undefined as T)
 }
 
+async function fetchForm(path: string, method: string, formData: FormData): Promise<Response> {
+  try {
+    return await resilientFetch(
+      `${API_URL}${path}`,
+      { method, headers: { ...localeHeaders(), ...authHeaders() }, body: formData },
+      { apiUrl: API_URL, attempts: attemptsForMethod(method), timeoutMs: 300_000 },
+    )
+  } catch (err) {
+    throw unreachableError(err, 300_000)
+  }
+}
+
 async function requestBlob(path: string) {
-  const res = await fetch(`${API_URL}${path}`, { headers: { ...localeHeaders(), ...authHeaders() } })
+  let res: Response
+  try {
+    res = await resilientFetch(
+      `${API_URL}${path}`,
+      { headers: { ...localeHeaders(), ...authHeaders() } },
+      { apiUrl: API_URL, attempts: 3, timeoutMs: 120_000 },
+    )
+  } catch (err) {
+    throw unreachableError(err, 120_000)
+  }
   if (!res.ok) throw await parseError(res)
   return res.blob()
 }
@@ -161,11 +186,7 @@ export const api = {
     if (IS_DEMO) return demo.uploadProfileImage(kind, file)
     const formData = new FormData()
     formData.append('file', file)
-    const res = await fetch(`${API_URL}/auth/me/profile/${kind}`, {
-      method: 'PUT',
-      headers: { ...localeHeaders(), ...authHeaders() },
-      body: formData,
-    })
+    const res = await fetchForm(`/auth/me/profile/${kind}`, 'PUT', formData)
     if (!res.ok) throw await parseError(res)
     return res.json()
   },
@@ -215,11 +236,7 @@ export const api = {
     if (IS_DEMO) return demo.upload(projectId, file)
     const formData = new FormData()
     formData.append('file', file)
-    const res = await fetch(`${API_URL}/projects/${projectId}/upload`, {
-      method: 'POST',
-      headers: { ...localeHeaders(), ...authHeaders() },
-      body: formData,
-    })
+    const res = await fetchForm(`/projects/${projectId}/upload`, 'POST', formData)
     if (!res.ok) throw await parseError(res)
     return res.json()
   },
