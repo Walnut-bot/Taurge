@@ -206,6 +206,8 @@ async def retranslate_block(
     if translation:
         translation.translated_text = translated_text
         translation.edited_by_user = False
+        # Le provider réel de CETTE retraduction remplace l'ancien.
+        translation.provider = getattr(translator, "last_provider", None) or translation.provider
         translation.updated_at = datetime.now(timezone.utc)
     else:
         translation = Translation(ocr_block_id=block.id, translated_text=translated_text, provider=getattr(translator, "last_provider", None) or "ollama")

@@ -65,6 +65,12 @@ class TranslationService:
                 result = await asyncio.wait_for(call, timeout=self._ollama_budget)
             else:
                 result = await call
+            if len(result) != len(texts):
+                # Réponse inexploitable : ne jamais renvoyer un lot
+                # tronqué/vide comme s'il était traduit -> repli DeepL.
+                raise RuntimeError(
+                    f"Ollama : {len(result)} traduction(s) reçue(s), {len(texts)} attendue(s)."
+                )
             self.last_provider = "ollama"
             return result
         except Exception as ollama_exc:
@@ -79,6 +85,11 @@ class TranslationService:
             raise RuntimeError(
                 f"Traduction impossible — Ollama et DeepL ont échoué : {deepl_exc}"
             ) from deepl_exc
+        if len(result) != len(texts):
+            raise RuntimeError(
+                f"Traduction impossible — DeepL : {len(result)} traduction(s) "
+                f"reçue(s), {len(texts)} attendue(s)."
+            )
         self.last_provider = "deepl"
         return result
 
@@ -88,4 +99,7 @@ class TranslationService:
         if not text or not text.strip():
             return ""
         results = await self.translate_batch([text], source_lang, target_lang)
-        return results[0] if results else text
+        if not results:
+            # Jamais le texte source déguisé en traduction.
+            raise RuntimeError("Traduction impossible — aucun moteur n'a répondu.")
+        return results[0]

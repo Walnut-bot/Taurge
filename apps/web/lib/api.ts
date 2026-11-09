@@ -1,5 +1,6 @@
 import { readRuntimeApiOverride, resolveApiUrl } from './api-url'
 import { attemptsForMethod, resilientFetch } from './resilient-fetch'
+import { isTokenExpired } from './token-expiry'
 import { demo } from './demo-store'
 import type {
   ExportRecord,
@@ -18,6 +19,24 @@ export const IS_DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === '1'
 
 const TOKEN_KEY = 'taurge_token'
 
+/**
+ * Token storage — limitation connue (ne pas « corriger » en cookie sans
+ * changement backend coordonné) :
+ * L'API actuelle renvoie un JWT Bearer en JSON (`POST /auth/login`) et
+ * attend `Authorization: Bearer …` ; elle ne pose aucun cookie et n'a
+ * pas d'auth par cookie. Un cookie httpOnly exigerait donc un nouvel
+ * endpoint backend + `credentials: 'include'` + CORS/`SameSite`
+ * adaptés au tunnel local (`?api=…`, origine Vercel ≠ origine tunnel),
+ * ce qui casserait ce tunnel. En attendant, le token reste en
+ * localStorage (accessible à tout JS de l'origine : risque XSS résiduel
+ * assumé et documenté ici), avec les réductions suivantes :
+ * - jamais journalisé (aucun console.* ne doit recevoir le token) ;
+ * - durée alignée sur le backend : l'`exp` du JWT (défaut 12 h, voir
+ *   `ACCESS_TOKEN_EXPIRE_MINUTES` côté API) est contrôlé à chaque
+ *   lecture et le token expiré est purgé immédiatement ;
+ * - purge à la déconnexion et sur toute réponse 401 (`clearToken`).
+ */
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -33,7 +52,13 @@ export function saveToken(token: string) {
 
 export function getToken(): string | null {
   if (typeof window === 'undefined') return null
-  return localStorage.getItem(TOKEN_KEY)
+  const token = localStorage.getItem(TOKEN_KEY)
+  if (!token) return null
+  if (isTokenExpired(token)) {
+    clearToken()
+    return null
+  }
+  return token
 }
 
 export function clearToken() {

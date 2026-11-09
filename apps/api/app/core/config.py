@@ -23,7 +23,10 @@ class Settings:
     # Sécurité JWT
     secret_key: str = os.getenv("SECRET_KEY", "dev-secret-change-me")
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60 * 24 * 7  # 7 jours
+    # Défaut 12 h (<= 24 h) ; surchargeable via ACCESS_TOKEN_EXPIRE_MINUTES.
+    access_token_expire_minutes: int = int(
+        os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(60 * 12))
+    )
     # Anti force-brute sur /auth/login : échecs max par email avant blocage temporaire
     login_max_failed_attempts: int = int(os.getenv("LOGIN_MAX_FAILED_ATTEMPTS", "5"))
     login_block_window_minutes: int = int(os.getenv("LOGIN_BLOCK_WINDOW_MINUTES", "15"))
@@ -31,6 +34,24 @@ class Settings:
     # Stockage fichiers
     storage_path: str = os.getenv("STORAGE_PATH", "./storage_data")
     max_upload_size_mb: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))
+    # Provider de stockage : "local" (défaut) ou "s3" (S3-compatible,
+    # boto3 optionnel — voir requirements-s3.txt).
+    storage_provider: str = os.getenv("STORAGE_PROVIDER", "local").strip().lower()
+    s3_bucket: str = os.getenv("S3_BUCKET", "")
+    s3_endpoint_url: str | None = os.getenv("S3_ENDPOINT_URL") or None
+    s3_region: str | None = os.getenv("S3_REGION") or None
+    s3_access_key_id: str | None = os.getenv("S3_ACCESS_KEY_ID") or None
+    s3_secret_access_key: str | None = os.getenv("S3_SECRET_ACCESS_KEY") or None
+    s3_prefix: str = os.getenv("S3_PREFIX", "")
+
+    # File de tâches Celery + broker Redis. USE_CELERY=auto (défaut) :
+    # Celery est utilisé dès que le broker répond, sinon le worker DB
+    # intégré (app/jobs/worker.py) exécute les jobs — l'app fonctionne
+    # donc aussi sans Redis. "true" force Celery, "false" le désactive.
+    redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    celery_broker_url: str = os.getenv("CELERY_BROKER_URL", redis_url)
+    celery_result_backend: str = os.getenv("CELERY_RESULT_BACKEND", redis_url)
+    use_celery: str = os.getenv("USE_CELERY", "auto").strip().lower()
 
     # Dossier des polices de lettrage embarquées
     fonts_dir: Path = Path(__file__).resolve().parent.parent / "assets" / "fonts"

@@ -1,4 +1,6 @@
+import logging
 import re
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,7 +12,8 @@ from app.billing.router import router as billing_router
 from app.billing.payment_webhooks import router as payment_webhooks_router
 from app.billing.payments_router import router as payments_router
 from app.exports.router import router as exports_router
-from app.jobs.router import fail_orphaned_jobs, router as jobs_router
+from app.jobs.router import recover_interrupted_jobs, router as jobs_router
+from app.jobs.worker import start_job_worker, stop_job_worker
 from app.ocr_blocks.router import router as ocr_blocks_router
 from app.pages.router import router as pages_router
 from app.projects.router import router as projects_router
@@ -21,7 +24,25 @@ from app.core.config import settings
 from app.core.db import init_db
 from app.core.i18n import get_locale, parse_accept_language, translate_detail
 
-app = FastAPI(title="Taurge API", version="0.4.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    # Reprise (et non échec) des jobs interrompus : running -> pending,
+    # puis le worker DB les réclame. Voir app/jobs/worker.py (limite :
+    # pas de broker externe, worker thread + table jobs).
+    recovered = recover_interrupted_jobs()
+    if recovered:
+        logging.getLogger(__name__).warning(
+            "%s job(s) interrompu(s) remis en file au démarrage.", recovered
+        )
+    start_job_worker()
+    try:
+        yield
+    finally:
+        stop_job_worker()
+
+
+app = FastAPI(title="Taurge API", version="0.4.0", lifespan=lifespan)
 
 
 class NormalizePathMiddleware:
@@ -72,20 +93,6 @@ async def localized_http_exception_handler(
         content={"detail": translate_detail(exc.detail, locale)},
         headers=exc.headers,
     )
-
-
-@app.on_event("startup")
-def on_startup() -> None:
-    init_db()
-    # Après un crash (OOM…), les jobs pending/running sont orphelins :
-    # les marquer échoués évite un suivi client sans fin.
-    recovered = fail_orphaned_jobs()
-    if recovered:
-        import logging
-
-        logging.getLogger(__name__).warning(
-            "%s job(s) orphelin(s) marqué(s) comme échoués au démarrage.", recovered
-        )
 
 
 app.include_router(auth_router)

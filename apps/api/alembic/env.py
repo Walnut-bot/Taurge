@@ -12,7 +12,10 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Injection de l'URL de base de données depuis les settings de l'app
-config.set_main_option("sqlalchemy.url", settings.database_url)
+_db_url = settings.database_url
+if _db_url.startswith("postgres://"):
+    _db_url = "postgresql://" + _db_url[len("postgres://"):]
+config.set_main_option("sqlalchemy.url", _db_url)
 
 target_metadata = SQLModel.metadata
 

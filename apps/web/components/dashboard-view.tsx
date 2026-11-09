@@ -80,7 +80,7 @@ export function DashboardView() {
         <div className="flex flex-wrap items-end justify-between gap-4 border-b-[1.5px] border-ink pb-5">
           <div>
             <p className="label-mono text-ink-soft">{t('studio')}</p>
-            <h1 className="mt-1 text-4xl font-bold tracking-tight">
+            <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">
               {t('title')}
               {projects && projects.length > 0 && (
                 <span className="ml-3 font-mono text-lg font-normal text-ink-soft">

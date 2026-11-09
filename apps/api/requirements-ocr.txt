@@ -1,0 +1,16 @@
+# Dépendances OCR LOURDES et OPTIONNELLES — à installer explicitement.
+# Ne font PAS partie de requirements.txt : l'API et les tests tournent
+# sans elles (repli automatique sur Tesseract, voir app/ocr/ocr_service.py).
+#
+#   pip install -r requirements-ocr.txt
+#
+# - paddlepaddle / paddleocr : moteur principal hors japonais
+#   (app/ocr/providers/paddle_ocr_provider.py). PaddlePaddle est compilé
+#   avec AVX : sur un CPU sans AVX, libpaddle ne se charge pas et le
+#   service bascule sur Tesseract — l'absence de ces paquets produit le
+#   même repli, avec un message clair dans les logs.
+# - manga-ocr : moteur japonais (app/ocr/providers/manga_ocr_provider.py),
+#   tire transformers/torch (plusieurs Go). Absent -> repli Tesseract (jpn).
+paddlepaddle==3.0.0
+paddleocr==2.9.1
+manga-ocr==0.1.14

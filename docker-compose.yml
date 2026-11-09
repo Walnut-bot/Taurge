@@ -15,21 +15,54 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   api:
     build: ./apps/api
     environment:
       DATABASE_URL: postgresql://taurge:taurge@db:5432/taurge
       ENVIRONMENT: development
       STORAGE_PATH: /app/storage_data
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - ./apps/api:/app
       - taurge_storage_data:/app/storage_data
-      - taurge_argos_models:/root/.local/share/argos-translate
+
+  worker:
+    build: ./apps/api
+    command: celery -A app.jobs.celery_app worker -l info
+    environment:
+      DATABASE_URL: postgresql://taurge:taurge@db:5432/taurge
+      ENVIRONMENT: development
+      STORAGE_PATH: /app/storage_data
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./apps/api:/app
+      - taurge_storage_data:/app/storage_data
 
   web:
     build: ./apps/web
@@ -46,4 +79,3 @@ services:
 volumes:
   taurge_db_data:
   taurge_storage_data:
-  taurge_argos_models:

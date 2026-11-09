@@ -84,7 +84,7 @@ class TesseractOCRProvider:
         except ImportError as exc:
             raise RuntimeError(
                 "pytesseract n'est pas installé : `pip install pytesseract` "
-                "(voir requirements.txt)."
+                "(inclus dans requirements.txt)."
             ) from exc
 
         pytesseract.pytesseract.tesseract_cmd = binary

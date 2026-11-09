@@ -172,3 +172,10 @@
     scroll-behavior: smooth;
   }
 }
+
+/* Garde-fou mobile : la page elle-même ne défile jamais en horizontal.
+   `clip` (et non `hidden`) préserve le positionnement `sticky`. */
+html,
+body {
+  overflow-x: clip;
+}

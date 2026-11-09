@@ -56,6 +56,9 @@ class PageResponse(BaseModel):
     created_at: datetime
     ocr_blocks: list[OCRBlockResponse] = []
     cleaned_at: datetime | None = None
+    # Champ additif (compatible frontend actuel qui l'ignore) :
+    # URL de la miniature, servie par GET /pages/{id}/thumbnail.
+    thumbnail_url: str | None = None
 
 
 class ProjectResponse(BaseModel):

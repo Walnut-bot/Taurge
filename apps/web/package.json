@@ -1,14 +1,14 @@
 {
-  "name": "my-project",
+  "name": "taurge-web",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@12.3.4",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --test lib/api-url.test.mjs lib/resilient-fetch.test.mjs"
+    "test": "node --test lib/api-url.test.mjs lib/resilient-fetch.test.mjs lib/token-expiry.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -29,6 +29,8 @@
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.4.5",
     "postcss": "^8.5",
     "tailwindcss": "^4.3.3",
     "typescript": "5.7.3"

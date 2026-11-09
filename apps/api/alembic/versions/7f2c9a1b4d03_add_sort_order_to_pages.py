@@ -15,11 +15,21 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _has_column() -> bool:
+    inspector = sa.inspect(op.get_bind())
+    return inspector.has_table('pages') and any(
+        c['name'] == 'sort_order' for c in inspector.get_columns('pages')
+    )
+
+
 def upgrade() -> None:
-    with op.batch_alter_table('pages', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('sort_order', sa.Integer(), nullable=True))
+    # Idempotent : la colonne a pu être ajoutée par l'ancien init_db.
+    if not _has_column():
+        with op.batch_alter_table('pages', schema=None) as batch_op:
+            batch_op.add_column(sa.Column('sort_order', sa.Integer(), nullable=True))
 
 
 def downgrade() -> None:
-    with op.batch_alter_table('pages', schema=None) as batch_op:
-        batch_op.drop_column('sort_order')
+    if _has_column():
+        with op.batch_alter_table('pages', schema=None) as batch_op:
+            batch_op.drop_column('sort_order')

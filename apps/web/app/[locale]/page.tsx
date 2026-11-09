@@ -40,11 +40,11 @@ export default async function HomePage({
   return (
     <div className="min-h-dvh">
       <header className="w-full border-b-[1.5px] border-ink bg-sheet">
-        <div className="flex h-16 w-full items-center justify-between px-6 lg:px-10">
+        <div className="flex h-16 w-full items-center justify-between gap-2 px-4 sm:px-6 lg:px-10">
           <Logo />
-          <nav aria-label="Account" className="flex items-center gap-3">
+          <nav aria-label="Account" className="flex items-center gap-2 sm:gap-3">
             <LanguageSwitcher />
-            <Link href="/login" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+            <Link href="/login" className={`${buttonVariants({ variant: 'ghost', size: 'sm' })} max-sm:hidden`}>
               {tNav('login')}
             </Link>
             <Link href="/register" className={buttonVariants({ size: 'sm' })}>
@@ -61,7 +61,7 @@ export default async function HomePage({
               <span className="inline-block h-px w-6 bg-seal" aria-hidden="true" />
               {t('tagline')}
             </p>
-            <h1 className="text-[2.6rem] leading-[1.02] font-bold tracking-[-0.03em] text-balance sm:text-6xl">
+            <h1 className="text-4xl leading-[1.05] font-bold tracking-[-0.03em] text-balance sm:text-6xl">
               {t('titleStart')}{' '}
               <span className="relative whitespace-nowrap">
                 {t('titleHighlight')}

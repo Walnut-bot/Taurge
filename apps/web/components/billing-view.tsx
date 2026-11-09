@@ -75,7 +75,7 @@ export function BillingView() {
       <AppHeader />
       <AppShell>
         <main id="contenu" className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-          <h1 className="text-4xl font-bold tracking-tight">{t('title')}</h1>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{t('title')}</h1>
           <p role="note" className="mt-3 max-w-2xl border-l-2 border-caution bg-caution-wash px-3 py-2 text-sm">
             {t('hypothesis')}
           </p>
@@ -153,13 +153,13 @@ export function BillingView() {
             </h2>
             <p className="mt-3 max-w-3xl text-sm leading-relaxed text-ink-soft">{t('compareNote')}</p>
             <div className="mt-5 overflow-x-auto border border-hairline bg-sheet">
-              <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+              <table className="w-full min-w-[540px] border-collapse text-left text-sm sm:min-w-[640px]">
                 <caption className="sr-only">{t('compareTitle')}</caption>
                 <thead>
                   <tr className="border-b border-hairline">
-                    <th scope="col" className="px-4 py-3 font-semibold">{t('colFeature')}</th>
+                    <th scope="col" className="sticky left-0 bg-sheet px-2.5 py-2.5 font-semibold sm:px-4 sm:py-3">{t('colFeature')}</th>
                     {PLANS.map((plan) => (
-                      <th key={plan.key} scope="col" className={cn('px-4 py-3 font-semibold', currentPlan === plan.key && 'text-seal')}>
+                      <th key={plan.key} scope="col" className={cn('px-2.5 py-2.5 font-semibold sm:px-4 sm:py-3', currentPlan === plan.key && 'text-seal')}>
                         {t(plan.key)}
                         {currentPlan === plan.key ? ` — ${t('currentPlan')}` : ''}
                       </th>
@@ -169,11 +169,11 @@ export function BillingView() {
                 <tbody>
                   {(Object.keys(t.raw<Record<string, string>>('rows')) as (keyof typeof QUOTA_ROWS)[]).map((rowKey) => (
                     <tr key={rowKey} className="border-b border-hairline last:border-b-0">
-                      <th scope="row" className="px-4 py-2.5 font-medium text-ink-soft">
+                      <th scope="row" className="sticky left-0 bg-sheet px-2.5 py-2.5 font-medium text-ink-soft sm:px-4">
                         {t(`rows.${rowKey}`)}
                       </th>
                       {PLANS.map((plan) => (
-                        <td key={plan.key} className="px-4 py-2.5 font-mono text-[0.8125rem]">
+                        <td key={plan.key} className="px-2.5 py-2.5 font-mono text-[0.8125rem] sm:px-4">
                           {t.raw<Record<string, Record<string, string>>>('quotas')[plan.key]?.[rowKey] ?? '—'}
                         </td>
                       ))}

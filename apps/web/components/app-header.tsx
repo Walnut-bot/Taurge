@@ -83,7 +83,7 @@ export function AppHeader({ children, center }: AppHeaderProps) {
     <>
     <CreditsModal />
     <header className="sticky top-0 z-40 w-full border-b border-hairline bg-paper/95 backdrop-blur supports-[backdrop-filter]:bg-paper/80">
-      <div className="mx-auto flex h-14 w-full items-center justify-between gap-4 px-4 sm:px-6">
+      <div className="mx-auto flex h-14 w-full items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6">
         {/* Côté Gauche : Logo + Fil d'Ariane / Titre du projet */}
         <div className="flex items-center gap-3 min-w-0">
           <Logo href="/dashboard" />
@@ -105,12 +105,12 @@ export function AppHeader({ children, center }: AppHeaderProps) {
         )}
 
         {/* Côté Droit : Langue + Badge de crédits (Pill) + Avatar utilisateur (Dropdown) */}
-        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <LanguageSwitcher />
           {/* Badge compact de Crédits ("Pill" moderne) */}
           {me && (
             <div
-              className="group flex items-center gap-1.5 sm:gap-2 rounded-full border border-hairline bg-sheet/90 px-2.5 py-1 text-xs shadow-xs transition-all hover:border-ink/20"
+              className="group flex items-center gap-1.5 sm:gap-2 rounded-full border border-hairline bg-sheet/90 px-2 py-1 text-xs shadow-xs transition-all hover:border-ink/20 sm:px-2.5"
               title={t('creditsTitle')}
             >
               <Coins
@@ -125,7 +125,7 @@ export function AppHeader({ children, center }: AppHeaderProps) {
               </span>
               <LocaleLink
                 href="/billing"
-                className="ml-0.5 shrink-0 rounded-full bg-seal/10 px-2 py-0.5 font-sans text-[10px] font-medium text-seal transition-colors hover:bg-seal hover:text-seal-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-seal"
+                className="ml-0.5 hidden shrink-0 rounded-full bg-seal/10 px-2 py-0.5 font-sans text-[10px] font-medium text-seal transition-colors hover:bg-seal hover:text-seal-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-seal sm:inline-block"
                 title={t('refillTitle')}
                 aria-label={`${t('refillCredits')} — ${t('refillSoon')}`}
               >

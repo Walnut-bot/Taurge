@@ -51,3 +51,35 @@ def get_accessible_project(
     if not user_has_project_access(session, project, user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
     return project
+
+
+# --- Source unique de vérité pour le contrôle d'accès projet -----------
+# Tous les routeurs/services passent par ces helpers (ou par
+# user_has_project_access ci-dessus). L'ancien ``_get_owned_project``
+# de projects/router.py n'est plus qu'un alias de compatibilité qui
+# délègue ici : aucune vérification owner/member n'est dupliquée.
+
+def get_owned_project(
+    session: Session, project_id: uuid.UUID, user_id: uuid.UUID
+) -> Project:
+    return get_accessible_project(session, project_id, user_id)
+
+
+def get_owned_file(session: Session, project_id: uuid.UUID, file_id: uuid.UUID, user_id: uuid.UUID):
+    from app.models.source_file import SourceFile
+
+    get_accessible_project(session, project_id, user_id)
+    source_file = session.get(SourceFile, file_id)
+    if not source_file or source_file.project_id != project_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fichier introuvable.")
+    return source_file
+
+
+def get_owned_page(session: Session, project_id: uuid.UUID, page_id: uuid.UUID, user_id: uuid.UUID):
+    from app.models.page import Page
+
+    get_accessible_project(session, project_id, user_id)
+    page = session.get(Page, page_id)
+    if not page or page.project_id != project_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Page introuvable.")
+    return page

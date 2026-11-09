@@ -1,6 +1,5 @@
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
-import threading
-import time
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -32,24 +31,55 @@ from app.models.payment import PaymentTransaction
 from app.models.project import Project
 from app.models.source_file import SourceFile
 from app.models.subscription import ProjectMember, Subscription, UsageLedger
+from app.models.login_attempt import LoginAttempt
 from app.models.translation import Translation
 from app.models.user import User
 from app.storage.dependencies import storage_provider
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-# Anti force-brute : échecs récents par email (en mémoire, l'API tourne
-# en une seule instance — même hypothèse que fail_orphaned_jobs).
-_failed_logins: dict[str, list[float]] = {}
-_failed_logins_lock = threading.Lock()
+# Anti force-brute persistant : échecs récents par email en base
+# (table login_attempts), fenêtre glissante partagée entre instances
+# et conservée après redémarrage.
+def _window_cutoff() -> datetime:
+    return datetime.now(timezone.utc) - timedelta(
+        minutes=settings.login_block_window_minutes
+    )
 
 
-def _recent_failed_logins(email: str) -> list[float]:
-    cutoff = time.monotonic() - settings.login_block_window_minutes * 60
-    with _failed_logins_lock:
-        recent = [t for t in _failed_logins.get(email, []) if t > cutoff]
-        _failed_logins[email] = recent
-        return recent
+def _recent_failed_logins(session: Session, email: str) -> int:
+    cutoff = _window_cutoff()
+    attempts = session.exec(
+        select(LoginAttempt).where(
+            LoginAttempt.email == email,
+            LoginAttempt.attempted_at >= cutoff,
+        )
+    ).all()
+    # Purge opportuniste des tentatives hors fenêtre.
+    expired = session.exec(
+        select(LoginAttempt).where(
+            LoginAttempt.email == email,
+            LoginAttempt.attempted_at < cutoff,
+        )
+    ).all()
+    for attempt in expired:
+        session.delete(attempt)
+    if expired:
+        session.commit()
+    return len(attempts)
+
+
+def _record_failed_login(session: Session, email: str) -> None:
+    session.add(LoginAttempt(email=email))
+    session.commit()
+
+
+def _clear_failed_logins(session: Session, email: str) -> None:
+    for attempt in session.exec(
+        select(LoginAttempt).where(LoginAttempt.email == email)
+    ).all():
+        session.delete(attempt)
+    session.commit()
 
 
 MAX_PROFILE_IMAGE_BYTES = 8 * 1024 * 1024
@@ -155,21 +185,19 @@ def register(payload: RegisterRequest, session: Session = Depends(get_session)):
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, session: Session = Depends(get_session)):
     email = payload.email.lower()
-    if len(_recent_failed_logins(email)) >= settings.login_max_failed_attempts:
+    if _recent_failed_logins(session, email) >= settings.login_max_failed_attempts:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Trop de tentatives de connexion. Réessayez dans quelques minutes.",
         )
     user = session.exec(select(User).where(User.email == payload.email)).first()
     if not user or not verify_password(payload.password, user.password_hash):
-        with _failed_logins_lock:
-            _failed_logins.setdefault(email, []).append(time.monotonic())
+        _record_failed_login(session, email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email ou mot de passe incorrect.",
         )
-    with _failed_logins_lock:
-        _failed_logins.pop(email, None)
+    _clear_failed_logins(session, email)
     token = create_access_token(subject=str(user.id))
     return TokenResponse(access_token=token)
 
@@ -335,7 +363,7 @@ def delete_account(
     # non supprimés du disque et historique crédits non détaché,
     # ce qui fait échouer la suppression sur PostgreSQL.
     # Import différé : app.projects.router importe app.auth.
-    from app.projects.router import _delete_project_cascade
+    from app.projects.project_service import delete_project_cascade as _delete_project_cascade
 
     projects = session.exec(select(Project).where(Project.owner_id == user_id)).all()
     for project in projects:

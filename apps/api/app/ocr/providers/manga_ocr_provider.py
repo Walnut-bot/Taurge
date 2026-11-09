@@ -54,7 +54,7 @@ class MangaOCRProvider:
                 except Exception as exc:
                     raise RuntimeError(
                         "manga-ocr indisponible sur cette machine "
-                        f"({exc}) : `pip install manga-ocr` (voir requirements.txt), "
+                        f"({exc}) : `pip install -r requirements-ocr.txt`, "
                         "ou repli Tesseract (jpn)."
                     ) from exc
                 logger.info("[MangaOCR] Chargement du modèle manga-ocr…")

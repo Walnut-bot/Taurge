@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils'
 
 export const fieldClass =
-  'w-full rounded-sm border border-hairline bg-sheet px-3 text-[0.9375rem] text-ink transition-colors placeholder:text-ink-soft/70 hover:border-ink-soft focus-visible:border-ink focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-seal aria-invalid:border-danger disabled:opacity-50'
+  'w-full min-w-0 rounded-sm border border-hairline bg-sheet px-3 text-[0.9375rem] text-ink transition-colors placeholder:text-ink-soft/70 hover:border-ink-soft focus-visible:border-ink focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-seal aria-invalid:border-danger disabled:opacity-50'
 
 export function Label({ className, ...props }: React.ComponentProps<'label'>) {
   return <label className={cn('label-mono block text-ink-soft', className)} {...props} />

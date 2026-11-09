@@ -132,4 +132,6 @@ class DeepLProvider:
         if not text or not text.strip():
             return ""
         results = await self.translate_batch([text], source_lang, target_lang)
-        return results[0] if results else text
+        if not results:
+            raise RuntimeError("DeepL — aucune traduction renvoyée.")
+        return results[0]

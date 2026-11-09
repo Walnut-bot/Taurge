@@ -1,6 +1,11 @@
-from sqlalchemy import inspect, text
+import logging
+from pathlib import Path
+
+from sqlalchemy import inspect
 from sqlmodel import SQLModel, Session, create_engine
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Render/Neon fournissent souvent l'ancien schéma postgres:// que
 # SQLAlchemy 2 n'accepte plus : on le normalise en postgresql://.
@@ -8,7 +13,6 @@ _database_url = settings.database_url
 if _database_url.startswith("postgres://"):
     _database_url = "postgresql://" + _database_url[len("postgres://"):]
 
-# Configuration de connexion adaptée au driver (SQLite multi-thread ou PostgreSQL pool)
 connect_args = (
     {"check_same_thread": False, "timeout": 30}
     if _database_url.startswith("sqlite")
@@ -24,70 +28,48 @@ engine = create_engine(
 
 
 def init_db() -> None:
-    """Initialise le schéma déclaratif de la base de données."""
+    """Initialise la base en gardant les bases SQLite existantes.
+
+    Alembic est la source de vérité du schéma versionné
+    (voir `alembic/versions/`). Pour ne pas casser un `taurge.db`
+    existant créé avant Alembic, `create_all` reste le bootstrap
+    idempotent (il ne crée que les tables absentes, jamais d'ALTER
+    ad-hoc), puis l'état Alembic est synchronisé :
+    - base déjà versionnée -> `alembic upgrade head` ;
+    - base non versionnée (créée par create_all) -> `stamp head`.
+
+    Mise à jour manuelle d'une base existante :
+        cd apps/api && alembic upgrade head
+    """
     import app.models  # Enregistre tous les modèles dans SQLModel.metadata
+
     SQLModel.metadata.create_all(engine)
-    _ensure_user_profile_columns()
-    _ensure_user_consent_columns()
-    _ensure_page_sort_order_column()
-    _ensure_job_page_id_column()
+    _sync_alembic_state()
 
 
-def _ensure_user_profile_columns() -> None:
-    columns = {
-        column["name"]
-        for column in inspect(engine).get_columns("users")
-    }
-    additions = {
-        "display_name": "VARCHAR",
-        "avatar_content_type": "VARCHAR",
-        "banner_content_type": "VARCHAR",
-        "default_content_type": "VARCHAR NOT NULL DEFAULT 'manga'",
-        "default_source_lang": "VARCHAR NOT NULL DEFAULT 'ja'",
-        "default_target_lang": "VARCHAR NOT NULL DEFAULT 'fr'",
-    }
-    with engine.begin() as connection:
-        for name, definition in additions.items():
-            if name not in columns:
-                connection.execute(text(f"ALTER TABLE users ADD COLUMN {name} {definition}"))
+def _sync_alembic_state() -> None:
+    """Aligne `alembic_version` sans ALTER manuel (best effort)."""
+    try:
+        from alembic import command
+        from alembic.config import Config
 
-
-def _ensure_user_consent_columns() -> None:
-    columns = {
-        column["name"]
-        for column in inspect(engine).get_columns("users")
-    }
-    additions = {
-        "terms_accepted_at": "TIMESTAMP",
-        "age_confirmed_at": "TIMESTAMP",
-        "newsletter_opt_in": "BOOLEAN NOT NULL DEFAULT 0",
-    }
-    with engine.begin() as connection:
-        for name, definition in additions.items():
-            if name not in columns:
-                connection.execute(text(f"ALTER TABLE users ADD COLUMN {name} {definition}"))
-
-
-def _ensure_page_sort_order_column() -> None:
-    columns = {
-        column["name"]
-        for column in inspect(engine).get_columns("pages")
-    }
-    if "sort_order" not in columns:
-        with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE pages ADD COLUMN sort_order INTEGER"))
-
-
-def _ensure_job_page_id_column() -> None:
-    # create_all ne rajoute pas de colonne aux tables existantes
-    # (base de production déjà créée sans jobs.page_id).
-    columns = {
-        column["name"]
-        for column in inspect(engine).get_columns("jobs")
-    }
-    if "page_id" not in columns:
-        with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE jobs ADD COLUMN page_id UUID"))
+        ini_path = Path(__file__).resolve().parents[2] / "alembic.ini"
+        if not ini_path.exists():
+            return
+        cfg = Config(str(ini_path))
+        cfg.set_main_option("script_location", str(ini_path.parent / "alembic"))
+        cfg.set_main_option("sqlalchemy.url", _database_url)
+        versioned = inspect(engine).has_table("alembic_version")
+        if versioned:
+            command.upgrade(cfg, "head")
+        else:
+            # Schéma déjà au niveau des modèles via create_all :
+            # on enregistre simplement la révision courante.
+            command.stamp(cfg, "head")
+    except Exception:
+        # Ne jamais empêcher le démarrage pour un souci de versioning :
+        # le schéma déclaratif (create_all) reste fonctionnel.
+        logger.warning("Synchronisation Alembic impossible.", exc_info=True)
 
 
 def get_session():

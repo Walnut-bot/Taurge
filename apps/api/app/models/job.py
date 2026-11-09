@@ -10,6 +10,11 @@ class Job(SQLModel, table=True):
     project_id: uuid.UUID = Field(foreign_key="projects.id", index=True)
     user_id: uuid.UUID = Field(foreign_key="users.id", index=True)
     page_id: uuid.UUID | None = Field(default=None, foreign_key="pages.id", index=True)
+    # Fichier source d'un job extract_pages : permet au worker DB de
+    # reprendre l'extraction après redémarrage sans paramètre d'appel.
+    source_file_id: uuid.UUID | None = Field(
+        default=None, foreign_key="source_files.id", index=True
+    )
     job_type: str = Field(default="batch_process")  # 'batch_process', 'export'
     status: str = Field(default="pending")  # 'pending', 'running', 'completed', 'failed', 'cancelled'
     current_page: int = Field(default=0)

@@ -14,9 +14,16 @@ Pillow==10.4.0
 opencv-python-headless==4.10.0.84
 numpy==1.26.4
 httpx==0.27.2
-# OCR adaptatif : PaddleOCR (KO/ZH/occidental) + MangaOCR (japonais)
-# + Tesseract en repli automatique (machines sans AVX, ex. Celeron N3060).
-paddlepaddle==3.0.0
-paddleocr==2.9.1
-manga-ocr==0.1.14
+# OCR : seul le repli léger Tesseract est en base (pytesseract pilote le
+# binaire système). Les moteurs lourds et optionnels (PaddleOCR +
+# MangaOCR, machines avec AVX / japonais) sont dans requirements-ocr.txt :
+#   pip install -r requirements-ocr.txt
+# Sans eux, l'API et les tests tournent ; app/ocr/ocr_service.py bascule
+# automatiquement sur Tesseract avec un message clair dans les logs.
 pytesseract==0.3.13
+# File de tâches distribuée : Celery + broker Redis. Optionnelle à
+# l'exécution (repli worker DB intégré si le broker ne répond pas),
+# mais requise pour le processus worker dédié :
+#   celery -A app.jobs.celery_app worker --pool=solo -l info
+celery==5.7.0
+redis==6.4.0

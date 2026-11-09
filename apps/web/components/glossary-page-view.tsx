@@ -56,7 +56,7 @@ export function GlossaryPageView() {
       <AppHeader />
       <AppShell>
         <main id="contenu" className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-          <h1 className="text-4xl font-bold tracking-tight">{t('title')}</h1>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{t('title')}</h1>
           <p className="mt-2 text-ink-soft">{t('subtitle')}</p>
 
           <div className="relative mt-8 max-w-md">
@@ -102,27 +102,27 @@ export function GlossaryPageView() {
 
           {filtered.length > 0 && (
             <div className="mt-8 overflow-x-auto border-[1.5px] border-ink">
-              <table className="w-full min-w-[720px] text-left text-sm">
+              <table className="w-full text-left text-sm sm:min-w-[720px]">
                 <thead className="bg-sheet">
                   <tr className="border-b-[1.5px] border-ink">
-                    <th scope="col" className="px-4 py-3 font-semibold">{t('title')}</th>
-                    <th scope="col" className="px-4 py-3 font-semibold">{t('category')}</th>
-                    <th scope="col" className="px-4 py-3 font-semibold">{t('note')}</th>
+                    <th scope="col" className="px-3 py-3 font-semibold sm:px-4">{t('title')}</th>
+                    <th scope="col" className="hidden px-4 py-3 font-semibold sm:table-cell">{t('category')}</th>
+                    <th scope="col" className="hidden px-4 py-3 font-semibold sm:table-cell">{t('note')}</th>
                     <th scope="col" className="px-4 py-3" aria-label={t('openProject')} />
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((row) => (
                     <tr key={row.id} className="border-b border-hairline last:border-0">
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3 sm:px-4">
                         <span className="font-semibold">{row.source_term}</span>
                         <span className="mx-2 text-seal" aria-hidden="true">→</span>
                         <span>{row.target_term}</span>
                         <span className="mt-0.5 block text-xs text-ink-soft">{row.projectName}</span>
                       </td>
-                      <td className="px-4 py-3 text-ink-soft">{row.category}</td>
-                      <td className="px-4 py-3 text-ink-soft">{row.notes ?? '—'}</td>
-                      <td className="px-4 py-3">
+                      <td className="hidden px-4 py-3 text-ink-soft sm:table-cell">{row.category}</td>
+                      <td className="hidden px-4 py-3 text-ink-soft sm:table-cell">{row.notes ?? '—'}</td>
+                      <td className="px-3 py-3 sm:px-4">
                         <span className="inline-flex items-center gap-1.5 text-xs text-ink-soft">
                           {row.is_locked ? (
                             <Lock aria-hidden="true" className="size-3.5" />

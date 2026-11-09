@@ -61,7 +61,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       >
         <nav
           aria-label="Primary"
-          className="flex flex-1 gap-1 overflow-x-auto p-3 lg:sticky lg:top-14 lg:flex-col lg:overflow-visible"
+          className="flex flex-1 flex-wrap gap-1 p-2.5 lg:sticky lg:top-14 lg:flex-col lg:flex-nowrap lg:p-3"
         >
           {items.map((item) => (
             <Link
@@ -71,7 +71,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               title={collapsed ? item.label : undefined}
               aria-label={collapsed ? item.label : undefined}
               className={cn(
-                'flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2 text-sm whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-seal',
+                'flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2 text-sm whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-seal max-lg:flex-[1_1_30%] max-lg:justify-center',
                 collapsed && 'lg:justify-center lg:px-2',
                 item.active
                   ? 'bg-paper font-semibold text-ink'
@@ -88,7 +88,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             aria-label={collapsed ? t('newProject') : undefined}
             className={cn(
               buttonVariants({ variant: 'seal', size: 'sm' }),
-              'mt-0 shrink-0 lg:mt-4',
+              'mt-0 shrink-0 max-lg:flex-[1_1_30%] max-lg:justify-center lg:mt-4',
               collapsed && 'lg:justify-center lg:px-2',
             )}
           >

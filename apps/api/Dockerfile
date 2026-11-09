@@ -30,9 +30,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Dépendances Python
+# Dépendances Python de base (légères : API + tests sans OCR lourd).
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Moteurs OCR lourds (PaddleOCR + MangaOCR), OPTIONNELS et explicites :
+# par défaut absents de l'image — l'OCR fonctionne via le repli Tesseract
+# (binaire système ci-dessus). Pour les activer de façon reproductible :
+#   docker build --build-arg INSTALL_OCR=true ./apps/api
+ARG INSTALL_OCR=false
+COPY requirements-ocr.txt .
+RUN if [ "$INSTALL_OCR" = "true" ]; then pip install --no-cache-dir -r requirements-ocr.txt; fi
 
 # Code source et assets
 COPY . .

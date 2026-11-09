@@ -10,6 +10,7 @@ from app.models.glossary import GlossaryEntry
 from app.models.subscription import Subscription, UsageLedger, ProjectMember
 from app.models.job import Job
 from app.models.payment import PaymentTransaction
+from app.models.login_attempt import LoginAttempt
 
 __all__ = [
     "User",
@@ -26,4 +27,5 @@ __all__ = [
     "ProjectMember",
     "Job",
     "PaymentTransaction",
+    "LoginAttempt",
 ]

@@ -59,7 +59,7 @@ export function PipelineBar({
         {steps.map((s, i) => (
           <li
             key={s.key}
-            className="flex shrink-0 items-center gap-2.5 border-r border-hairline px-4 py-2.5 last:border-r-0"
+            className="flex shrink-0 items-center gap-2.5 border-r border-hairline px-3 py-2.5 last:border-r-0 sm:px-4"
           >
             <StepMark index={i + 1} state={s.state} />
             <span className="flex flex-col leading-tight">
@@ -77,7 +77,7 @@ export function PipelineBar({
         ))}
       </ol>
 
-      <div className="flex items-center gap-2 border-l-[1.5px] border-ink px-3 max-sm:w-full max-sm:border-t-[1.5px] max-sm:border-l-0 max-sm:py-2">
+      <div className="flex items-center gap-2 border-l-[1.5px] border-ink px-3 max-sm:w-full max-sm:flex-col max-sm:items-stretch max-sm:border-t-[1.5px] max-sm:border-l-0 max-sm:py-2">
         {onBatchProcess && (
           <Button
             variant="outline"

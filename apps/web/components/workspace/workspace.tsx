@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState, useRef, useEffect, type CSSProperties } from 'react'
-import { ChevronRight, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, XOctagon } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { AppHeader } from '@/components/app-header'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { useTranslations } from '@/i18n/provider'
@@ -18,6 +18,18 @@ import { GlossaryPanel } from './glossary-panel'
 import { TeamPanel } from './team-panel'
 import type { ExportRecord, GlossaryEntry, ProjectMember } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { useJobPolling, type Notice } from './use-job-polling'
+import { useWorkspaceData } from './use-workspace-data'
+import {
+  CollapsedRail,
+  EdgeToggle,
+  EmptyStage,
+  JobProgressBar,
+  NoticeBar,
+  ViewModeTabs,
+  WorkspaceSkeleton,
+  type ViewMode,
+} from './workspace-chrome'
 
 export type Runner = (key: string, success: string, fn: () => Promise<unknown>) => Promise<boolean>
 
@@ -31,100 +43,17 @@ export function Workspace({ projectId }: { projectId: string }) {
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null)
   const [hoverBlockId, setHoverBlockId] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
-  const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
-  const [viewMode, setViewMode] = useState<'editor' | 'glossary' | 'team'>('editor')
-  const [glossaryEntries, setGlossaryEntries] = useState<GlossaryEntry[]>([])
-  const [teamMembers, setTeamMembers] = useState<ProjectMember[]>([])
+  const [notice, setNotice] = useState<Notice | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>('editor')
+  const { glossaryEntries, teamMembers, loadGlossary, loadTeam } = useWorkspaceData(projectId) //
+  
 
   const [leftOpen, setLeftOpen] = useState(true)
   const [rightOpen, setRightOpen] = useState(true)
   const stageRef = useRef<HTMLDivElement>(null)
 
-  const [activeJobId, setActiveJobId] = useState<string | null>(null)
-  const [jobProgress, setJobProgress] = useState<{
-    percent: number
-    message: string
-    current: number
-    total: number
-  } | null>(null)
-  const pollTimerRef = useRef<NodeJS.Timeout | null>(null)
-
-  const loadGlossary = async () => {
-    try {
-      const data = await api.listGlossary(projectId)
-      setGlossaryEntries(data)
-    } catch {}
-  }
-
-  const loadTeam = async () => {
-    try {
-      const members = await api.listMembers(projectId)
-      setTeamMembers(members)
-    } catch {}
-  }
-
-  useEffect(() => {
-    loadTeam()
-  }, [projectId])
-
-  useEffect(() => {
-    if (!activeJobId) return
-
-    // Au-delà de 10 échecs d'affilée (~40 s), le serveur est très
-    // probablement mort (crash/redémarrage) : on arrête de boucler
-    // au lieu d'afficher « Retrying… » indéfiniment. Au redémarrage,
-    // le backend marque de toute façon ces jobs comme échoués.
-    let consecutiveFailures = 0
-
-    async function checkStatus() {
-      try {
-        const job = await api.getJobStatus(activeJobId!)
-        consecutiveFailures = 0
-        setJobProgress({
-          percent: job.progress_percent,
-          message: job.message,
-          current: job.current_page,
-          total: job.total_pages,
-        })
-
-        if (job.status === 'completed') {
-          setActiveJobId(null)
-          setJobProgress(null)
-          setBusy(null)
-          setNotice({ tone: 'ok', text: job.message })
-          await mutate()
-        } else if (job.status === 'failed' || job.status === 'cancelled') {
-          setActiveJobId(null)
-          setJobProgress(null)
-          setBusy(null)
-          setNotice({ tone: 'error', text: job.message })
-          await mutate()
-        } else {
-          pollTimerRef.current = setTimeout(checkStatus, 1500)
-        }
-      } catch {
-        consecutiveFailures += 1
-        if (consecutiveFailures >= 10) {
-          setActiveJobId(null)
-          setJobProgress(null)
-          setBusy(null)
-          setNotice({
-            tone: 'error',
-            text: 'Connection lost while tracking. The server may have restarted — check the project, then retry.',
-          })
-          return
-        }
-        setNotice({ tone: 'error', text: 'Connection lost while tracking. Retrying…' })
-        pollTimerRef.current = setTimeout(checkStatus, 4000)
-      }
-    }
-
-    checkStatus()
-
-    return () => {
-      if (pollTimerRef.current) clearTimeout(pollTimerRef.current)
-    }
-  }, [activeJobId, mutate])
+  const { activeJobId, jobProgress, handleCancelJob, startJob } =
+    useJobPolling({ mutate, setBusy, setNotice })
 
   if (!authed) return null
 
@@ -150,13 +79,7 @@ export function Workspace({ projectId }: { projectId: string }) {
     try {
       const result = await api.extract(projectId, fileId)
       if (result?.job_id) {
-        setActiveJobId(result.job_id)
-        setJobProgress({
-          percent: 0,
-          message: result.message,
-          current: 0,
-          total: 0,
-        })
+        startJob(result.job_id, result.message, 0)
         setBusy('extracting')
       } else {
         await mutate()
@@ -211,28 +134,9 @@ export function Workspace({ projectId }: { projectId: string }) {
     setNotice(null)
     try {
       const res = await api.startBatchJob(project.id)
-      setActiveJobId(res.job_id)
-      setJobProgress({
-        percent: 0,
-        message: 'Starting the job...',
-        current: 0,
-        total: project.pages.length,
-      })
+      startJob(res.job_id, 'Starting the job...', project.pages.length)
     } catch (err) {
       setNotice({ tone: 'error', text: err instanceof Error ? err.message : 'Cannot start processing.' })
-    }
-  }
-
-  async function handleCancelJob() {
-    if (!activeJobId) return
-    try {
-      await api.cancelJob(activeJobId)
-      setActiveJobId(null)
-      setJobProgress(null)
-      setNotice({ tone: 'ok', text: 'Job stopped successfully.' })
-      await mutate()
-    } catch (err) {
-      setNotice({ tone: 'error', text: err instanceof Error ? err.message : 'Error while cancelling.' })
     }
   }
 
@@ -240,116 +144,42 @@ export function Workspace({ projectId }: { projectId: string }) {
     <>
       <AppHeader
         center={
-          <div className="flex items-center gap-1 bg-sheet rounded-lg p-1 border border-hairline shadow-xs">
-            <button
-              type="button"
-              onClick={() => setViewMode('editor')}
-              className={cn(
-                'px-3 py-1 text-xs font-medium rounded-md transition-all',
-                viewMode === 'editor'
-                  ? 'bg-ink text-paper shadow-xs font-semibold'
-                  : 'text-ink-soft hover:text-ink hover:bg-paper/50'
-              )}
-            >
-              {tEditor('studio')}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode('glossary')
-                loadGlossary()
-              }}
-              className={cn(
-                'px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5',
-                viewMode === 'glossary'
-                  ? 'bg-ink text-paper shadow-xs font-semibold'
-                  : 'text-ink-soft hover:text-ink hover:bg-paper/50'
-              )}
-            >
-              <span>{tEditor('glossary')}</span>
-              <span className={cn(
-                'font-mono text-[10px] px-1.5 py-0.2 rounded-full',
-                viewMode === 'glossary' ? 'bg-paper/20 text-paper' : 'bg-ink/5 dark:bg-ink/10 text-ink-soft'
-              )}>
-                {glossaryEntries.length}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode('team')
-                loadTeam()
-              }}
-              className={cn(
-                'px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5',
-                viewMode === 'team'
-                  ? 'bg-ink text-paper shadow-xs font-semibold'
-                  : 'text-ink-soft hover:text-ink hover:bg-paper/50'
-              )}
-            >
-              <span>{tEditor('team')}</span>
-              <span className={cn(
-                'font-mono text-[10px] px-1.5 py-0.2 rounded-full',
-                viewMode === 'team' ? 'bg-paper/20 text-paper' : 'bg-ink/5 dark:bg-ink/10 text-ink-soft'
-              )}>
-                {teamMembers.length}
-              </span>
-            </button>
-          </div>
+          <ViewModeTabs
+            viewMode={viewMode}
+            glossaryCount={glossaryEntries.length}
+            teamCount={teamMembers.length}
+            labels={{ studio: tEditor('studio'), glossary: tEditor('glossary'), team: tEditor('team') }}
+            onSelect={(mode) => {
+              setViewMode(mode)
+              if (mode === 'glossary') loadGlossary()
+              if (mode === 'team') loadTeam()
+            }}
+          />
         }
       >
         <nav aria-label="Fil d'ariane" className="flex min-w-0 items-center gap-1.5 text-sm">
-          <Link href="/dashboard" className="shrink-0 text-ink-soft hover:text-ink transition-colors">
+          <Link href="/dashboard" className="hidden shrink-0 text-ink-soft hover:text-ink transition-colors sm:inline">
             {tEditor('projects')}
           </Link>
-          <ChevronRight className="size-3.5 shrink-0 text-ink-soft/60" aria-hidden="true" />
-          <span className="truncate font-semibold max-w-[140px] sm:max-w-[200px] md:max-w-[260px]" title={project?.name} aria-current="page">
+          <ChevronRight className="hidden size-3.5 shrink-0 text-ink-soft/60 sm:block" aria-hidden="true" />
+          <span className="truncate font-semibold max-w-[7.5rem] sm:max-w-[200px] md:max-w-[260px]" title={project?.name} aria-current="page">
             {project?.name ?? '…'}
           </span>
         </nav>
       </AppHeader>
 
-      {/* Barre de navigation mobile pour les 3 modes */}
-      <div className="flex md:hidden items-center justify-center p-2 border-b border-hairline bg-sheet/50">
-        <div className="flex items-center gap-1 bg-sheet rounded-lg p-1 border border-hairline text-xs">
-          <button
-            type="button"
-            onClick={() => setViewMode('editor')}
-            className={cn(
-              'px-2.5 py-1 font-medium rounded transition-all',
-              viewMode === 'editor' ? 'bg-ink text-paper' : 'text-ink-soft'
-            )}
-          >
-            {tEditor('studio')}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setViewMode('glossary')
-              loadGlossary()
-            }}
-            className={cn(
-              'px-2.5 py-1 font-medium rounded transition-all',
-              viewMode === 'glossary' ? 'bg-ink text-paper' : 'text-ink-soft'
-            )}
-          >
-            {tEditor('glossary')} ({glossaryEntries.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setViewMode('team')
-              loadTeam()
-            }}
-            className={cn(
-              'px-2.5 py-1 font-medium rounded transition-all',
-              viewMode === 'team' ? 'bg-ink text-paper' : 'text-ink-soft'
-            )}
-          >
-            {tEditor('team')} ({teamMembers.length})
-          </button>
-        </div>
-      </div>
+      <ViewModeTabs
+        mobile
+        viewMode={viewMode}
+        glossaryCount={glossaryEntries.length}
+        teamCount={teamMembers.length}
+        labels={{ studio: tEditor('studio'), glossary: tEditor('glossary'), team: tEditor('team') }}
+        onSelect={(mode) => {
+          setViewMode(mode)
+          if (mode === 'glossary') loadGlossary()
+          if (mode === 'team') loadTeam()
+        }}
+      />
 
       {isLoading && <WorkspaceSkeleton />}
 
@@ -385,53 +215,9 @@ export function Workspace({ projectId }: { projectId: string }) {
             onBatchProcess={handleStartBatchJob}
           />
 
-          {jobProgress && (
-            <div className="border-b border-seal/30 bg-seal/10 px-4 py-2.5 sm:px-6 flex items-center justify-between gap-4">
-              <div className="flex flex-1 flex-col gap-1">
-                <div className="flex items-center justify-between text-xs font-semibold">
-                  <span className="text-seal flex items-center gap-2">
-                    <span className="size-2 rounded-full bg-seal animate-ping" />
-                    {jobProgress.message}
-                  </span>
-                  <span className="font-mono">{jobProgress.percent}%</span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-paper">
-                  <div
-                    className="h-full bg-seal transition-all duration-300 ease-out"
-                    style={{ width: `${jobProgress.percent}%` }}
-                  />
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCancelJob}
-                className="text-xs h-7 text-danger border-danger hover:bg-danger-wash"
-                title="Stop processing"
-              >
-                <XOctagon className="size-3.5" />
-                <span>Stop</span>
-              </Button>
-            </div>
-          )}
+          {jobProgress && <JobProgressBar progress={jobProgress} onCancel={handleCancelJob} />}
 
-          <div
-            role={notice?.tone === 'error' ? 'alert' : 'status'}
-            aria-live="polite"
-            className="empty:hidden"
-          >
-            {notice && (
-              <p
-                className={
-                  notice.tone === 'error'
-                    ? 'border-b border-danger bg-danger-wash px-4 py-2 text-sm text-danger sm:px-6'
-                    : 'border-b border-ok/40 bg-ok-wash px-4 py-2 text-sm text-ok sm:px-6'
-                }
-              >
-                {notice.text}
-              </p>
-            )}
-          </div>
+          <NoticeBar notice={notice} />
 
           {viewMode === 'team' ? (
             <div className="flex-1 bg-sheet/40 min-h-[70vh]">
@@ -560,77 +346,5 @@ export function Workspace({ projectId }: { projectId: string }) {
         </main>
       )}
     </>
-  )
-}
-
-function EdgeToggle({ side, onToggle, label }: { side: 'left' | 'right'; onToggle: () => void; label: string }) {
-  const Icon = side === 'left' ? PanelLeftClose : PanelRightClose
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-label={label}
-      aria-expanded={true}
-      title={label}
-      className={cn(
-        'absolute top-2 z-20 rounded-full border-[1.5px] border-ink bg-sheet p-1 text-ink shadow-sm transition-colors hover:bg-paper focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-seal',
-        side === 'left' ? 'right-2 lg:-right-3.5' : 'left-2 lg:-left-3.5',
-      )}
-    >
-      <Icon className="size-4" aria-hidden="true" />
-    </button>
-  )
-}
-
-function CollapsedRail({ side, onExpand, label }: { side: 'left' | 'right'; onExpand: () => void; label: string }) {
-  const Icon = side === 'left' ? PanelLeftOpen : PanelRightOpen
-  return (
-    <div
-      className={cn(
-        'flex items-center gap-2 px-2 py-2 lg:flex-col lg:px-0 lg:py-3',
-        side === 'left'
-          ? 'flex-row border-b-[1.5px] border-ink lg:border-b-0 lg:border-r-[1.5px]'
-          : 'flex-row border-t-[1.5px] border-ink lg:border-l-[1.5px] lg:border-t-0',
-      )}
-    >
-      <button
-        type="button"
-        onClick={onExpand}
-        aria-label={label}
-        aria-expanded={false}
-        title={label}
-        className="rounded-full border-[1.5px] border-ink bg-sheet p-1 text-ink shadow-sm transition-colors hover:bg-paper focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-seal"
-      >
-        <Icon className="size-4" aria-hidden="true" />
-      </button>
-      <span aria-hidden="true" className="font-mono text-[11px] text-ink-soft lg:[writing-mode:vertical-rl]">
-        {side === 'left' ? 'Panel' : 'Bubbles'}
-      </span>
-    </div>
-  )
-}
-
-function EmptyStage({ hasFiles }: { hasFiles: boolean }) {
-  return (
-    <section className="tone flex min-h-[50dvh] flex-col items-center justify-center gap-3 p-10 text-center lg:col-span-2">
-      <span className="font-mono text-sm text-seal">{hasFiles ? '02' : '01'}</span>
-      <h2 className="text-2xl font-semibold">{hasFiles ? 'Extract the pages' : 'Import a chapter'}</h2>
-      <p className="max-w-sm text-ink-soft">
-        {hasFiles
-          ? 'Your file is in place. Run extraction in the Sources panel to split the pages.'
-          : 'Drop a PDF or images in the Sources panel. Pages will appear here.'}
-      </p>
-    </section>
-  )
-}
-
-function WorkspaceSkeleton() {
-  return (
-    <div aria-busy="true" aria-label="Loading project" className="grid lg:grid-cols-[15rem_1fr_23rem]">
-      <div className="h-14 border-b-[1.5px] border-ink lg:col-span-3" />
-      <div className="hidden h-[70dvh] border-r-[1.5px] border-ink lg:block" />
-      <div className="tone h-[70dvh] animate-pulse" />
-      <div className="hidden border-l-[1.5px] border-ink lg:block" />
-    </div>
   )
 }

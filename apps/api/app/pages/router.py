@@ -14,6 +14,7 @@ from app.models.page import Page
 from app.models.project import Project
 from app.models.user import User
 from app.projects.access import user_has_project_access
+from app.projects.thumbnails import ensure_page_thumbnail, make_thumbnail_bytes, thumbnail_key
 from app.storage.dependencies import get_storage_provider
 from app.storage.provider import StorageProvider
 
@@ -97,6 +98,40 @@ def get_page_image(
         )
         fallback = _generate_fallback_page_image(page.page_number, page.width, page.height)
         return Response(content=fallback, media_type="image/png")
+
+
+@router.get("/{page_id}/thumbnail")
+def get_page_thumbnail(
+    page_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+    storage: StorageProvider = Depends(get_storage_provider),
+):
+    """Miniature de la page (générée à la demande puis mise en cache stockage)."""
+    page = session.get(Page, page_id)
+    if not page:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Page introuvable.")
+    project = session.get(Project, page.project_id)
+    if not user_has_project_access(session, project, current_user.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Page introuvable.")
+    key = thumbnail_key(page.project_id, page.id)
+    try:
+        if storage.exists(key):
+            return Response(content=storage.read(key), media_type="image/png")
+    except Exception:
+        logger.exception("Lecture miniature échouée pour la page %s", page_id)
+    try:
+        content = storage.read(page.storage_key)
+    except FileNotFoundError:
+        fallback = _generate_fallback_page_image(page.page_number, page.width, page.height)
+        return Response(content=make_thumbnail_bytes(fallback), media_type="image/png")
+    try:
+        thumb = make_thumbnail_bytes(content)
+        storage.save(key, thumb)
+    except Exception:
+        logger.exception("Génération miniature échouée pour la page %s", page_id)
+        thumb = make_thumbnail_bytes(content)
+    return Response(content=thumb, media_type="image/png")
 
 
 @router.get("/{page_id}/cleaned-image")

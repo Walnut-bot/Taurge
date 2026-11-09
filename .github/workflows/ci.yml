@@ -22,7 +22,7 @@ jobs:
         run: pytest -q
 
   web:
-    name: Web (typecheck)
+    name: Web (typecheck + lint + test)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -38,3 +38,7 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm test

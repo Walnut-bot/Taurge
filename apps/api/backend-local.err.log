@@ -1,11 +1,0 @@
-INFO:     Started server process [13420]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-[transformers] `ViTImageProcessor` requires torchvision (not installed); falling back to `ViTImageProcessorPil` for backward compatibility. Install torchvision to use the default backend, or import `ViTImageProcessorPil` directly to silence this warning.
-2026-11-05 00:57:03.221 | INFO     | manga_ocr.ocr:__init__:16 - Loading OCR model from kha-white/manga-ocr-base
-Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
-Loading weights:   0%|          | 0/264 [00:00<?, ?it/s]Loading weights:  69%|######8   | 182/264 [00:00<00:00, 1766.89it/s]Loading weights: 100%|##########| 264/264 [00:00<00:00, 1736.80it/s]
-2026-11-05 00:57:08.301 | INFO     | manga_ocr.ocr:__init__:28 - Using CPU
-2026-11-05 00:57:23.881 | INFO     | manga_ocr.ocr:__init__:35 - OCR ready
-[OCRService] Moteur paddleocr indisponible (PaddleOCR indisponible sur cette machine (bibliothèque native libpaddle non chargée : No module named 'paddle'). Cause fréquente : PaddlePaddle compilé avec AVX sur un processeur sans AVX — le repli Tesseract prend le relais.) — repli Tesseract pour toute la session.

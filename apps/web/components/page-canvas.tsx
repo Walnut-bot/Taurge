@@ -1,10 +1,13 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Maximize2, Trash2, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react'
+import { Maximize2, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { OcrBlock } from '@/lib/types'
 import { TextOverlay } from '@/components/workspace/text-overlay'
+import { useZoomPan } from './page-canvas/use-zoom-pan'
+import { ZoomControls } from './page-canvas/zoom-controls'
+import { QcCurtain, BlockMarker } from './page-canvas/qc-curtain'
 
 export type ManhwaStyle = 'dialogue' | 'scream' | 'system' | 'thought' | 'sfx'
 export type StrokeStyle = 'none' | 'white' | 'black'
@@ -79,12 +82,8 @@ export function PageCanvas({
 }: Props) {
   const imageContainerRef = useRef<HTMLDivElement>(null)
 
-  // Zoom and pan
-  const [zoom, setZoom] = useState(1)
-  const [pan, setPan] = useState({ x: 0, y: 0 })
-  const [isSpacePressed, setIsSpacePressed] = useState(false)
-  const [isPanning, setIsPanning] = useState(false)
-  const panStartRef = useRef({ mouseX: 0, mouseY: 0, panX: 0, panY: 0 })
+  const zp = useZoomPan(isDrawMode)
+  const { zoom, pan, isSpacePressed, isPanning } = zp
 
   // Direct text editing on the bubble (double-click)
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
@@ -100,22 +99,12 @@ export function PageCanvas({
 
   const dragStartRef = useRef({ startX: 0, startY: 0, origX: 0, origY: 0, origW: 0, origH: 0 })
 
-  // Rideau QC : position (%) et glisser du séparateur original/nettoyé
-  const [qcSplit, setQcSplit] = useState(50)
-  const qcDraggingRef = useRef(false)
-
-  function updateQcSplit(clientX: number) {
-    const rect = imageContainerRef.current?.getBoundingClientRect()
-    if (!rect || rect.width === 0) return
-    setQcSplit(Math.min(98, Math.max(2, ((clientX - rect.left) / rect.width) * 100)))
-  }
-
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return
       if (e.code === 'Space' && !e.repeat && !isDrawMode) {
         e.preventDefault()
-        setIsSpacePressed(true)
+        zp.setIsSpacePressed(true)
       } else if (e.key === 'Escape') {
         if (editingBlockId) {
           setEditingBlockId(null)
@@ -134,8 +123,8 @@ export function PageCanvas({
 
     function handleKeyUp(e: KeyboardEvent) {
       if (e.code === 'Space') {
-        setIsSpacePressed(false)
-        setIsPanning(false)
+        zp.setIsSpacePressed(false)
+        zp.setIsPanning(false)
       }
     }
 
@@ -147,13 +136,7 @@ export function PageCanvas({
     }
   }, [activeId, isDrawMode, onDeleteBlock, onSelect, onCancelDrawMode, editingBlockId])
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    if (e.ctrlKey || e.metaKey || isSpacePressed) {
-      e.preventDefault()
-      const delta = e.deltaY < 0 ? 0.15 : -0.15
-      setZoom((prev) => Math.min(3.0, Math.max(0.4, Number((prev + delta).toFixed(2)))))
-    }
-  }, [isSpacePressed])
+  const handleWheel = zp.handleWheel
 
   const getCanvasCoords = useCallback((clientX: number, clientY: number) => {
     if (!imageContainerRef.current) return { x: 0, y: 0 }
@@ -165,12 +148,7 @@ export function PageCanvas({
   }, [width, height])
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (isSpacePressed || e.button === 1) {
-      e.preventDefault()
-      setIsPanning(true)
-      panStartRef.current = { mouseX: e.clientX, mouseY: e.clientY, panX: pan.x, panY: pan.y }
-      return
-    }
+    if (zp.startPan(e)) return
 
     if (isDrawMode && e.button === 0) {
       e.preventDefault()
@@ -183,13 +161,7 @@ export function PageCanvas({
 
   useEffect(() => {
     function handleMouseMove(e: MouseEvent) {
-      if (isPanning) {
-        setPan({
-          x: panStartRef.current.panX + (e.clientX - panStartRef.current.mouseX),
-          y: panStartRef.current.panY + (e.clientY - panStartRef.current.mouseY),
-        })
-        return
-      }
+      if (zp.movePan(e)) return
 
       if (isDrawMode && drawingRef.current) {
         const { x, y } = getCanvasCoords(e.clientX, e.clientY)
@@ -205,7 +177,7 @@ export function PageCanvas({
     }
 
     function handleMouseUp() {
-      if (isPanning) setIsPanning(false)
+      if (isPanning) zp.setIsPanning(false)
       if (isDrawMode && drawingRef.current && onCreateBlock) {
         const { startX, startY, currX, currY } = drawingRef.current
         const w = Math.abs(currX - startX)
@@ -318,39 +290,7 @@ export function PageCanvas({
         className
       )}
     >
-      {/* Zoom controls */}
-      <div inert={!showZoomControls} className={cn(!showZoomControls && 'hidden', 'absolute bottom-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1 rounded-full bg-ink/90 text-sheet px-3 py-1 shadow-2xl backdrop-blur-md border border-hairline/30')}>
-        <button
-          type="button"
-          onClick={() => setZoom((z) => Math.max(0.4, Number((z - 0.2).toFixed(2))))}
-          className="p-1 hover:text-seal transition-colors"
-          title="Zoom out"
-        >
-          <ZoomOut className="size-3.5" />
-        </button>
-        <span className="font-mono text-xs font-bold w-12 text-center">{Math.round(zoom * 100)}%</span>
-        <button
-          type="button"
-          onClick={() => setZoom((z) => Math.min(3.0, Number((z + 0.2).toFixed(2))))}
-          className="p-1 hover:text-seal transition-colors"
-          title="Zoom in"
-        >
-          <ZoomIn className="size-3.5" />
-        </button>
-        <div className="h-3 w-px bg-sheet/20 mx-1" />
-        <button
-          type="button"
-          onClick={() => {
-            setZoom(1)
-            setPan({ x: 0, y: 0 })
-          }}
-          className="p-1 hover:text-seal transition-colors text-[11px] font-mono flex items-center gap-1"
-          title="Reset to 100%"
-        >
-          <RotateCcw className="size-3" />
-          <span>100%</span>
-        </button>
-      </div>
+      <ZoomControls zp={zp} show={showZoomControls} />
 
       <div
         className="w-full h-full flex items-start justify-center transition-transform duration-75 ease-out"
@@ -368,60 +308,7 @@ export function PageCanvas({
             // eslint-disable-next-line @next/next/no-img-element
             <>
             <img src={src} alt={alt} className="absolute inset-0 size-full object-contain pointer-events-none" draggable={false} />
-            {qcOriginalSrc && qcOriginalSrc !== src && (
-              <>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={qcOriginalSrc}
-                  alt=""
-                  aria-hidden="true"
-                  className="absolute inset-0 size-full object-contain pointer-events-none"
-                  style={{ clipPath: `inset(0 ${100 - qcSplit}% 0 0)` }}
-                  draggable={false}
-                />
-                <span className="absolute top-2 left-2 z-40 pointer-events-none rounded bg-black/75 px-2 py-0.5 font-mono text-[10px] font-bold text-white">
-                  ORIGINAL
-                </span>
-                <span className="absolute top-2 right-2 z-40 pointer-events-none rounded bg-black/75 px-2 py-0.5 font-mono text-[10px] font-bold text-white">
-                  CLEANED
-                </span>
-                <div
-                  role="slider"
-                  aria-label="QC curtain position"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={Math.round(qcSplit)}
-                  tabIndex={0}
-                  className="absolute inset-y-0 z-50 w-6 -translate-x-1/2 cursor-ew-resize touch-none"
-                  style={{ left: `${qcSplit}%` }}
-                  onPointerDown={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    qcDraggingRef.current = true
-                    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-                    updateQcSplit(e.clientX)
-                  }}
-                  onPointerMove={(e) => {
-                    if (qcDraggingRef.current) updateQcSplit(e.clientX)
-                  }}
-                  onPointerUp={() => {
-                    qcDraggingRef.current = false
-                  }}
-                  onPointerCancel={() => {
-                    qcDraggingRef.current = false
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'ArrowLeft') setQcSplit((v) => Math.max(2, v - 2))
-                    if (e.key === 'ArrowRight') setQcSplit((v) => Math.min(98, v + 2))
-                  }}
-                >
-                  <div className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-seal shadow" />
-                  <div className="absolute top-1/2 left-1/2 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-seal font-bold text-seal-ink shadow">
-                    ↔
-                  </div>
-                </div>
-              </>
-            )}
+            {qcOriginalSrc && <QcCurtain src={src} originalSrc={qcOriginalSrc} containerRef={imageContainerRef} />}
             </>
           ) : (
             <div className="absolute inset-0 overflow-hidden" aria-label="Loading page" role="img">
@@ -590,7 +477,7 @@ export function PageCanvas({
                       }
                     }}
                   >
-                    <Marker n={i + 1} tag={b.bubble_type} active={active || hovered} />
+                    <BlockMarker n={i + 1} tag={b.bubble_type} active={active || hovered} />
 
                     {active && (
                       <>
@@ -654,21 +541,5 @@ export function PageCanvas({
         </div>
       </div>
     </div>
-  )
-}
-
-function Marker({ n, tag, active }: { n: number; tag?: string; active: boolean }) {
-  return (
-    <span
-      className={cn(
-        'absolute -top-2.5 -left-2.5 flex items-center justify-center gap-0.5 px-1 min-w-5 h-5 rounded-full font-mono text-[10px] font-bold transition-colors shadow-sm select-none',
-        active ? 'bg-seal text-seal-ink ring-1 ring-seal' : 'bg-black text-white',
-      )}
-    >
-      <span>{n}</span>
-      {tag && tag !== 'B' && (
-        <span className="text-[8px] bg-white/25 px-0.5 rounded leading-none">{tag}</span>
-      )}
-    </span>
   )
 }

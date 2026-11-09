@@ -33,6 +33,9 @@ CREATE TABLE users (
     default_content_type VARCHAR DEFAULT 'manga',
     default_source_lang VARCHAR DEFAULT 'ja',
     default_target_lang VARCHAR DEFAULT 'fr',
+    terms_accepted_at TIMESTAMP WITH TIME ZONE,
+    age_confirmed_at TIMESTAMP WITH TIME ZONE,
+    newsletter_opt_in BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -77,6 +80,7 @@ CREATE TABLE pages (
     width INT,
     height INT,
     workflow_status VARCHAR DEFAULT 'todo', -- todo, raw, cleaned, translated, typeset, ready
+    sort_order INT, -- ordre d'affichage manuel ; NULL = ordre d'extraction
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -90,7 +94,7 @@ CREATE TABLE ocr_blocks (
     bbox_w INT NOT NULL,
     bbox_h INT NOT NULL,
     confidence FLOAT NOT NULL,
-    provider VARCHAR NOT NULL, -- tesseract
+    provider VARCHAR NOT NULL, -- manga-ocr, paddleocr ou tesseract (repli)
     bubble_type VARCHAR DEFAULT 'B',
     manhwa_style VARCHAR DEFAULT 'dialogue',
     rotation_angle INT DEFAULT 0,
@@ -106,7 +110,7 @@ CREATE TABLE translations (
     id UUID PRIMARY KEY,
     ocr_block_id UUID UNIQUE REFERENCES ocr_blocks(id) ON DELETE CASCADE,
     translated_text TEXT NOT NULL,
-    provider VARCHAR NOT NULL, -- ex. gemini, google, argos
+    provider VARCHAR NOT NULL, -- ollama ou deepl (fournisseur ayant réellement traduit)
     edited_by_user BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -147,7 +151,9 @@ CREATE TABLE jobs (
     id UUID PRIMARY KEY,
     project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(id),
-    job_type VARCHAR DEFAULT 'batch_process', -- batch_process, extract_pages, export
+    page_id UUID REFERENCES pages(id), -- job ocr_page
+    source_file_id UUID REFERENCES source_files(id), -- job extract_pages (reprise après redémarrage)
+    job_type VARCHAR DEFAULT 'batch_process', -- batch_process, extract_pages, ocr_page
     status VARCHAR DEFAULT 'pending', -- pending, running, completed, failed, cancelled
     current_page INT DEFAULT 0,
     total_pages INT DEFAULT 0,
@@ -172,6 +178,28 @@ CREATE TABLE subscriptions (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Échecs de connexion (rate-limit login persisté, partagé entre instances)
+CREATE TABLE login_attempts (
+    id UUID PRIMARY KEY,
+    email VARCHAR NOT NULL,
+    attempted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Achats de crédits (créés avant redirection, crédités par webhook signé uniquement)
+CREATE TABLE payment_transactions (
+    id UUID PRIMARY KEY,
+    user_id UUID REFERENCES users(id),
+    provider VARCHAR NOT NULL, -- fedapay, paddle
+    pack_key VARCHAR NOT NULL, -- discovery, regular, studio
+    credits INT NOT NULL,
+    amount_cents INT NOT NULL,
+    currency VARCHAR NOT NULL, -- EUR, XOF
+    provider_transaction_id VARCHAR UNIQUE,
+    status VARCHAR DEFAULT 'pending', -- pending, paid, failed
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    paid_at TIMESTAMP WITH TIME ZONE
+);
+
 -- Journal de consommation des crédits
 CREATE TABLE usage_ledgers (
     id UUID PRIMARY KEY,
@@ -187,5 +215,17 @@ CREATE TABLE usage_ledgers (
 ## 2. Migrations
 
 Le dossier `apps/api/alembic/versions/` trace l'historique des évolutions.
-Au démarrage, `init_db()` crée le schéma déclaratif et complète les
-colonnes de profil manquantes sur les bases existantes.
+Alembic est la source de vérité du schéma versionné : mettre une base
+existante à jour avec `cd apps/api && alembic upgrade head`.
+Au démarrage, `init_db()` garde la compatibilité avec les bases SQLite
+existantes (`create_all` idempotent, sans ALTER ad-hoc) puis synchronise
+`alembic_version` (`upgrade head` si versionnée, `stamp head` sinon).
+Les migrations récentes sont idempotentes (vérification des colonnes
+avant ajout) : consentement utilisateur, `jobs.page_id`,
+`jobs.source_file_id` et table `login_attempts` (rate-limit login).
+
+Jobs : file persistante en table `jobs` + worker thread démarré par le
+lifespan FastAPI (`app/jobs/worker.py`). Les jobs `pending`/`running`
+interrompus sont repris au redémarrage, pas marqués `failed`.
+Limite : pas de broker externe (Redis/Celery) faute d'hébergement ;
+une exécution lourde à la fois par processus, claim atomique en base.
