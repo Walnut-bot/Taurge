@@ -88,3 +88,31 @@ class BatchProcessResponse(BaseModel):
     translations_count: int
     cleaned_pages_count: int
 
+
+class QCIssueResponse(BaseModel):
+    severity: str  # "error" | "warning" | "suggestion"
+    code: str
+    page_id: str
+    page_number: int
+    ocr_block_id: str | None = None
+    message: str
+    suggestion: str | None = None
+
+
+class QCReportResponse(BaseModel):
+    project_id: str
+    error_count: int
+    warning_count: int
+    suggestion_count: int
+    issues: list[QCIssueResponse] = []
+
+
+class TranslationMemoryMatchResponse(BaseModel):
+    source_text: str
+    translated_text: str
+    similarity: float
+    edited_by_user: bool
+    project_id: str
+    project_name: str
+
+

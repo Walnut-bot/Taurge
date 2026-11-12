@@ -8,15 +8,15 @@
 ### Ce qui est déjà opérationnel :
 - [x] Inscription et authentification avec token JWT.
 - [x] Création d'un projet avec sélection des langues source / cible et type de contenu.
-- [x] Importation de fichiers (PDF, Images individuelles).
-- [x] Extraction automatique des pages depuis un PDF (PyMuPDF).
+- [x] Importation de fichiers (PDF, Images individuelles, Archives ZIP / CBZ avec protection anti-Zip Bomb et Path Traversal).
+- [x] Extraction automatique des pages depuis un PDF (PyMuPDF) ou une archive ZIP/CBZ (tri naturel).
 - [x] Exécution de l'OCR (MangaOCR pour `ja`, PaddleOCR sinon, repli Tesseract automatique ; moteurs lourds optionnels via `requirements-ocr.txt`).
 - [x] Traduction automatique (Ollama local prioritaire → repli DeepL API Free ; fournisseur réel journalisé en base).
-- [x] Édition et correction manuelle du texte détecté et du texte traduit.
+- [x] Édition et correction manuelle du texte détecté et du texte traduit + Mémoire de Traduction (`Translation Memory`) par similarité.
 - [x] Nettoyage automatique des bulles (inpainting).
 - [x] Visualisation des pages (originale vs nettoyée) et des blocs englobants.
-- [x] Canvas de lettering interactif : texte traduit positionné sur l'image, déplacement/redimensionnement/création de bulles, édition inline, styles typographiques.
-- [x] Glossaire par projet (termes verrouillés injectés dans la traduction par lot).
+- [x] Canvas de lettering interactif : texte traduit positionné sur l'image, déplacement/redimensionnement/création de bulles, édition inline, styles typographiques, historique Undo / Redo (`Ctrl+Z` / `Ctrl+Shift+Z`).
+- [x] Glossaire par projet (termes verrouillés injectés dans la traduction par lot) + AI Quality Control (`AI QC` : détection d'erreurs, dépassements de bulle et violations du glossaire).
 - [x] Équipe par projet (rôles translator/cleaner/typesetter/proofreader) + statut workflow par page.
 - [x] Jobs asynchrones **persistants en base** (table `jobs` + worker thread, reprise au redémarrage) avec progression, annulation et flux SSE.
 - [x] Export de projet en ZIP / CBZ / PDF (texte traduit incrusté) + métadonnées JSON.
@@ -35,8 +35,9 @@
 
 ### Phase 2 : Glossaire & Mémoire de Traduction
 - [x] Détection et injection automatique des termes verrouillés dans la traduction par lot.
-- [ ] Gestion des fiches personnages, lieux et techniques.
-- [ ] Alertes de cohérence de nom (Quality Control IA).
+- [x] Recherche dans la Mémoire de Traduction (`GET /projects/{id}/translation-memory`) et suggestions en un clic dans l'éditeur.
+- [x] Alertes de cohérence de nom, bulles non traduites et dépassements de bulles (Quality Control IA — `GET /projects/{id}/pages/{page_id}/qc`).
+- [ ] Gestion avancée des fiches relationnelles (matrice de tutoiement/vouvoiement entre personnages).
 
 ### Phase 3 : Gestion Avancée des Fichiers & Performance
 - [ ] Upload fragmenté (chunked upload / resumable) pour les volumes de plusieurs centaines de Mo.

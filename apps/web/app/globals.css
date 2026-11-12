@@ -137,7 +137,18 @@
 }
 
 /* ─── Studio grid (collapsible side panels) ─── */
+.atelier-grid {
+  width: 100%;
+  max-width: 100%;
+}
+
 @media (min-width: 1024px) {
+  .atelier-grid {
+    grid-template-columns: var(--atelier-left-lg, var(--atelier-left, 14rem)) minmax(0, 1fr) var(--atelier-right-lg, var(--atelier-right, 20rem));
+  }
+}
+
+@media (min-width: 1280px) {
   .atelier-grid {
     grid-template-columns: var(--atelier-left, 15rem) minmax(0, 1fr) var(--atelier-right, 23rem);
   }

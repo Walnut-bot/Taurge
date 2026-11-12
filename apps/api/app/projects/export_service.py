@@ -156,6 +156,9 @@ def export_project(
                     text_color=txt_color,
                     stroke_color=strk_color,
                     stroke_width=getattr(b, "stroke_width", 2),
+                    rotation_angle=getattr(b, "rotation_angle", 0) or 0,
+                    font_size_scale=getattr(b, "font_size_scale", 1.0) or 1.0,
+                    target_image=image,
                 )
 
         out_io = io.BytesIO()
@@ -193,12 +196,76 @@ def export_project(
         export.storage_key = storage_key
         storage.save(storage_key, cbz_buffer.getvalue())
     else:
-        # Export ZIP avec les pages rendues et nettoyées
+        # Export ZIP avec les pages rendues et nettoyées + metadata.json portable
+        glossary_entries = session.exec(
+            select(GlossaryEntry).where(GlossaryEntry.project_id == project.id)
+        ).all()
+        manifest_pages = []
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
             for display_number, page in enumerate(pages, start=1):
+                filename = f"page_{display_number:03d}.png"
                 page_png = _render_page_with_text(page)
-                zf.writestr(f"page_{display_number:03d}.png", page_png)
+                zf.writestr(filename, page_png)
+
+                blocks_on_page = session.exec(
+                    select(OCRBlock).where(OCRBlock.page_id == page.id)
+                ).all()
+                manifest_blocks = []
+                for b in blocks_on_page:
+                    trans = session.exec(
+                        select(Translation).where(Translation.ocr_block_id == b.id)
+                    ).first()
+                    manifest_blocks.append({
+                        "id": str(b.id),
+                        "text": b.text,
+                        "translated_text": trans.translated_text if trans else None,
+                        "provider": trans.provider if trans else None,
+                        "edited_by_user": trans.edited_by_user if trans else False,
+                        "bbox": [b.bbox_x, b.bbox_y, b.bbox_w, b.bbox_h],
+                        "confidence": b.confidence,
+                        "bubble_type": b.bubble_type,
+                        "manhwa_style": b.manhwa_style,
+                        "rotation_angle": b.rotation_angle,
+                        "font_size_scale": b.font_size_scale,
+                        "text_color": b.text_color,
+                        "stroke_color": b.stroke_color,
+                        "stroke_width": b.stroke_width,
+                    })
+                manifest_pages.append({
+                    "page_number": display_number,
+                    "filename": filename,
+                    "width": page.width,
+                    "height": page.height,
+                    "workflow_status": page.workflow_status,
+                    "blocks": manifest_blocks,
+                })
+
+            metadata_payload = {
+                "project": {
+                    "id": str(project.id),
+                    "name": project.name,
+                    "content_type": project.content_type,
+                    "source_lang": project.source_lang,
+                    "target_lang": project.target_lang,
+                    "exported_at": datetime.now(timezone.utc).isoformat(),
+                },
+                "glossary": [
+                    {
+                        "category": g.category,
+                        "source_term": g.source_term,
+                        "target_term": g.target_term,
+                        "is_locked": g.is_locked,
+                        "notes": g.notes,
+                    }
+                    for g in glossary_entries
+                ],
+                "pages": manifest_pages,
+            }
+            zf.writestr(
+                "metadata.json",
+                json.dumps(metadata_payload, ensure_ascii=False, indent=2),
+            )
 
         export = Export(project_id=project.id, format="zip", storage_key="")
         storage_key = f"exports/{project.id}/{export.id}.zip"

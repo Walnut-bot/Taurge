@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { FileImage, FileText, Loader2, Upload } from 'lucide-react'
+import { FileArchive, FileImage, FileText, Loader2, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
 import { ACCEPTED_UPLOAD, MAX_UPLOAD_BYTES, formatSize } from '@/lib/catalog'
@@ -9,7 +9,7 @@ import type { ProjectDetail } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import type { Runner } from './workspace'
 
-const EXT_OK = /\.(pdf|png|jpe?g|webp)$/i
+const EXT_OK = /\.(pdf|png|jpe?g|webp|zip|cbz)$/i
 
 export function SourcesPanel({
   project,
@@ -30,7 +30,7 @@ export function SourcesPanel({
     const file = list?.[0]
     if (!file) return
     setLocalError(null)
-    if (!EXT_OK.test(file.name)) return setLocalError('Unsupported format. PDF, PNG, JPG or WEBP.')
+    if (!EXT_OK.test(file.name)) return setLocalError('Unsupported format. PDF, ZIP, CBZ, PNG, JPG or WEBP.')
     if (file.size > MAX_UPLOAD_BYTES) return setLocalError('File too large: 50 MB maximum.')
     await run('upload', `“${file.name}” uploaded. Now extract the pages.`, () =>
       api.upload(project.id, file),
@@ -77,7 +77,7 @@ export function SourcesPanel({
           <Upload className="size-5" aria-hidden="true" />
         )}
         <span className="text-sm font-medium">{uploading ? 'Uploading…' : 'Drop a file'}</span>
-        <span className="text-xs text-ink-soft">PDF or image · 50 MB</span>
+        <span className="text-xs text-ink-soft">PDF, ZIP/CBZ or image · 50 MB</span>
       </label>
       {localError && (
         <p role="alert" className="mt-2 text-xs text-danger">
@@ -90,7 +90,12 @@ export function SourcesPanel({
           {project.files.map((f) => {
             const extracted = project.pages.some((p) => p.source_file_id === f.id)
             const pageCount = project.pages.filter((p) => p.source_file_id === f.id).length
-            const Icon = f.file_type === 'pdf' ? FileText : FileImage
+            const Icon =
+              f.file_type === 'pdf'
+                ? FileText
+                : f.file_type === 'zip' || f.file_type === 'cbz'
+                  ? FileArchive
+                  : FileImage
             return (
               <li key={f.id} className="flex flex-col gap-2 bg-sheet p-2.5 ring-1 ring-hairline">
                 <div className="flex items-start gap-2">

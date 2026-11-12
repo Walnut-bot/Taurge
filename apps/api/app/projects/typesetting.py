@@ -125,18 +125,32 @@ def render_text_in_bubble(
     text_color: tuple[int, int, int] = (15, 15, 15),
     stroke_color: tuple[int, int, int] = (255, 255, 255),
     stroke_width: int = 2,
+    rotation_angle: int = 0,
+    font_size_scale: float = 1.0,
+    target_image: "Image.Image | None" = None,
 ) -> None:
-    """Rend la réplique avec la typographie professionnelle Manhwa calibrée."""
+    """Rend la réplique avec la typographie professionnelle Manhwa calibrée et support de la rotation."""
     if not text or not text.strip():
         return
 
-    clean_text = text.strip().upper() if uppercase else text.strip()
+    import math
+    from PIL import Image
 
-    usable_w = max(24, int(bbox_w * 0.82))
-    usable_h = max(24, int(bbox_h * 0.82))
+    clean_text = text.strip().upper() if uppercase else text.strip()
+    angle = int(rotation_angle or 0)
+    scale = float(font_size_scale or 1.0)
+
+    # Si le texte est tourné autour de ±90°, on échange largeur et hauteur utiles
+    # pour que la phrase s'étende sur le grand axe de la boîte verticale.
+    is_sideways = abs(math.sin(math.radians(angle))) >= 0.707
+    eff_w = bbox_h if is_sideways else bbox_w
+    eff_h = bbox_w if is_sideways else bbox_h
+
+    usable_w = max(24, int(eff_w * 0.82))
+    usable_h = max(24, int(eff_h * 0.82))
 
     min_size = 11
-    max_size = max(14, int(bbox_h * 0.52))
+    max_size = max(14, int(eff_h * 0.52))
     best_font = None
     best_lines = []
     best_size = min_size
@@ -171,7 +185,11 @@ def render_text_in_bubble(
         else:
             high = mid - 1
 
-    if best_font is None:
+    if scale != 1.0:
+        best_size = max(min_size, min(160, int(round(best_size * scale))))
+        best_font = _get_font(best_size, style_type)
+        best_lines = wrap_text_diamond(clean_text, best_font, usable_w, usable_h, draw)
+    elif best_font is None:
         best_font = _get_font(min_size, style_type)
         best_lines = wrap_text_diamond(clean_text, best_font, usable_w, usable_h, draw)
 
@@ -182,6 +200,34 @@ def render_text_in_bubble(
 
     line_spacing = max(1, int(best_size * 0.18))
     total_h = sum(m[1] + line_spacing for m in line_metrics) - line_spacing
+
+    # Si angle != 0 et qu'on a accès à target_image, on dessine sur un calque RGBA qu'on tourne
+    if angle != 0 and target_image is not None:
+        layer_w = max(eff_w + 32, sum((m[0] for m in line_metrics), default=eff_w) + 32)
+        layer_h = max(eff_h + 32, total_h + 32)
+        layer = Image.new("RGBA", (layer_w, layer_h), (0, 0, 0, 0))
+        ldraw = ImageDraw.Draw(layer)
+        ly = max(0, (layer_h - total_h) // 2)
+        for line, (lw, lh) in zip(best_lines, line_metrics):
+            lx = max(0, (layer_w - lw) // 2)
+            ldraw.text(
+                (lx, ly),
+                line,
+                fill=(*text_color, 255),
+                font=best_font,
+                stroke_width=stroke_width,
+                stroke_fill=(*stroke_color, 255),
+            )
+            ly += lh + line_spacing
+        # PIL.Image.rotate tourne dans le sens anti-horaire, CSS rotate() dans le sens horaire
+        rotated = layer.rotate(-angle, resample=Image.BICUBIC, expand=True)
+        cx = bbox_x + bbox_w // 2
+        cy = bbox_y + bbox_h // 2
+        paste_x = cx - rotated.width // 2
+        paste_y = cy - rotated.height // 2
+        target_image.paste(rotated, (paste_x, paste_y), rotated)
+        return
+
     cur_y = bbox_y + max(0, (bbox_h - total_h) // 2)
 
     for line, (lw, lh) in zip(best_lines, line_metrics):

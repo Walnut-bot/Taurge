@@ -30,6 +30,7 @@ class Settings:
     # Anti force-brute sur /auth/login : échecs max par email avant blocage temporaire
     login_max_failed_attempts: int = int(os.getenv("LOGIN_MAX_FAILED_ATTEMPTS", "5"))
     login_block_window_minutes: int = int(os.getenv("LOGIN_BLOCK_WINDOW_MINUTES", "15"))
+    admin_emails: str = os.getenv("ADMIN_EMAILS", "")
 
     # Stockage fichiers
     storage_path: str = os.getenv("STORAGE_PATH", "./storage_data")

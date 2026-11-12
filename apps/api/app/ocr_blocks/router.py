@@ -79,23 +79,38 @@ async def create_ocr_block(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Projet introuvable.")
 
     extracted_text = (payload.text or "").strip()
+    detected_conf = 1.0 if extracted_text else 0.5
+    detected_provider = "manual"
     if not extracted_text:
         try:
             image_bytes = storage.read(page.storage_key)
-            img = Image.open(io.BytesIO(image_bytes))
-            x1 = max(0, min(payload.bbox_x, img.width - 1))
-            y1 = max(0, min(payload.bbox_y, img.height - 1))
-            x2 = max(x1 + 1, min(payload.bbox_x + payload.bbox_w, img.width))
-            y2 = max(y1 + 1, min(payload.bbox_y + payload.bbox_h, img.height))
+            img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+            # Légère marge de sécurité (4px) autour du rectangle tracé pour ne
+            # jamais couper les traits périphériques des caractères.
+            pad = 4
+            x1 = max(0, min(payload.bbox_x - pad, img.width - 1))
+            y1 = max(0, min(payload.bbox_y - pad, img.height - 1))
+            x2 = max(x1 + 1, min(payload.bbox_x + payload.bbox_w + pad, img.width))
+            y2 = max(y1 + 1, min(payload.bbox_y + payload.bbox_h + pad, img.height))
             cropped = img.crop((x1, y1, x2, y2))
             buffer = io.BytesIO()
             cropped.save(buffer, format="PNG")
-            detected = await ocr.detect_text(buffer.getvalue(), project.source_lang)
-            raw_ocr = " ".join(b.text for b in detected).strip()
-            if raw_ocr:
-                extracted_text = " ".join(raw_ocr.split())
-        except Exception:
-            pass
+            if hasattr(ocr, "recognize_region"):
+                raw_ocr, conf, prov = await ocr.recognize_region(  # type: ignore[attr-defined]
+                    buffer.getvalue(), project.source_lang
+                )
+                if raw_ocr:
+                    extracted_text = raw_ocr.strip()
+                    detected_conf = conf
+                    detected_provider = prov
+            else:
+                detected = await ocr.detect_text(buffer.getvalue(), project.source_lang)
+                raw_ocr = " ".join(b.text for b in detected).strip()
+                if raw_ocr:
+                    extracted_text = " ".join(raw_ocr.split())
+                    detected_conf = max((b.confidence for b in detected), default=0.9)
+        except Exception as exc:
+            logger.warning("[create_ocr_block] Échec OCR sur la zone dessinée : %s", exc)
 
     block = OCRBlock(
         page_id=page.id,
@@ -111,8 +126,8 @@ async def create_ocr_block(
         text_color=payload.text_color or "#0d0d0d",
         stroke_color=payload.stroke_color or "#ffffff",
         stroke_width=payload.stroke_width or 2,
-        confidence=1.0 if extracted_text else 0.5,
-        provider="manual",
+        confidence=detected_conf if extracted_text else 0.5,
+        provider=detected_provider,
     )
     session.add(block)
     session.commit()
@@ -146,13 +161,19 @@ def _get_accessible_block(block_id: uuid.UUID, current_user: User, session: Sess
 
 
 @router.patch("/{block_id}", response_model=OCRBlockResponse)
-def update_ocr_block(
+async def update_ocr_block(
     block_id: uuid.UUID,
     payload: OCRBlockUpdate,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
+    storage: StorageProvider = Depends(get_storage_provider),
+    translator: TranslationProvider = Depends(get_translation_provider),
+    ocr: OCRProvider = Depends(get_ocr_provider),
 ):
-    block, _ = _get_accessible_block(block_id, current_user, session)
+    block, project = _get_accessible_block(block_id, current_user, session)
+    bbox_changed = any(
+        v is not None for v in (payload.bbox_x, payload.bbox_y, payload.bbox_w, payload.bbox_h)
+    )
     if payload.text is not None:
         block.text = payload.text
     if payload.bbox_x is not None:
@@ -178,11 +199,55 @@ def update_ocr_block(
     if payload.stroke_width is not None:
         block.stroke_width = payload.stroke_width
 
+    # Si l'utilisateur redimensionne ou déplace une bulle dont le texte était vide,
+    # on relance automatiquement la détection OCR et la traduction sur la nouvelle zone.
+    newly_extracted = False
+    if bbox_changed and payload.text is None and not (block.text or "").strip():
+        page = session.get(Page, block.page_id)
+        if page:
+            try:
+                image_bytes = storage.read(page.storage_key)
+                img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+                pad = 4
+                x1 = max(0, min(block.bbox_x - pad, img.width - 1))
+                y1 = max(0, min(block.bbox_y - pad, img.height - 1))
+                x2 = max(x1 + 1, min(block.bbox_x + block.bbox_w + pad, img.width))
+                y2 = max(y1 + 1, min(block.bbox_y + block.bbox_h + pad, img.height))
+                cropped = img.crop((x1, y1, x2, y2))
+                buffer = io.BytesIO()
+                cropped.save(buffer, format="PNG")
+                if hasattr(ocr, "recognize_region"):
+                    raw_ocr, conf, prov = await ocr.recognize_region(  # type: ignore[attr-defined]
+                        buffer.getvalue(), project.source_lang
+                    )
+                    if raw_ocr:
+                        block.text = raw_ocr.strip()
+                        block.confidence = conf
+                        block.provider = prov
+                        newly_extracted = True
+            except Exception as exc:
+                logger.warning("[update_ocr_block] Échec OCR après déplacement : %s", exc)
+
     session.add(block)
     session.commit()
     session.refresh(block)
 
     translation = session.exec(select(Translation).where(Translation.ocr_block_id == block.id)).first()
+    if newly_extracted and block.text and not translation:
+        try:
+            translated_text = await translator.translate(block.text, project.source_lang, project.target_lang)
+            translation = Translation(
+                ocr_block_id=block.id,
+                translated_text=translated_text,
+                provider=getattr(translator, "last_provider", None) or "ollama",
+            )
+            session.add(translation)
+            session.commit()
+            session.refresh(translation)
+            session.refresh(block)
+        except Exception:
+            pass
+
     tr_response = TranslationResponse(**translation.model_dump(mode="json")) if translation else None
 
     return OCRBlockResponse(**block.model_dump(mode="json"), translation=tr_response)

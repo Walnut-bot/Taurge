@@ -11,9 +11,11 @@ from app.auth.dependencies import get_current_user
 from app.auth.schemas import (
     DeleteAccountRequest,
     LoginRequest,
+    PasswordChangeRequest,
     ProfileUpdate,
     ProjectRoleResponse,
     RegisterRequest,
+    SystemStatusResponse,
     TokenResponse,
     UserResponse,
 )
@@ -32,6 +34,7 @@ from app.models.project import Project
 from app.models.source_file import SourceFile
 from app.models.subscription import ProjectMember, Subscription, UsageLedger
 from app.models.login_attempt import LoginAttempt
+from app.models.collaboration import PageComment, PageVersion
 from app.models.translation import Translation
 from app.models.user import User
 from app.storage.dependencies import storage_provider
@@ -125,6 +128,13 @@ def _get_user_response(user: User, session: Session) -> UserResponse:
                 )
             )
 
+    admin_set = {
+        e.strip().lower()
+        for e in settings.admin_emails.split(",")
+        if e.strip()
+    }
+    is_admin = bool(getattr(user, "is_admin", False)) or (user.email.lower() in admin_set)
+
     return UserResponse(
         id=str(user.id),
         email=user.email,
@@ -139,6 +149,8 @@ def _get_user_response(user: User, session: Session) -> UserResponse:
         credits_remaining=sub.credits_remaining,
         credits_limit=sub.credits_limit,
         newsletter_opt_in=bool(user.newsletter_opt_in),
+        is_admin=is_admin,
+        created_at=user.created_at.isoformat() if getattr(user, "created_at", None) else None,
     )
 
 
@@ -217,7 +229,7 @@ def update_profile(
     if any(
         value is None
         for field, value in updates.items()
-        if field != "display_name"
+        if field not in {"display_name", "newsletter_opt_in"}
     ):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -371,6 +383,10 @@ def delete_account(
         session.delete(project)
     for member in session.exec(select(ProjectMember).where(ProjectMember.user_id == user_id)).all():
         session.delete(member)
+    for comment in session.exec(select(PageComment).where(PageComment.author_id == user_id)).all():
+        session.delete(comment)
+    for version in session.exec(select(PageVersion).where(PageVersion.created_by_id == user_id)).all():
+        session.delete(version)
     for job in session.exec(select(Job).where(Job.user_id == user_id)).all():
         session.delete(job)
     for ledger in session.exec(select(UsageLedger).where(UsageLedger.user_id == user_id)).all():
@@ -407,3 +423,113 @@ def delete_profile_image(
         session.commit()
         session.refresh(current_user)
     return _get_user_response(current_user, session)
+
+
+@router.post("/me/password")
+def change_password(
+    payload: PasswordChangeRequest,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    if not verify_password(payload.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Votre mot de passe actuel est incorrect.",
+        )
+    if payload.current_password == payload.new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Le nouveau mot de passe doit être différent de l'actuel.",
+        )
+    current_user.password_hash = hash_password(payload.new_password)
+    session.add(current_user)
+    session.commit()
+    return {"status": "ok", "message": "Votre mot de passe a été modifié avec succès."}
+
+
+@router.get("/me/export-data")
+def export_personal_data(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Portabilité RGPD (Art. 20) : export JSON complet des données personnelles."""
+    sub = get_or_create_subscription(session, current_user.id)
+    projects = session.exec(select(Project).where(Project.owner_id == current_user.id)).all()
+    project_items = []
+    for proj in projects:
+        pages_count = len(session.exec(select(Page).where(Page.project_id == proj.id)).all())
+        gloss = session.exec(select(GlossaryEntry).where(GlossaryEntry.project_id == proj.id)).all()
+        project_items.append(
+            {
+                "id": str(proj.id),
+                "name": proj.name,
+                "content_type": proj.content_type,
+                "source_lang": proj.source_lang,
+                "target_lang": proj.target_lang,
+                "pages_count": pages_count,
+                "glossary": [{"source_term": g.source_term, "target_term": g.target_term} for g in gloss],
+                "created_at": proj.created_at.isoformat() if getattr(proj, "created_at", None) else None,
+            }
+        )
+    ledgers = session.exec(
+        select(UsageLedger).where(UsageLedger.user_id == current_user.id)
+    ).all()
+    return {
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "user": {
+            "id": str(current_user.id),
+            "email": current_user.email,
+            "display_name": current_user.display_name,
+            "default_content_type": current_user.default_content_type,
+            "default_source_lang": current_user.default_source_lang,
+            "default_target_lang": current_user.default_target_lang,
+            "newsletter_opt_in": bool(current_user.newsletter_opt_in),
+            "terms_accepted_at": current_user.terms_accepted_at.isoformat() if current_user.terms_accepted_at else None,
+            "age_confirmed_at": current_user.age_confirmed_at.isoformat() if current_user.age_confirmed_at else None,
+            "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
+        },
+        "subscription": {
+            "plan": sub.plan,
+            "credits_remaining": sub.credits_remaining,
+            "credits_limit": sub.credits_limit,
+        },
+        "projects": project_items,
+        "usage_history": [
+            {
+                "id": str(entry.id),
+                "action_type": entry.action_type,
+                "amount": entry.amount,
+                "description": entry.description,
+                "created_at": entry.created_at.isoformat() if getattr(entry, "created_at", None) else None,
+            }
+            for entry in ledgers
+        ],
+    }
+
+
+@router.get("/me/system-status", response_model=SystemStatusResponse)
+def get_system_status(
+    current_user: User = Depends(get_current_user),
+):
+    import importlib.util
+    import os
+    from app.ocr.providers.tesseract_provider import find_tesseract_binary
+
+    manga_ok = importlib.util.find_spec("manga_ocr") is not None
+    paddle_ok = importlib.util.find_spec("paddleocr") is not None
+    tess_bin = find_tesseract_binary()
+    tess_langs: list[str] = []
+    if tess_bin:
+        tess_dir = os.path.join(os.path.dirname(tess_bin), "tessdata")
+        for code in ("jpn", "jpn_vert", "kor", "chi_sim", "chi_tra", "eng", "fra", "spa", "por", "deu"):
+            if os.path.isfile(os.path.join(tess_dir, f"{code}.traineddata")):
+                tess_langs.append(code)
+    return SystemStatusResponse(
+        manga_ocr_installed=manga_ok,
+        paddle_ocr_installed=paddle_ok,
+        tesseract_installed=tess_bin is not None,
+        tesseract_langs=tess_langs,
+        ollama_configured=bool(settings.ollama_base_url),
+        ollama_model=settings.ollama_model,
+        deepl_configured=bool(settings.deepl_api_key),
+    )

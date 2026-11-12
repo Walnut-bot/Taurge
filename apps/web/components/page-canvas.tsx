@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Maximize2, Trash2 } from 'lucide-react'
+import { Maximize2, Trash2, RotateCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { OcrBlock } from '@/lib/types'
 import { TextOverlay } from '@/components/workspace/text-overlay'
@@ -25,6 +25,7 @@ type Props = {
   onSelect?: (id: string | null) => void
   onHover?: (id: string | null) => void
   onUpdateBbox?: (id: string, bbox: { bbox_x: number; bbox_y: number; bbox_w: number; bbox_h: number }) => void
+  onUpdateRotation?: (id: string, angle: number) => void
   onUpdateText?: (id: string, newText: string) => void
   onCreateBlock?: (bbox: { bbox_x: number; bbox_y: number; bbox_w: number; bbox_h: number }) => void
   onDeleteBlock?: (id: string) => void
@@ -59,6 +60,7 @@ export function PageCanvas({
   onSelect,
   onHover,
   onUpdateBbox,
+  onUpdateRotation,
   onUpdateText,
   onCreateBlock,
   onDeleteBlock,
@@ -90,10 +92,13 @@ export function PageCanvas({
   const [editTextValue, setEditTextValue] = useState('')
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
-  // Drag & draw
+  // Drag, resize & rotate
   const [liveBbox, setLiveBbox] = useState<{ id: string; x: number; y: number; w: number; h: number } | null>(null)
   const [draggingBlockId, setDraggingBlockId] = useState<string | null>(null)
   const [resizingCorner, setResizingCorner] = useState<{ id: string; corner: ResizeCorner } | null>(null)
+  const [rotatingBlockId, setRotatingBlockId] = useState<string | null>(null)
+  const [liveRotation, setLiveRotation] = useState<{ id: string; angle: number } | null>(null)
+  const rotateCenterRef = useRef<{ cx: number; cy: number }>({ cx: 0, cy: 0 })
   const drawingRef = useRef<{ startX: number; startY: number; currX: number; currY: number } | null>(null)
   const [liveDrawnBox, setLiveDrawnBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
 
@@ -263,6 +268,44 @@ export function PageCanvas({
     }
   }, [draggingBlockId, resizingCorner, liveBbox, width, height, onUpdateBbox])
 
+  // Interactive rotation handle drag
+  useEffect(() => {
+    if (!rotatingBlockId) return
+
+    function handleMouseMove(e: MouseEvent) {
+      if (!rotatingBlockId) return
+      const { cx, cy } = rotateCenterRef.current
+      const dx = e.clientX - cx
+      const dy = e.clientY - cy
+      let deg = Math.round((Math.atan2(dy, dx) * 180) / Math.PI + 90)
+      if (deg > 180) deg -= 360
+      if (deg < -180) deg += 360
+      // Aimantation douce sur les angles clés (0°, ±45°, ±90°, ±135°, ±180°)
+      for (const snap of [-180, -135, -90, -45, 0, 45, 90, 135, 180]) {
+        if (Math.abs(deg - snap) <= 4) {
+          deg = snap
+          break
+        }
+      }
+      setLiveRotation({ id: rotatingBlockId, angle: deg })
+    }
+
+    function handleMouseUp() {
+      if (liveRotation && onUpdateRotation) {
+        onUpdateRotation(liveRotation.id, liveRotation.angle)
+      }
+      setRotatingBlockId(null)
+      setLiveRotation(null)
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [rotatingBlockId, liveRotation, onUpdateRotation])
+
   const manhwaFontClass: Record<ManhwaStyle, string> = {
     dialogue: 'font-manhwa-dialogue',
     scream: 'font-manhwa-scream text-red-600',
@@ -293,7 +336,7 @@ export function PageCanvas({
       <ZoomControls zp={zp} show={showZoomControls} />
 
       <div
-        className="w-full h-full flex items-start justify-center transition-transform duration-75 ease-out"
+        className="w-full h-full flex items-start justify-center p-4 sm:p-6 transition-transform duration-75 ease-out"
         style={{
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
           transformOrigin: 'center center',
@@ -355,7 +398,12 @@ export function PageCanvas({
             const blockStyle: ManhwaStyle =
               (active ? manhwaStyle : b.manhwa_style) || (b.bubble_type === 'SFX' ? 'sfx' : b.bubble_type === 'C' ? 'system' : 'dialogue')
 
-            const curRotation = active ? rotationAngle : (b.rotation_angle ?? 0)
+            const curRotation =
+              liveRotation && liveRotation.id === b.id
+                ? liveRotation.angle
+                : active
+                  ? rotationAngle
+                  : (b.rotation_angle ?? 0)
             const curScale = active ? fontSizeScale : (b.font_size_scale ?? 1)
             const curColor = active ? textColor : (b.text_color ?? '#0d0d0d')
 
@@ -385,6 +433,7 @@ export function PageCanvas({
                       <TextOverlay
                         text={editTextValue}
                         scale={curScale}
+                        rotationAngle={curRotation}
                         textClassName={cn(
                           manhwaFontClass[blockStyle],
                           isBold && 'font-bold',
@@ -392,7 +441,7 @@ export function PageCanvas({
                           isUppercase && 'uppercase',
                         )}
                         textStyle={{ color: curColor }}
-                        metricsKey={`${blockStyle}|${isBold}|${isItalic}|${isUppercase}|${curScale}`}
+                        metricsKey={`${blockStyle}|${isBold}|${isItalic}|${isUppercase}|${curScale}|${curRotation}`}
                       >
                         {({ fontSize }) => (
                           <textarea
@@ -421,6 +470,7 @@ export function PageCanvas({
                       <TextOverlay
                         text={b.translation!.translated_text}
                         scale={curScale}
+                        rotationAngle={curRotation}
                         textClassName={cn(
                           manhwaFontClass[blockStyle],
                           'scanlation-stroke',
@@ -433,7 +483,7 @@ export function PageCanvas({
                           WebkitTextStroke: strokeStyle !== 'none' ? `${strokeWidth}px ${strokeColorValue}` : undefined,
                         }}
                         title="Double-click to edit the text directly"
-                        metricsKey={`${blockStyle}|${isBold}|${isItalic}|${isUppercase}|${curScale}`}
+                        metricsKey={`${blockStyle}|${isBold}|${isItalic}|${isUppercase}|${curScale}|${curRotation}`}
                       />
                     ) : null}
                   </div>
@@ -481,6 +531,36 @@ export function PageCanvas({
 
                     {active && (
                       <>
+                        {/* Poignée de rotation interactive en haut au centre */}
+                        {onUpdateRotation && (
+                          <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center z-40">
+                            <button
+                              type="button"
+                              onMouseDown={(e) => {
+                                e.stopPropagation()
+                                e.preventDefault()
+                                if (!imageContainerRef.current) return
+                                const rect = imageContainerRef.current.getBoundingClientRect()
+                                const cx = rect.left + ((currentX + currentW / 2) / width) * rect.width
+                                const cy = rect.top + ((currentY + currentH / 2) / height) * rect.height
+                                rotateCenterRef.current = { cx, cy }
+                                setRotatingBlockId(b.id)
+                                setLiveRotation({ id: b.id, angle: curRotation })
+                              }}
+                              className="size-6 rounded-full bg-seal text-white shadow-xl border-2 border-white flex items-center justify-center hover:scale-115 active:scale-95 transition-transform cursor-grab active:cursor-grabbing"
+                              title="Glisser pour tourner le texte (-180° à +180°)"
+                            >
+                              <RotateCw className="size-3" />
+                            </button>
+                            <div className="w-0.5 h-2 bg-seal" />
+                            {curRotation !== 0 && (
+                              <span className="mt-0.5 rounded bg-ink/90 text-sheet px-1.5 py-0.2 font-mono text-[9px] font-bold shadow pointer-events-none whitespace-nowrap">
+                                {curRotation > 0 ? `+${curRotation}°` : `${curRotation}°`}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
                         {onDeleteBlock && (
                           <button
                             type="button"

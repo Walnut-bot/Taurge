@@ -19,6 +19,8 @@ from app.pages.router import router as pages_router
 from app.projects.router import router as projects_router
 from app.projects.glossary_router import router as glossary_router
 from app.projects.members_router import router as members_router
+from app.projects.collaboration_router import router as collaboration_router
+from app.admin.router import router as admin_router
 from app.translations.router import router as translations_router
 from app.core.config import settings
 from app.core.db import init_db
@@ -102,6 +104,8 @@ app.include_router(payment_webhooks_router)
 app.include_router(projects_router)
 app.include_router(members_router)
 app.include_router(glossary_router)
+app.include_router(collaboration_router)
+app.include_router(admin_router)
 app.include_router(pages_router)
 app.include_router(translations_router)
 app.include_router(exports_router)

@@ -46,6 +46,8 @@ class UserResponse(BaseModel):
     credits_remaining: int = 30
     credits_limit: int = 30
     newsletter_opt_in: bool = False
+    is_admin: bool = False
+    created_at: str | None = None
 
 
 class ProfileUpdate(BaseModel):
@@ -53,3 +55,19 @@ class ProfileUpdate(BaseModel):
     default_content_type: Literal["manga", "manhwa", "manhua", "webtoon", "comic", "autre"] | None = None
     default_source_lang: Literal["ja", "ko", "zh", "en", "es", "pt", "fr", "de"] | None = None
     default_target_lang: Literal["ja", "ko", "zh", "en", "es", "pt", "fr", "de"] | None = None
+    newsletter_opt_in: bool | None = None
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(min_length=1)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class SystemStatusResponse(BaseModel):
+    manga_ocr_installed: bool
+    paddle_ocr_installed: bool
+    tesseract_installed: bool
+    tesseract_langs: list[str] = Field(default_factory=list)
+    ollama_configured: bool
+    ollama_model: str
+    deepl_configured: bool

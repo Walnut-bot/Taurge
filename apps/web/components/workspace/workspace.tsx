@@ -267,16 +267,18 @@ export function Workspace({ projectId }: { projectId: string }) {
               ))}
             </div>
             <div
-              className="atelier-grid grid flex-1"
+              className="atelier-grid grid flex-1 min-w-0 max-w-full"
               style={
                 {
                   '--atelier-left': leftOpen ? '15rem' : '2.75rem',
+                  '--atelier-left-lg': leftOpen ? '13.5rem' : '2.75rem',
                   '--atelier-right': !page || rightOpen ? '23rem' : '2.75rem',
+                  '--atelier-right-lg': !page || rightOpen ? '20.5rem' : '2.75rem',
                 } as CSSProperties
               }
             >
               {leftOpen ? (
-                <aside className={cn('relative flex-col border-b-[1.5px] border-ink lg:flex lg:border-r-[1.5px] lg:border-b-0', mobileTab === 'pages' ? 'flex' : 'hidden')}>
+                <aside className={cn('relative min-w-0 flex-col border-b-[1.5px] border-ink lg:flex lg:border-r-[1.5px] lg:border-b-0', mobileTab === 'pages' ? 'flex' : 'hidden')}>
                   <EdgeToggle side="left" onToggle={() => setLeftOpen(false)} label="Hide the side panel" />
                   <SourcesPanel
                     project={project}
@@ -298,7 +300,7 @@ export function Workspace({ projectId }: { projectId: string }) {
 
               {page ? (
                 <>
-                  <div ref={stageRef} className={cn('min-w-0 scroll-mt-4 lg:grid', mobileTab === 'page' ? 'grid' : 'hidden')}>
+                  <div ref={stageRef} className={cn('min-w-0 max-w-full scroll-mt-4 lg:flex lg:flex-col', mobileTab === 'page' ? 'flex flex-col' : 'hidden')}>
                     <PageStage
                       key={page.id}
                       page={page}
@@ -319,9 +321,10 @@ export function Workspace({ projectId }: { projectId: string }) {
                     />
                   </div>
                   {rightOpen ? (
-                    <div className={cn('relative min-w-0 lg:grid', mobileTab === 'text' ? 'grid' : 'hidden')}>
+                    <div className={cn('relative min-w-0 max-w-full lg:flex lg:flex-col', mobileTab === 'text' ? 'flex flex-col' : 'hidden')}>
                       <EdgeToggle side="right" onToggle={() => setRightOpen(false)} label="Hide the bubbles panel" />
                       <BlockList
+                        projectId={project.id}
                         page={page}
                         sourceLang={project.source_lang}
                         targetLang={project.target_lang}

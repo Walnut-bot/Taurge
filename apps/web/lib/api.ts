@@ -201,8 +201,33 @@ export const api = {
   me(): Promise<User> {
     return IS_DEMO ? demo.me() : request('/auth/me')
   },
-  updateProfile(payload: Partial<Pick<User, 'display_name' | 'default_content_type' | 'default_source_lang' | 'default_target_lang'>>): Promise<User> {
+  updateProfile(payload: Partial<Pick<User, 'display_name' | 'default_content_type' | 'default_source_lang' | 'default_target_lang' | 'newsletter_opt_in'>>): Promise<User> {
     return IS_DEMO ? demo.updateProfile(payload) : patch('/auth/me/profile', payload)
+  },
+  changePassword(current_password: string, new_password: string): Promise<{ status: string; message: string }> {
+    if (IS_DEMO) return Promise.resolve({ status: 'ok', message: 'Mot de passe mis à jour (mode démo).' })
+    return post('/auth/me/password', { current_password, new_password })
+  },
+  async exportPersonalData(): Promise<void> {
+    const data = IS_DEMO
+      ? { exported_at: new Date().toISOString(), user: await demo.me() }
+      : await request<Record<string, unknown>>('/auth/me/export-data')
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    triggerDownload(blob, `taurge-export-rgpd-${new Date().toISOString().slice(0, 10)}.json`)
+  },
+  systemStatus(): Promise<import('./types').SystemStatus> {
+    if (IS_DEMO) {
+      return Promise.resolve({
+        manga_ocr_installed: true,
+        paddle_ocr_installed: true,
+        tesseract_installed: true,
+        tesseract_langs: ['jpn', 'jpn_vert', 'kor', 'chi_sim', 'eng', 'fra'],
+        ollama_configured: true,
+        ollama_model: 'qwen2.5:7b',
+        deepl_configured: true,
+      })
+    }
+    return request('/auth/me/system-status')
   },
   async uploadProfileImage(kind: 'avatar' | 'banner', file: File): Promise<User> {
     if (IS_DEMO) return demo.uploadProfileImage(kind, file)
@@ -428,5 +453,63 @@ export const api = {
   },
   reorderPages(projectId: string, pageIds: string[]): Promise<{ page_ids: string[] }> {
     return patch(`/projects/${projectId}/pages/reorder`, { page_ids: pageIds })
+  },
+  getProjectQc(projectId: string): Promise<import('./types').QCReport> {
+    return request(`/projects/${projectId}/qc`)
+  },
+  getPageQc(projectId: string, pageId: string): Promise<import('./types').QCReport> {
+    if (IS_DEMO) {
+      return Promise.resolve({
+        project_id: projectId,
+        error_count: 0,
+        warning_count: 0,
+        suggestion_count: 0,
+        issues: [],
+      })
+    }
+    return request(`/projects/${projectId}/pages/${pageId}/qc`)
+  },
+  searchTranslationMemory(projectId: string, query: string, limit = 5): Promise<import('./types').TranslationMemoryMatch[]> {
+    if (IS_DEMO || !query.trim()) return Promise.resolve([])
+    const params = new URLSearchParams({ q: query.trim(), limit: String(limit) })
+    return request(`/projects/${projectId}/translation-memory?${params.toString()}`)
+  },
+  listPageComments(projectId: string, pageId: string): Promise<import('./types').PageComment[]> {
+    if (IS_DEMO) return Promise.resolve([])
+    return request(`/projects/${projectId}/pages/${pageId}/comments`)
+  },
+  createPageComment(projectId: string, pageId: string, content: string, ocrBlockId?: string | null): Promise<import('./types').PageComment> {
+    return post(`/projects/${projectId}/pages/${pageId}/comments`, {
+      content,
+      ocr_block_id: ocrBlockId ?? null,
+    })
+  },
+  updatePageComment(projectId: string, commentId: string, is_resolved: boolean): Promise<import('./types').PageComment> {
+    return patch(`/projects/${projectId}/comments/${commentId}`, { is_resolved })
+  },
+  deletePageComment(projectId: string, commentId: string): Promise<void> {
+    return request(`/projects/${projectId}/comments/${commentId}`, { method: 'DELETE' })
+  },
+  listPageVersions(projectId: string, pageId: string): Promise<import('./types').PageVersion[]> {
+    if (IS_DEMO) return Promise.resolve([])
+    return request(`/projects/${projectId}/pages/${pageId}/versions`)
+  },
+  createPageVersion(projectId: string, pageId: string, label: string): Promise<import('./types').PageVersion> {
+    return post(`/projects/${projectId}/pages/${pageId}/versions`, { label })
+  },
+  restorePageVersion(projectId: string, pageId: string, versionId: string): Promise<import('./types').PageVersion> {
+    return post(`/projects/${projectId}/pages/${pageId}/versions/${versionId}/restore`)
+  },
+  adminStats(): Promise<import('./types').AdminStats> {
+    return request('/admin/stats')
+  },
+  adminUsers(): Promise<import('./types').AdminUser[]> {
+    return request('/admin/users')
+  },
+  adminGrantCredits(userId: string, delta: number, reason: string): Promise<import('./types').AdminUser> {
+    return post(`/admin/users/${userId}/credits`, { delta, reason })
+  },
+  adminJobs(): Promise<import('./types').AdminJob[]> {
+    return request('/admin/jobs')
   },
 }

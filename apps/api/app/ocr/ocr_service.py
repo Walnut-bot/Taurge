@@ -228,9 +228,14 @@ class OCRService:
             image_size=(image.width, image.height) if image else None,
             image=image,
         )
-        # Relecture bulle par bulle uniquement quand Tesseract a servi
-        # (son OCR page entière est celui qui confond les glyphes CJK).
-        if image is not None and bubbles and (used_tesseract or not refined):
+        # Relecture bulle par bulle uniquement quand Tesseract a servi sur une langue
+        # horizontale (en japonais, TesseractOCRProvider lit déjà chaque bulle/cadre
+        # individuellement en mode vertical avec suppression des furigana).
+        if (
+            image is not None
+            and bubbles
+            and ((used_tesseract and not _is_japanese(source_lang)) or not refined)
+        ):
             reread = await self._reread_bubbles(image, bubbles, refined, source_lang)
             refined = refine_blocks(
                 reread,
@@ -247,3 +252,100 @@ class OCRService:
         """Variante JSON structuré (texte, bbox, confiance) pour l'API."""
         blocks = await self.detect_text(image_bytes, source_lang)
         return [block.to_dict() for block in blocks]
+
+    async def recognize_region(
+        self, crop_bytes: bytes, source_lang: str
+    ) -> tuple[str, float, str]:
+        """Reconnaît le texte à l'intérieur d'une boîte tracée manuellement (+ Bubble).
+
+        Contrairement à `detect_text` (qui cherche des contours de bulles fermées
+        sur une planche complète et écarte les régions sans bordure fermée),
+        `recognize_region` lit directement l'extrait délimité par l'utilisateur,
+        y compris les bulles d'exclamation dentelées, textes flottants ou SFX.
+        Renvoie `(texte, confiance, provider)`.
+        """
+        if not crop_bytes:
+            return "", 0.0, "manual"
+
+        from PIL import ImageOps
+        from app.ocr.bubble_grouping import normalize_cjk_spacing
+
+        crop_img = Image.open(io.BytesIO(crop_bytes)).convert("RGB")
+        w, h = crop_img.size
+        if w < 8 or h < 8:
+            return "", 0.0, "manual"
+
+        # 1. Japonais : lecture directe via MangaOCR sur l'extrait recadré
+        if _is_japanese(source_lang):
+            if "manga-ocr" not in self._unavailable and hasattr(self._manga, "recognize_crop"):
+                try:
+                    blk = await self._manga.recognize_crop(crop_bytes)  # type: ignore[attr-defined]
+                    if blk and blk.text.strip():
+                        return blk.text.strip(), float(blk.confidence), blk.provider
+                except _UNAVAILABLE_ERRORS as exc:
+                    self._unavailable.add("manga-ocr")
+                    logger.warning("[OCRService] MangaOCR indisponible sur recognize_region : %s", exc)
+                except Exception as exc:
+                    logger.warning("[OCRService] Échec MangaOCR sur recognize_region : %s", exc)
+
+            # Repli Tesseract direct sur l'extrait japonais (sans filtrage de contour)
+            try:
+                padded = ImageOps.expand(crop_img, border=16, fill="white")
+                if min(padded.size) < 180:
+                    padded = padded.resize((padded.width * 2, padded.height * 2), Image.LANCZOS)
+                buf = io.BytesIO()
+                padded.save(buf, format="PNG")
+                t_blocks = await self._tesseract.detect_text(buf.getvalue(), source_lang)
+                if t_blocks:
+                    joined = normalize_cjk_spacing("".join(b.text for b in t_blocks)).strip()
+                    avg_conf = sum(b.confidence for b in t_blocks) / len(t_blocks)
+                    if joined:
+                        return joined, float(avg_conf), "tesseract"
+            except Exception as exc:
+                logger.warning("[OCRService] Repli Tesseract JA sur recognize_region échoué : %s", exc)
+            return "", 0.0, "manual"
+
+        # 2. Autres langues (Coréen, Chinois, Anglais, Français, etc.) :
+        # On ajoute une marge blanche de 24px et on agrandit les petits extraits
+        # pour que PaddleOCR / Tesseract ne tronquent jamais les caractères au bord.
+        padded_img = ImageOps.expand(crop_img, border=24, fill="white")
+        if min(w, h) < 220:
+            padded_img = padded_img.resize((padded_img.width * 2, padded_img.height * 2), Image.LANCZOS)
+        padded_buf = io.BytesIO()
+        padded_img.save(padded_buf, format="PNG")
+        padded_bytes = padded_buf.getvalue()
+
+        is_cjk = (source_lang or "").strip().lower()[:2] in {"ko", "zh"}
+        sep = "" if is_cjk and (source_lang or "").strip().lower()[:2] == "zh" else " "
+
+        if "paddleocr" not in self._unavailable:
+            try:
+                p_blocks = await self._paddle.detect_text(padded_bytes, source_lang)
+                if p_blocks:
+                    # Tri en ordre de lecture naturel (haut -> bas, gauche -> droite)
+                    p_blocks.sort(key=lambda b: (b.bbox_y // 18, b.bbox_x))
+                    raw = sep.join(b.text.strip() for b in p_blocks if b.text.strip()).strip()
+                    text = normalize_cjk_spacing(" ".join(raw.split())) if is_cjk else " ".join(raw.split())
+                    if text:
+                        avg_conf = sum(b.confidence for b in p_blocks) / len(p_blocks)
+                        return text, float(avg_conf), "paddleocr"
+            except _UNAVAILABLE_ERRORS as exc:
+                self._unavailable.add("paddleocr")
+                logger.warning("[OCRService] PaddleOCR indisponible sur recognize_region : %s", exc)
+            except Exception as exc:
+                logger.warning("[OCRService] Échec PaddleOCR sur recognize_region : %s", exc)
+
+        # Repli Tesseract sur l'extrait avec marge blanche
+        try:
+            t_blocks = await self._tesseract.detect_text(padded_bytes, source_lang)
+            if t_blocks:
+                t_blocks.sort(key=lambda b: (b.bbox_y // 18, b.bbox_x))
+                raw = sep.join(b.text.strip() for b in t_blocks if b.text.strip()).strip()
+                text = normalize_cjk_spacing(" ".join(raw.split())) if is_cjk else " ".join(raw.split())
+                if text:
+                    avg_conf = sum(b.confidence for b in t_blocks) / len(t_blocks)
+                    return text, float(avg_conf), "tesseract"
+        except Exception as exc:
+            logger.warning("[OCRService] Repli Tesseract sur recognize_region échoué : %s", exc)
+
+        return "", 0.0, "manual"

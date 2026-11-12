@@ -34,7 +34,7 @@ export function contentTypeLabel(value: string) {
   return CONTENT_TYPES.find((c) => c.value === value)?.label ?? value
 }
 
-export const ACCEPTED_UPLOAD = '.pdf,.png,.jpg,.jpeg,.webp'
+export const ACCEPTED_UPLOAD = '.pdf,.png,.jpg,.jpeg,.webp,.zip,.cbz'
 export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 export function formatSize(bytes: number) {

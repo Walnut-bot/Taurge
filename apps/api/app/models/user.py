@@ -20,6 +20,7 @@ class User(SQLModel, table=True):
     terms_accepted_at: datetime | None = Field(default=None)
     age_confirmed_at: datetime | None = Field(default=None)
     newsletter_opt_in: bool = Field(default=False)
+    is_admin: bool = Field(default=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )

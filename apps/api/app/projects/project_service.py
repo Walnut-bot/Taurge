@@ -17,6 +17,7 @@ from sqlmodel import Session, delete, select
 from app.billing.router import CREDIT_COSTS, deduct_credits, ensure_credits
 from app.core.config import settings
 from app.models.cleaned_page import CleanedPage
+from app.models.collaboration import PageComment, PageVersion
 from app.models.export import Export
 from app.models.glossary import GlossaryEntry
 from app.models.job import Job
@@ -292,6 +293,14 @@ def delete_project_cascade(
         select(ProjectMember).where(ProjectMember.project_id == project.id)
     ).all():
         session.delete(member)
+    for comment in session.exec(
+        select(PageComment).where(PageComment.project_id == project.id)
+    ).all():
+        session.delete(comment)
+    for version in session.exec(
+        select(PageVersion).where(PageVersion.project_id == project.id)
+    ).all():
+        session.delete(version)
     # Historique de facturation : on conserve les lignes (audit des
     # crédits) mais on les détache du projet. Sans ça, PostgreSQL
     # rejette la suppression (FK usage_ledgers.project_id) dès qu'un
@@ -343,12 +352,12 @@ async def upload_file(
             detail=f"Fichier trop volumineux (max {settings.max_upload_size_mb} Mo).",
         )
 
-    file_type = detect_file_type(content)
+    file_type = detect_file_type(content, file.filename)
     if not file_type:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Format de fichier non reconnu ou non supporté "
-            "(PDF, PNG, JPG, WEBP uniquement au MVP-0).",
+            "(PDF, PNG, JPG, WEBP, ZIP, CBZ uniquement).",
         )
 
     source_file = SourceFile(

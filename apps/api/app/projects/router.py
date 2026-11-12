@@ -14,12 +14,13 @@ from app.core.db import get_session
 from app.models.user import User
 from app.ocr.dependencies import get_ocr_provider
 from app.ocr.provider import OCRProvider
-from app.projects import export_service, page_service, project_service
+from app.projects import export_service, page_service, project_service, qc_service
 from app.projects.access import get_owned_project as _get_owned_project_impl
 from app.projects.schemas import (
     BatchProcessResponse, ExportResponse, OCRBlockResponse, PageResponse,
     ProjectCreate, ProjectDetailResponse, ProjectResponse, ProjectUpdate,
-    SourceFileResponse, TranslationResponse,
+    QCReportResponse, SourceFileResponse, TranslationMemoryMatchResponse,
+    TranslationResponse,
 )
 from app.storage.dependencies import get_storage_provider
 from app.storage.provider import StorageProvider
@@ -125,3 +126,34 @@ async def batch_process_project(project_id: uuid.UUID, include_ocr: bool = True,
 @router.post("/{project_id}/pages/{page_id}/process-full", response_model=PageResponse, status_code=status.HTTP_200_OK)
 async def process_page_full(project_id: uuid.UUID, page_id: uuid.UUID, include_ocr: bool = True, include_translate: bool = True, include_clean: bool = True, current_user: User = Depends(get_current_user), session: Session = Depends(get_session), storage: StorageProvider = Depends(get_storage_provider), ocr: OCRProvider = Depends(get_ocr_provider), translator: TranslationProvider = Depends(get_translation_provider)):
     return await page_service.process_page_full(project_id, page_id, include_ocr, include_translate, include_clean, current_user, session, storage, ocr, translator)
+
+
+@router.get("/{project_id}/qc", response_model=QCReportResponse)
+def get_project_qc(
+    project_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    return qc_service.run_project_qc(project_id, current_user, session)
+
+
+@router.get("/{project_id}/pages/{page_id}/qc", response_model=QCReportResponse)
+def get_page_qc(
+    project_id: uuid.UUID,
+    page_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    return qc_service.run_page_qc(project_id, page_id, current_user, session)
+
+
+@router.get("/{project_id}/translation-memory", response_model=list[TranslationMemoryMatchResponse])
+def search_translation_memory(
+    project_id: uuid.UUID,
+    q: str = Query(..., min_length=1),
+    limit: int = Query(5, ge=1, le=20),
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    return qc_service.search_translation_memory(project_id, q, current_user, session, limit=limit)
+

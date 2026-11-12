@@ -20,7 +20,12 @@ from app.models.project import Project
 from app.models.source_file import SourceFile
 from app.models.translation import Translation
 from app.projects.cleaning import clean_image
-from app.projects.extraction import RENDER_DPI, get_image_dimensions, iter_pages_from_image
+from app.projects.extraction import (
+    RENDER_DPI,
+    get_image_dimensions,
+    iter_pages_from_archive,
+    iter_pages_from_image,
+)
 from app.projects.slicing import TARGET_SLICE_HEIGHT, is_webtoon_strip
 from app.projects.thumbnails import ensure_page_thumbnail, thumbnail_key
 
@@ -152,6 +157,14 @@ def _run_extraction_in_background(job_id: uuid.UUID, file_id: uuid.UUID) -> None
 
     with Session(engine) as session:
         if not _claim_job(session, job_id):
+            import time
+            deadline = time.monotonic() + 10.0
+            while time.monotonic() < deadline:
+                session.expire_all()
+                current = session.get(Job, job_id)
+                if not current or current.status != "running":
+                    break
+                time.sleep(0.05)
             return
         job = session.get(Job, job_id)
         if not job:
@@ -242,6 +255,41 @@ def _run_extraction_in_background(job_id: uuid.UUID, file_id: uuid.UUID) -> None
                             session, job, current=index + 1, total=total,
                             message=f"Extraction de la page {index + 1}/{total}\u2026",
                         )
+            elif source_file.file_type in ("zip", "cbz"):
+                content = storage.read(source_file.storage_key)
+                _set_extraction_job_progress(
+                    session, job, current=0, total=1,
+                    message="Extraction de l\u2019archive ZIP/CBZ\u2026",
+                )
+                created = 0
+                for index, (image_bytes, width, height) in enumerate(
+                    iter_pages_from_archive(content), start=1
+                ):
+                    session.refresh(job)
+                    if job.status == "cancelled":
+                        remove_partial_extraction(session)
+                        return
+                    page = Page(
+                        project_id=job.project_id,
+                        source_file_id=source_file.id,
+                        page_number=index,
+                        storage_key="",
+                        width=width,
+                        height=height,
+                    )
+                    page.storage_key = f"pages/{job.project_id}/{page.id}.png"
+                    generated_storage_keys.append(page.storage_key)
+                    generated_page_ids.append(page.id)
+                    storage.save(page.storage_key, image_bytes)
+                    session.add(page)
+                    created = index
+                    _set_extraction_job_progress(
+                        session, job, current=index, total=max(index, 1),
+                        message=f"Extraction de la page {index} depuis l\u2019archive\u2026",
+                    )
+                if created == 0:
+                    raise ValueError("Aucune page n\u2019a pu etre extraite de l\u2019archive.")
+                total = created
             else:
                 content = storage.read(source_file.storage_key)
                 img_width, img_height = get_image_dimensions(content)
@@ -328,6 +376,14 @@ async def _run_batch_in_background(job_id: uuid.UUID):
 
     with Session(engine) as session:
         if not _claim_job(session, job_id):
+            import time
+            deadline = time.monotonic() + 10.0
+            while time.monotonic() < deadline:
+                session.expire_all()
+                current = session.get(Job, job_id)
+                if not current or current.status != "running":
+                    break
+                time.sleep(0.05)
             return
         job = session.get(Job, job_id)
         if not job:
@@ -471,6 +527,14 @@ async def _run_page_ocr(job_id: uuid.UUID, page_id: uuid.UUID) -> None:
     ocr = _ocr_provider()
     with Session(engine) as session:
         if not _claim_job(session, job_id):
+            import time
+            deadline = time.monotonic() + 10.0
+            while time.monotonic() < deadline:
+                session.expire_all()
+                current = session.get(Job, job_id)
+                if not current or current.status != "running":
+                    break
+                time.sleep(0.05)
             return
         job = session.get(Job, job_id)
         if not job:

@@ -30,7 +30,12 @@ from app.models.user import User
 from app.ocr.provider import OCRProvider
 from app.projects.access import get_owned_file, get_owned_page, get_owned_project
 from app.projects.cleaning import clean_image
-from app.projects.extraction import get_image_dimensions, iter_pages_from_image, iter_pages_from_pdf
+from app.projects.extraction import (
+    get_image_dimensions,
+    iter_pages_from_archive,
+    iter_pages_from_image,
+    iter_pages_from_pdf,
+)
 from app.projects.file_validation import detect_file_type
 from app.projects.slicing import is_webtoon_strip
 from app.projects.thumbnails import ensure_page_thumbnail, thumbnail_url_for
@@ -101,6 +106,29 @@ def extract_pages(
             storage.save(storage_key, png_bytes)
             session.add(page)
             created_pages.append(page)
+    elif source_file.file_type in ("zip", "cbz"):
+        try:
+            for index, (png_bytes, width, height) in enumerate(
+                iter_pages_from_archive(content), start=1
+            ):
+                page = Page(
+                    project_id=project_id,
+                    source_file_id=source_file.id,
+                    page_number=index,
+                    storage_key="",
+                    width=width,
+                    height=height,
+                )
+                storage_key = f"pages/{project_id}/{page.id}.png"
+                page.storage_key = storage_key
+                storage.save(storage_key, png_bytes)
+                session.add(page)
+                created_pages.append(page)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
     else:
         # Image déjà uploadée : si c'est une bande webtoon longue, on la découpe
         # intelligemment aux gouttières pour créer plusieurs pages séquentielles.

@@ -1,15 +1,36 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, Loader2, Columns, Eye, Plus, Layers, RotateCcw, Trash2, FileText, Sparkles } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { ChevronLeft, ChevronRight, Loader2, Columns, Eye, Plus, Layers, RotateCcw, Trash2, FileText, Sparkles, Undo2, Redo2, ShieldCheck, MessageSquare, History, CheckCircle2 } from 'lucide-react'
 import { PageCanvas, type ManhwaStyle, type StrokeStyle } from '@/components/page-canvas'
 import { Button } from '@/components/ui/button'
 import { IS_DEMO, api, ApiError } from '@/lib/api'
 import { usePageImage } from '@/lib/hooks'
 import { pageStage } from '@/lib/pipeline'
-import type { Page } from '@/lib/types'
+import type { Page, QCIssue, PageComment, PageVersion } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import type { Runner } from './workspace'
+
+type HistoryEntry =
+  | {
+      kind: 'bbox'
+      blockId: string
+      before: { bbox_x: number; bbox_y: number; bbox_w: number; bbox_h: number }
+      after: { bbox_x: number; bbox_y: number; bbox_w: number; bbox_h: number }
+    }
+  | {
+      kind: 'style'
+      blockId: string
+      before: Record<string, string | number | undefined>
+      after: Record<string, string | number | undefined>
+    }
+  | {
+      kind: 'text'
+      blockId: string
+      translationId: string | null
+      before: string
+      after: string
+    }
 
 type View = 'original' | 'cleaned'
 
@@ -55,6 +76,18 @@ export function PageStage(props: Props) {
   const [isPeekingOriginal, setIsPeekingOriginal] = useState(false)
   const [showZones, setShowZones] = useState(true)
   const [isDrawMode, setIsDrawMode] = useState(false)
+  const [undoStack, setUndoStack] = useState<HistoryEntry[]>([])
+  const [redoStack, setRedoStack] = useState<HistoryEntry[]>([])
+  const [qcOpen, setQcOpen] = useState(false)
+  const [qcIssues, setQcIssues] = useState<QCIssue[]>([])
+  const [qcLoading, setQcLoading] = useState(false)
+  const [commentsOpen, setCommentsOpen] = useState(false)
+  const [comments, setComments] = useState<PageComment[]>([])
+  const [commentInput, setCommentInput] = useState('')
+  const [versionsOpen, setVersionsOpen] = useState(false)
+  const [versions, setVersions] = useState<PageVersion[]>([])
+  const [versionLabel, setVersionLabel] = useState('')
+  const [workflowStatus, setWorkflowStatus] = useState(page.workflow_status || 'raw')
 
   const effectiveView: View = page.cleaned_at ? view : 'original'
   const { url: originalUrl, error: originalError } = usePageImage(page.id, 'original', 'raw')
@@ -103,9 +136,15 @@ export function PageStage(props: Props) {
       props.onSelectBlock(null)
       return
     }
+    const before: Record<string, string | number | undefined> = {}
+    for (const k of Object.keys(updates) as (keyof typeof updates)[]) {
+      before[k] = blk[k]
+    }
     try {
       await api.updateBlockStyle(blockId, updates)
       Object.assign(blk, updates)
+      setUndoStack((prev) => [...prev.slice(-29), { kind: 'style', blockId, before, after: { ...updates } }])
+      setRedoStack([])
     } catch (e) {
       // The block vanished between render and request: absorb the stale
       // state instead of letting the error repeat on every setting.
@@ -121,6 +160,9 @@ export function PageStage(props: Props) {
   const handleUpdateText = async (blockId: string, newText: string) => {
     const blk = page.ocr_blocks.find((b) => b.id === blockId)
     if (!blk) return
+    const before = blk.translation ? blk.translation.translated_text : blk.text
+    if (before === newText) return
+    const translationId = blk.translation?.id ?? null
     if (blk.translation) {
       await api.updateTranslation(blk.translation.id, newText)
       blk.translation.translated_text = newText
@@ -129,13 +171,76 @@ export function PageStage(props: Props) {
       await api.updateBlockText(blockId, newText)
       blk.text = newText
     }
+    setUndoStack((prev) => [...prev.slice(-29), { kind: 'text', blockId, translationId, before, after: newText }])
+    setRedoStack([])
     props.onRefresh?.()
   }
 
-  // C shortcut for RAW peek
+  const applyHistoryEntry = useCallback(
+    async (entry: HistoryEntry, direction: 'undo' | 'redo') => {
+      const target = direction === 'undo' ? entry.before : entry.after
+      const blk = page.ocr_blocks.find((b) => b.id === entry.blockId)
+      try {
+        if (entry.kind === 'bbox') {
+          const bbox = target as { bbox_x: number; bbox_y: number; bbox_w: number; bbox_h: number }
+          await api.updateBlockBbox(entry.blockId, bbox)
+          if (blk) Object.assign(blk, bbox)
+        } else if (entry.kind === 'style') {
+          const styleUpdates = target as Record<string, string | number | undefined>
+          await api.updateBlockStyle(entry.blockId, styleUpdates)
+          if (blk) Object.assign(blk, styleUpdates)
+        } else if (entry.kind === 'text') {
+          const textVal = target as string
+          if (entry.translationId) {
+            await api.updateTranslation(entry.translationId, textVal)
+            if (blk?.translation) blk.translation.translated_text = textVal
+          } else {
+            await api.updateBlockText(entry.blockId, textVal)
+            if (blk) blk.text = textVal
+          }
+        }
+        await props.onRefresh?.()
+      } catch (err) {
+        console.error('History replay failed', err)
+      }
+    },
+    [page.ocr_blocks, props],
+  )
+
+  const handleUndo = useCallback(async () => {
+    if (undoStack.length === 0) return
+    const entry = undoStack[undoStack.length - 1]
+    setUndoStack((prev) => prev.slice(0, -1))
+    setRedoStack((prev) => [...prev, entry])
+    await applyHistoryEntry(entry, 'undo')
+  }, [undoStack, applyHistoryEntry])
+
+  const handleRedo = useCallback(async () => {
+    if (redoStack.length === 0) return
+    const entry = redoStack[redoStack.length - 1]
+    setRedoStack((prev) => prev.slice(0, -1))
+    setUndoStack((prev) => [...prev, entry])
+    await applyHistoryEntry(entry, 'redo')
+  }, [redoStack, applyHistoryEntry])
+
+  // C shortcut for RAW peek & Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y for Undo/Redo
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) return
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault()
+        if (e.shiftKey) {
+          handleRedo()
+        } else {
+          handleUndo()
+        }
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault()
+        handleRedo()
+        return
+      }
       if (e.key === 'c' || e.key === 'C') setIsPeekingOriginal(true)
     }
     function handleKeyUp(e: KeyboardEvent) {
@@ -147,7 +252,7 @@ export function PageStage(props: Props) {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [])
+  }, [handleUndo, handleRedo])
 
   const next = stage === 'cleaned' ? null : NEXT_ACTION[stage]
   const working = busy === `${next?.key}:${page.id}`
@@ -165,23 +270,115 @@ export function PageStage(props: Props) {
   }
 
   const handleUpdateBbox = async (blockId: string, bbox: { bbox_x: number; bbox_y: number; bbox_w: number; bbox_h: number }) => {
+    const blk = page.ocr_blocks.find((b) => b.id === blockId)
+    const before = blk
+      ? { bbox_x: blk.bbox_x, bbox_y: blk.bbox_y, bbox_w: blk.bbox_w, bbox_h: blk.bbox_h }
+      : null
     try {
-      await api.updateBlockBbox(blockId, bbox)
-      const blk = page.ocr_blocks.find((b) => b.id === blockId)
-      if (blk) Object.assign(blk, bbox)
+      const updated = await api.updateBlockBbox(blockId, bbox)
+      if (blk) {
+        Object.assign(blk, updated)
+      }
+      if (before && (before.bbox_x !== bbox.bbox_x || before.bbox_y !== bbox.bbox_y || before.bbox_w !== bbox.bbox_w || before.bbox_h !== bbox.bbox_h)) {
+        setUndoStack((prev) => [...prev.slice(-29), { kind: 'bbox', blockId, before, after: { ...bbox } }])
+        setRedoStack([])
+      }
+      await props.onRefresh?.()
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleToggleAiQc = async () => {
+    const nextOpen = !qcOpen
+    setQcOpen(nextOpen)
+    if (nextOpen) {
+      setQcLoading(true)
+      try {
+        const report = await api.getPageQc(projectId, page.id)
+        setQcIssues(report.issues)
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setQcLoading(false)
+      }
+    }
+  }
+
+  const handleToggleComments = async () => {
+    const nextOpen = !commentsOpen
+    setCommentsOpen(nextOpen)
+    if (nextOpen) {
+      setVersionsOpen(false)
+      try {
+        const list = await api.listPageComments(projectId, page.id)
+        setComments(list)
+      } catch (err) {
+        console.error(err)
+      }
+    }
+  }
+
+  const handleAddComment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!commentInput.trim()) return
+    try {
+      const created = await api.createPageComment(projectId, page.id, commentInput.trim(), props.activeBlockId)
+      setComments((prev) => [...prev, created])
+      setCommentInput('')
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleToggleVersions = async () => {
+    const nextOpen = !versionsOpen
+    setVersionsOpen(nextOpen)
+    if (nextOpen) {
+      setCommentsOpen(false)
+      try {
+        const list = await api.listPageVersions(projectId, page.id)
+        setVersions(list)
+      } catch (err) {
+        console.error(err)
+      }
+    }
+  }
+
+  const handleCreateVersion = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      const created = await api.createPageVersion(projectId, page.id, versionLabel.trim())
+      setVersions((prev) => [created, ...prev])
+      setVersionLabel('')
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleRestoreVersion = async (versionId: string) => {
+    await run(`restore:${versionId}`, 'Page version restored.', async () => {
+      await api.restorePageVersion(projectId, page.id, versionId)
+    })
+  }
+
+  const handleWorkflowStatusChange = async (newStatus: string) => {
+    setWorkflowStatus(newStatus as NonNullable<Page['workflow_status']>)
+    try {
+      await api.updatePageWorkflowStatus(projectId, page.id, newStatus)
+      await props.onRefresh?.()
     } catch (err) {
       console.error(err)
     }
   }
 
   const handleCreateBlock = async (bbox: { bbox_x: number; bbox_y: number; bbox_w: number; bbox_h: number }) => {
-    try {
+    await run(`create-block:${page.id}`, 'Bulle détectée et ajoutée.', async () => {
       const newBlock = await api.createBlock({ page_id: page.id, ...bbox })
+      page.ocr_blocks.push(newBlock)
       await props.onRefresh?.()
       props.onSelectBlock(newBlock.id)
-    } catch (err) {
-      console.error(err)
-    }
+    })
   }
 
   const handleDeleteBlock = async (blockId: string) => {
@@ -222,8 +419,8 @@ export function PageStage(props: Props) {
   const allReviewed = totalBlocks > 0 && reviewedBlocks === totalBlocks
 
   return (
-    <section aria-label={`Page ${page.page_number}`} className="flex min-w-0 flex-1 flex-col bg-paper">
-      <div className="flex flex-wrap items-center gap-2 border-b border-hairline px-3 py-2 sm:px-4">
+    <section aria-label={`Page ${page.page_number}`} className="flex min-w-0 w-full max-w-full flex-1 flex-col overflow-x-hidden bg-paper">
+      <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-hairline px-3 py-2 sm:px-4">
         <div className="flex items-center">
           <Button
             variant="ghost"
@@ -298,7 +495,7 @@ export function PageStage(props: Props) {
           </div>
         )}
 
-        <div className="flex items-center gap-1.5 border-l border-hairline pl-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 border-l border-hairline pl-3">
           <button
             type="button"
             onClick={() => setIsDrawMode(!isDrawMode)}
@@ -329,15 +526,89 @@ export function PageStage(props: Props) {
           </button>
 
           {totalBlocks > 0 && (
-            <button
-              type="button"
-              onClick={handleExportScript}
-              className="h-8 px-2.5 text-xs font-medium flex items-center gap-1 rounded border border-hairline bg-sheet text-ink hover:bg-muted transition-colors"
-              title="Download the Photoshop-formatted script (.txt)"
-            >
-              <FileText className="size-3.5 text-seal" />
-              <span className="hidden sm:inline">Script (.txt)</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={handleUndo}
+                disabled={undoStack.length === 0 || busy !== null}
+                className="h-8 px-2 text-xs font-medium flex items-center gap-1 rounded border border-hairline bg-sheet text-ink hover:bg-muted disabled:opacity-40 transition-colors"
+                title="Undo (Ctrl+Z)"
+                aria-label="Undo"
+              >
+                <Undo2 className="size-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={handleRedo}
+                disabled={redoStack.length === 0 || busy !== null}
+                className="h-8 px-2 text-xs font-medium flex items-center gap-1 rounded border border-hairline bg-sheet text-ink hover:bg-muted disabled:opacity-40 transition-colors"
+                title="Redo (Ctrl+Shift+Z)"
+                aria-label="Redo"
+              >
+                <Redo2 className="size-3.5" />
+              </button>
+              <button
+                type="button"
+                aria-pressed={qcOpen}
+                onClick={handleToggleAiQc}
+                className={cn(
+                  'h-8 px-2.5 text-xs font-medium flex items-center gap-1 rounded border border-hairline transition-colors',
+                  qcOpen ? 'bg-ink text-sheet' : 'bg-sheet text-ink hover:bg-muted',
+                )}
+                title="Run AI Quality Control on this page"
+              >
+                <ShieldCheck className="size-3.5 text-seal" />
+                <span className="hidden sm:inline">AI QC</span>
+              </button>
+              <button
+                type="button"
+                aria-pressed={commentsOpen}
+                onClick={handleToggleComments}
+                className={cn(
+                  'h-8 px-2.5 text-xs font-medium flex items-center gap-1 rounded border border-hairline transition-colors',
+                  commentsOpen ? 'bg-ink text-sheet' : 'bg-sheet text-ink hover:bg-muted',
+                )}
+                title="Page comments & review notes"
+              >
+                <MessageSquare className="size-3.5 text-seal" />
+                <span className="hidden sm:inline">Notes</span>
+              </button>
+              <button
+                type="button"
+                aria-pressed={versionsOpen}
+                onClick={handleToggleVersions}
+                className={cn(
+                  'h-8 px-2.5 text-xs font-medium flex items-center gap-1 rounded border border-hairline transition-colors',
+                  versionsOpen ? 'bg-ink text-sheet' : 'bg-sheet text-ink hover:bg-muted',
+                )}
+                title="Page snapshots & version history"
+              >
+                <History className="size-3.5 text-seal" />
+                <span className="hidden sm:inline">Versions</span>
+              </button>
+              <select
+                value={workflowStatus}
+                onChange={(e) => handleWorkflowStatusChange(e.target.value)}
+                aria-label="Page workflow status"
+                className="h-8 rounded border border-hairline bg-sheet px-2 text-xs font-mono font-semibold text-ink"
+                title="Scanlation workflow stage"
+              >
+                <option value="raw">RAW</option>
+                <option value="cleaned">CLEANED</option>
+                <option value="translated">TRANSLATED</option>
+                <option value="typeset">TYPESET</option>
+                <option value="ready">READY</option>
+              </select>
+              <button
+                type="button"
+                onClick={handleExportScript}
+                className="h-8 px-2.5 text-xs font-medium flex items-center gap-1 rounded border border-hairline bg-sheet text-ink hover:bg-muted transition-colors"
+                title="Download the Photoshop-formatted script (.txt)"
+              >
+                <FileText className="size-3.5 text-seal" />
+                <span className="hidden sm:inline">Script (.txt)</span>
+              </button>
+            </>
           )}
 
           {page.cleaned_at && (
@@ -370,15 +641,206 @@ export function PageStage(props: Props) {
         </div>
       </div>
 
+      {/* AI QUALITY CONTROL PANEL */}
+      {qcOpen && (
+        <div className="border-b border-hairline bg-sheet px-4 py-2.5 text-xs">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <span className="font-mono font-semibold uppercase tracking-wider text-ink-soft">
+              AI Quality Control — Page {page.page_number}
+            </span>
+            <button
+              type="button"
+              onClick={() => setQcOpen(false)}
+              className="text-ink-soft hover:text-ink font-mono text-[11px]"
+            >
+              Close
+            </button>
+          </div>
+          {qcLoading ? (
+            <div className="flex items-center gap-2 py-1 text-ink-soft">
+              <Loader2 className="size-3.5 animate-spin text-seal" />
+              <span>Analyzing bubbles, glossary & overflow risks…</span>
+            </div>
+          ) : qcIssues.length === 0 ? (
+            <p className="text-emerald-700 font-medium py-0.5">
+              ✓ No issues detected on this page (translations, locked glossary terms & bubble sizes look good).
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-1.5 max-h-36 overflow-y-auto py-1">
+              {qcIssues.map((issue, idx) => (
+                <li
+                  key={`${issue.code}-${issue.ocr_block_id ?? idx}`}
+                  className="flex items-start justify-between gap-3 rounded border border-hairline bg-paper px-2.5 py-1.5"
+                >
+                  <div className="flex items-start gap-2 min-w-0">
+                    <span
+                      className={cn(
+                        'mt-0.5 shrink-0 rounded px-1.5 py-0.2 font-mono text-[10px] font-bold uppercase',
+                        issue.severity === 'error'
+                          ? 'bg-red-100 text-red-800'
+                          : issue.severity === 'warning'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-blue-100 text-blue-800',
+                      )}
+                    >
+                      {issue.severity}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-medium text-ink">{issue.message}</p>
+                      {issue.suggestion && (
+                        <p className="text-[11px] text-ink-soft">{issue.suggestion}</p>
+                      )}
+                    </div>
+                  </div>
+                  {issue.ocr_block_id && (
+                    <button
+                      type="button"
+                      onClick={() => props.onSelectBlock(issue.ocr_block_id ?? null)}
+                      className="shrink-0 rounded border border-hairline bg-sheet px-2 py-0.5 font-mono text-[10px] font-semibold hover:bg-muted"
+                    >
+                      Inspect
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* COLLABORATION COMMENTS PANEL */}
+      {commentsOpen && (
+        <div className="border-b border-hairline bg-sheet px-4 py-2.5 text-xs">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <span className="font-mono font-semibold uppercase tracking-wider text-ink-soft">
+              Review Notes & Comments ({comments.length})
+            </span>
+            <button
+              type="button"
+              onClick={() => setCommentsOpen(false)}
+              className="text-ink-soft hover:text-ink font-mono text-[11px]"
+            >
+              Close
+            </button>
+          </div>
+          <form onSubmit={handleAddComment} className="flex items-center gap-2 mb-2">
+            <input
+              type="text"
+              value={commentInput}
+              onChange={(e) => setCommentInput(e.target.value)}
+              placeholder={props.activeBlockId ? 'Comment on selected bubble…' : 'Add a review note on this page…'}
+              className="h-8 flex-1 rounded border border-hairline bg-paper px-2.5 text-xs"
+            />
+            <Button type="submit" size="sm" variant="default">
+              Post
+            </Button>
+          </form>
+          {comments.length > 0 && (
+            <ul className="flex flex-col gap-1.5 max-h-36 overflow-y-auto">
+              {comments.map((c) => (
+                <li
+                  key={c.id}
+                  className={cn(
+                    'flex items-center justify-between gap-2 rounded border border-hairline bg-paper px-2.5 py-1.5',
+                    c.is_resolved && 'opacity-60',
+                  )}
+                >
+                  <div className="min-w-0">
+                    <span className="font-mono text-[10px] font-bold text-ink-soft">{c.author_email}: </span>
+                    <span className={cn('text-ink', c.is_resolved && 'line-through')}>{c.content}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {c.ocr_block_id && (
+                      <button
+                        type="button"
+                        onClick={() => props.onSelectBlock(c.ocr_block_id ?? null)}
+                        className="rounded border border-hairline bg-sheet px-1.5 py-0.5 font-mono text-[10px] hover:bg-muted"
+                      >
+                        Bubble
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const updated = await api.updatePageComment(projectId, c.id, !c.is_resolved)
+                        setComments((prev) => prev.map((item) => (item.id === c.id ? updated : item)))
+                      }}
+                      className="text-emerald-700 hover:underline font-mono text-[10px] flex items-center gap-0.5"
+                    >
+                      <CheckCircle2 className="size-3" />
+                      {c.is_resolved ? 'Reopen' : 'Resolve'}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* PAGE VERSIONING / SNAPSHOTS PANEL */}
+      {versionsOpen && (
+        <div className="border-b border-hairline bg-sheet px-4 py-2.5 text-xs">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <span className="font-mono font-semibold uppercase tracking-wider text-ink-soft">
+              Page Version History ({versions.length})
+            </span>
+            <button
+              type="button"
+              onClick={() => setVersionsOpen(false)}
+              className="text-ink-soft hover:text-ink font-mono text-[11px]"
+            >
+              Close
+            </button>
+          </div>
+          <form onSubmit={handleCreateVersion} className="flex items-center gap-2 mb-2">
+            <input
+              type="text"
+              value={versionLabel}
+              onChange={(e) => setVersionLabel(e.target.value)}
+              placeholder="Snapshot label (e.g. Before QC proofread)…"
+              className="h-8 flex-1 rounded border border-hairline bg-paper px-2.5 text-xs"
+            />
+            <Button type="submit" size="sm" variant="default">
+              Save Snapshot
+            </Button>
+          </form>
+          {versions.length > 0 && (
+            <ul className="flex flex-col gap-1.5 max-h-36 overflow-y-auto">
+              {versions.map((v) => (
+                <li
+                  key={v.id}
+                  className="flex items-center justify-between gap-2 rounded border border-hairline bg-paper px-2.5 py-1.5"
+                >
+                  <div className="min-w-0">
+                    <span className="font-mono font-bold text-ink">v{v.version_number} — {v.label}</span>
+                    <span className="ml-2 font-mono text-[10px] text-ink-soft">
+                      ({v.blocks_count} bubbles · by {v.created_by_email})
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRestoreVersion(v.id)}
+                    className="shrink-0 rounded border border-hairline bg-sheet px-2 py-0.5 font-mono text-[10px] font-semibold hover:bg-muted"
+                  >
+                    Restore
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       {/* MANHWA TYPOGRAPHY INSPECTOR WITH DATABASE PERSISTENCE */}
       {activeBlock && (
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-sheet border-b border-hairline px-4 py-2 shadow-sm text-xs">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center justify-between gap-2.5 bg-sheet border-b border-hairline px-3 py-2 shadow-sm text-xs sm:px-4">
           <div className="flex items-center gap-2 font-semibold">
             <Sparkles className="size-4 text-seal" />
             <span>Manhwa style:</span>
           </div>
 
-          <div className="flex items-center gap-1 rounded bg-paper p-1 border border-hairline">
+          <div className="flex min-w-0 flex-wrap items-center gap-1 rounded bg-paper p-1 border border-hairline">
             {[
               { id: 'dialogue', label: '💬 Dialogue' },
               { id: 'scream', label: '💥 Shout / Fight' },
@@ -425,7 +887,7 @@ export function PageStage(props: Props) {
             ))}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] text-ink-soft">Size:</span>
               <select
@@ -464,21 +926,73 @@ export function PageStage(props: Props) {
               </select>
             </div>
 
-            <div className="flex items-center gap-1.5" title="Rotation angle">
-              <span className="text-[11px] text-ink-soft">Angle:</span>
+            <div className="flex items-center gap-1.5" title="Angle de rotation du texte (-180° à +180°)">
+              <span className="text-[11px] text-ink-soft">Rotation :</span>
+              <div className="flex items-center gap-1">
+                {[
+                  { label: '↺ -90°', angle: -90 },
+                  { label: '-15°', angle: Math.max(-180, rotationAngle - 15) },
+                  { label: '0°', angle: 0 },
+                  { label: '+15°', angle: Math.min(180, rotationAngle + 15) },
+                  { label: '↻ +90°', angle: 90 },
+                ].map((btn) => (
+                  <button
+                    key={btn.label}
+                    type="button"
+                    onClick={() => {
+                      setRotationAngle(btn.angle)
+                      persistBlockStyle({ rotation_angle: btn.angle })
+                    }}
+                    className={cn(
+                      'rounded border border-hairline px-1.5 py-0.5 font-mono text-[10px] font-semibold transition-colors',
+                      rotationAngle === btn.angle && (btn.angle === 0 || btn.angle === 90 || btn.angle === -90)
+                        ? 'bg-seal text-seal-ink border-seal'
+                        : 'bg-paper text-ink hover:bg-muted',
+                    )}
+                  >
+                    {btn.label}
+                  </button>
+                ))}
+              </div>
               <input
                 type="range"
-                min={-30}
-                max={30}
+                min={-180}
+                max={180}
                 value={rotationAngle}
                 onChange={(e) => {
                   const val = Number(e.target.value)
                   setRotationAngle(val)
                   persistBlockStyle({ rotation_angle: val })
                 }}
-                className="w-16 accent-seal cursor-pointer"
+                className="w-20 accent-seal cursor-pointer"
               />
-              <span className="font-mono text-[10px] w-6">{rotationAngle}°</span>
+              <span className="font-mono text-[10px] w-9 text-right">
+                {rotationAngle > 0 ? `+${rotationAngle}°` : `${rotationAngle}°`}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!activeBlock) return
+                  const pageW = page.width ?? 1000
+                  const pageH = page.height ?? 1414
+                  const cx = activeBlock.bbox_x + activeBlock.bbox_w / 2
+                  const cy = activeBlock.bbox_y + activeBlock.bbox_h / 2
+                  const newW = Math.max(30, Math.min(pageW, activeBlock.bbox_h))
+                  const newH = Math.max(20, Math.min(pageH, activeBlock.bbox_w))
+                  const newX = Math.max(0, Math.min(pageW - newW, Math.round(cx - newW / 2)))
+                  const newY = Math.max(0, Math.min(pageH - newH, Math.round(cy - newH / 2)))
+                  handleUpdateBbox(activeBlock.id, {
+                    bbox_x: newX,
+                    bbox_y: newY,
+                    bbox_w: newW,
+                    bbox_h: newH,
+                  })
+                }}
+                className="rounded border border-hairline bg-paper px-1.5 py-0.5 font-mono text-[10px] font-semibold text-ink hover:bg-muted transition-colors"
+                title="Pivoter les dimensions du cadre (Largeur ↔ Hauteur)"
+              >
+                ⇄ Cadre L/H
+              </button>
             </div>
 
             <label className="flex items-center cursor-pointer" title="Color">
@@ -526,6 +1040,10 @@ export function PageStage(props: Props) {
             onSelect={props.onSelectBlock}
             onHover={props.onHoverBlock}
             onUpdateBbox={handleUpdateBbox}
+            onUpdateRotation={(blockId, angle) => {
+              setRotationAngle(angle)
+              persistBlockStyle({ rotation_angle: angle })
+            }}
             onUpdateText={handleUpdateText}
             onCreateBlock={handleCreateBlock}
             onDeleteBlock={handleDeleteBlock}

@@ -36,6 +36,7 @@ CREATE TABLE users (
     terms_accepted_at TIMESTAMP WITH TIME ZONE,
     age_confirmed_at TIMESTAMP WITH TIME ZONE,
     newsletter_opt_in BOOLEAN DEFAULT FALSE,
+    is_admin BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -205,9 +206,35 @@ CREATE TABLE usage_ledgers (
     id UUID PRIMARY KEY,
     user_id UUID REFERENCES users(id),
     project_id UUID REFERENCES projects(id),
-    action_type VARCHAR NOT NULL, -- ocr, translate, clean, batch, recharge
+    action_type VARCHAR NOT NULL, -- ocr, translate, clean, batch, recharge, admin_grant
     amount INT NOT NULL,
     description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Commentaires collaboratifs par page / bulle
+CREATE TABLE page_comments (
+    id UUID PRIMARY KEY,
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    page_id UUID REFERENCES pages(id) ON DELETE CASCADE,
+    ocr_block_id UUID,
+    author_id UUID REFERENCES users(id),
+    author_email VARCHAR(255) NOT NULL,
+    content VARCHAR(2000) NOT NULL,
+    is_resolved BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Historique de versions / snapshots par page
+CREATE TABLE page_versions (
+    id UUID PRIMARY KEY,
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    page_id UUID REFERENCES pages(id) ON DELETE CASCADE,
+    version_number INT NOT NULL,
+    label VARCHAR(120) NOT NULL,
+    created_by_id UUID REFERENCES users(id),
+    created_by_email VARCHAR(255) NOT NULL,
+    snapshot_json TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 ```

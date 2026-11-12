@@ -15,6 +15,8 @@ type TextOverlayProps = {
   text: string
   /** User scale multiplier (inspector). Values 0.75 → 2.0 scale the fitted font size proportionally. */
   scale?: number
+  /** Rotation angle in degrees (-180 to 180). Swaps layout axes near ±90° so text flows along vertical boxes. */
+  rotationAngle?: number
   lineHeight?: number
   minFontSize?: number
   maxFontSize?: number
@@ -37,11 +39,14 @@ type TextOverlayProps = {
  *
  * Measures the base optimal font size for the bubble, then applies the user-selected
  * scale multiplier (e.g. 100% -> 200%) directly so dramatic impact and shout
- * texts can actually scale up as intended.
+ * texts can actually scale up as intended. When rotated near ±90°, automatically
+ * swaps layout width and height so text rotated inside a vertical box flows along
+ * the long axis of the box.
  */
 export function TextOverlay({
   text,
   scale = 1,
+  rotationAngle = 0,
   lineHeight = 1.08,
   minFontSize = 8,
   maxFontSize = 160,
@@ -58,13 +63,14 @@ export function TextOverlay({
   const [box, setBox] = useState({ w: 0, h: 0 })
   const [fontsTick, setFontsTick] = useState(0)
 
-  // Measure the border box (stable: unaffected by the inner padding or zoom transforms).
+  // Measure the unrotated layout box (offsetWidth/offsetHeight are unaffected by CSS rotate/scale transforms).
   useLayoutEffect(() => {
     const el = boxRef.current
     if (!el) return
     const update = () => {
-      const rect = el.getBoundingClientRect()
-      setBox((prev) => (prev.w === rect.width && prev.h === rect.height ? prev : { w: rect.width, h: rect.height }))
+      const w = el.offsetWidth || el.getBoundingClientRect().width
+      const h = el.offsetHeight || el.getBoundingClientRect().height
+      setBox((prev) => (prev.w === w && prev.h === h ? prev : { w, h }))
     }
     update()
     const ro = new ResizeObserver(update)
@@ -87,9 +93,16 @@ export function TextOverlay({
     }
   }, [])
 
+  // When rotated near ±90° (between 45° and 135°), swap width & height so text
+  // flows along the long axis of vertical manga boxes.
+  const rad = (rotationAngle * Math.PI) / 180
+  const isSideways = Math.abs(Math.sin(rad)) >= 0.707
+  const effectiveBoxW = isSideways ? box.h : box.w
+  const effectiveBoxH = isSideways ? box.w : box.h
+
   const pad = Math.min(0.4, Math.max(0, paddingRatio))
-  const contentW = Math.max(0, box.w * (1 - 2 * pad))
-  const contentH = Math.max(0, box.h * (1 - 2 * pad))
+  const contentW = Math.max(0, effectiveBoxW * (1 - 2 * pad))
+  const contentH = Math.max(0, effectiveBoxH * (1 - 2 * pad))
 
   const { lines, fontSize: heuristic } = useMemo(
     () => fitLettering(text, contentW, contentH, { lineHeight, minFontSize, maxFontSize }),
@@ -127,7 +140,7 @@ export function TextOverlay({
     const fitted = Math.floor(scaledSize * 2) / 2
     setFontSize((prev) => (prev === fitted ? prev : fitted))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lines, heuristic, contentW, contentH, scale, lineHeight, minFontSize, maxFontSize, metricsKey, fontsTick])
+  }, [lines, heuristic, contentW, contentH, scale, rotationAngle, lineHeight, minFontSize, maxFontSize, metricsKey, fontsTick])
 
   const fitted: TextOverlayFitted = { fontSize, lineHeight, lines }
 
@@ -136,14 +149,25 @@ export function TextOverlay({
       ref={boxRef}
       title={title}
       className={cn('relative flex h-full w-full items-center justify-center text-center overflow-visible', className)}
-      style={box.w > 0 ? { padding: `${box.h * pad}px ${box.w * pad}px` } : undefined}
+      style={
+        !isSideways && box.w > 0
+          ? { padding: `${box.h * pad}px ${box.w * pad}px` }
+          : undefined
+      }
     >
       {children ? (
         children(fitted)
       ) : (
         <div
-          className={cn('cursor-text select-text transition-all duration-150', textClassName)}
-          style={{ fontSize, lineHeight, overflowWrap: 'break-word', ...textStyle }}
+          className={cn('cursor-text select-text transition-all duration-150 flex flex-col items-center justify-center', textClassName)}
+          style={{
+            fontSize,
+            lineHeight,
+            width: isSideways && contentW > 0 ? `${contentW}px` : undefined,
+            height: isSideways && contentH > 0 ? `${contentH}px` : undefined,
+            overflowWrap: 'break-word',
+            ...textStyle,
+          }}
         >
           {lines.map((line, i) => (
             <div key={i}>{line}</div>
