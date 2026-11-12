@@ -74,19 +74,53 @@
         "body": "Vous corrigez l'original et la traduction, bulle par bulle."
       },
       {
-        "title": "Nettoyage + export",
-        "body": "Bulles effacées, ZIP prêt pour le lettrage."
+        "title": "Lettrage & export",
+        "body": "Lettrage auto-fit officiel, révision rideau QC, export immédiat en CBZ, PDF ou ZIP."
       }
     ],
-    "featuresTitle": "Ce que fait cette version",
-    "features": [
-      "OCR japonais, coréen, chinois, anglais (Tesseract)",
-      "Traduction automatique, modifiable bloc par bloc",
-      "Nettoyage des bulles par inpainting",
-      "Export ZIP : pages nettoyées + textes en JSON"
+    "whyTitle": "Pensé de bout en bout pour la scanlation professionnelle",
+    "whySubtitle": "De la détection de texte au lettrage final, tous les outils indispensables réunis dans une plateforme fluide et moderne.",
+    "advantages": [
+      {
+        "badge": "Multi-moteurs IA",
+        "title": "OCR Manga & Manhwa de pointe",
+        "body": "Reconnaissance sur-mesure du japonais vertical (Manga-OCR), du coréen, du chinois et de l'anglais (PaddleOCR v4). Découpage intelligent par bulle sans parasites."
+      },
+      {
+        "badge": "Zéro résidu",
+        "title": "Nettoyage & Inpainting précis",
+        "body": "Effacement net des textes sur bulles claires et cartouches sombres. Trames et contours d'encre préservés à 100 % grâce aux moteurs Telea et LaMa ONNX."
+      },
+      {
+        "badge": "Polices comics",
+        "title": "Lettrage automatique & Styles",
+        "body": "Découpage harmonieux des lignes (Diamond wrap), rotation 360°, contour protecteur et styles spécialisés Dialogue, Cri, Pensée, Système et SFX."
+      },
+      {
+        "badge": "Contrôle qualité",
+        "title": "Rideau interactif avant / après",
+        "body": "Glissez le séparateur interactif pour comparer la page originale, la page nettoyée et le lettrage en temps réel afin de garantir un rendu irréprochable."
+      },
+      {
+        "badge": "Multi-utilisateurs",
+        "title": "Collaboration d'équipe & Rôles",
+        "body": "Traducteur, Clean, Lettrage, Relecture : travaillez à plusieurs sur le même chapitre avec gestion fine des permissions, commentaires et historique des versions."
+      },
+      {
+        "badge": "Prêt à publier",
+        "title": "Exports CBZ, PDF & ZIP universels",
+        "body": "Générez vos chapitres finaux en haute résolution prêts pour les liseuses et plateformes en ligne, sans perte de netteté ni filigrane."
+      }
     ],
-    "notYetTitle": "Pas encore",
-    "notYetBody": "Le lettrage automatique, la détection des SFX dessinés et les flux d'équipe arrivent plus tard. Taurge prépare la page ; le lettrage final reste dans votre outil habituel.",
+    "ctaTitle": "Prêt à accélérer la traduction de vos chapitres ?",
+    "ctaSubtitle": "Rejoignez les traducteurs et équipes qui gagnent des heures sur chaque tome avec Taurge.",
+    "ctaButton": "Créer un compte gratuit",
+    "ctaBadges": [
+      "Sans carte bancaire requise",
+      "100 % dans le navigateur",
+      "Compatible PDF, CBZ & ZIP",
+      "Japonais · Coréen · Chinois · Anglais"
+    ],
     "footerTagline": "Pensé pour les traducteurs, pas pour les remplacer."
   },
   "Dashboard": {

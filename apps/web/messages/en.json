@@ -74,19 +74,53 @@
         "body": "You fix the original and the translation, bubble by bubble."
       },
       {
-        "title": "Cleaning + export",
-        "body": "Bubbles erased, ZIP ready for lettering."
+        "title": "Lettering & export",
+        "body": "Professional auto-fit typesetting, interactive QC curtain, instant export to CBZ, PDF, or ZIP."
       }
     ],
-    "featuresTitle": "What this version does",
-    "features": [
-      "Japanese, Korean, Chinese, English OCR (Tesseract)",
-      "Automatic translation, editable block by block",
-      "Bubble cleaning by inpainting",
-      "ZIP export: cleaned pages + texts as JSON"
+    "whyTitle": "Built from the ground up for professional scanlation",
+    "whySubtitle": "From bubble detection to final typesetting, every essential tool unified in one smooth, modern platform.",
+    "advantages": [
+      {
+        "badge": "Multi-engine AI",
+        "title": "Cutting-edge Manga & Manhwa OCR",
+        "body": "Tailored recognition for vertical Japanese (Manga-OCR), Korean, Chinese, and English (PaddleOCR v4). Smart bubble grouping with zero spurious boxes."
+      },
+      {
+        "badge": "Zero residue",
+        "title": "Precise Cleaning & Inpainting",
+        "body": "Flawless text removal on light bubbles and dark narration boxes. Screentones and ink contours are 100% preserved using Telea and LaMa ONNX."
+      },
+      {
+        "badge": "Comic fonts",
+        "title": "Automatic Typesetting & Styles",
+        "body": "Balanced line wrapping (Diamond wrap), 360° rotation, protective stroke, and specialized styles for Dialogue, Scream, Thought, System, and SFX."
+      },
+      {
+        "badge": "Quality control",
+        "title": "Interactive Before / After QC Curtain",
+        "body": "Slide the interactive divider to compare raw page, cleaned page, and final lettering in real time for uncompromising scanlation quality."
+      },
+      {
+        "badge": "Multi-user",
+        "title": "Team Collaboration & Roles",
+        "body": "Translator, Cleaner, Typesetter, Proofreader: collaborate on the same chapter with fine-grained permissions, comments, and version history."
+      },
+      {
+        "badge": "Publish ready",
+        "title": "Universal CBZ, PDF & ZIP Exports",
+        "body": "Generate high-resolution chapters ready for reading platforms and e-readers in one click, without quality loss or watermarks."
+      }
     ],
-    "notYetTitle": "Not yet",
-    "notYetBody": "Automatic lettering, hand-drawn SFX detection and team workflows are coming later. Taurge prepares the page; final lettering stays in your usual tool.",
+    "ctaTitle": "Ready to speed up your manga & webtoon localization?",
+    "ctaSubtitle": "Join the creators and translation teams saving hours on every chapter with Taurge.",
+    "ctaButton": "Create a free account",
+    "ctaBadges": [
+      "No credit card required",
+      "100% in your browser",
+      "Compatible with PDF, CBZ & ZIP",
+      "Japanese · Korean · Chinese · English"
+    ],
     "footerTagline": "Built for translators, not to replace them."
   },
   "Dashboard": {

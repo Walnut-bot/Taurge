@@ -5,8 +5,10 @@ import { cn } from '@/lib/utils'
 import type { ZoomPan } from './use-zoom-pan'
 
 export function ZoomControls({ zp, show }: { zp: ZoomPan; show: boolean }) {
+  if (!show) return null
+
   return (
-    <div inert={!show} className={cn(!show && 'hidden', 'absolute bottom-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1 rounded-full bg-ink/90 text-sheet px-3 py-1 shadow-2xl backdrop-blur-md border border-hairline/30')}>
+    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1 rounded-full bg-ink/90 text-sheet px-3 py-1 shadow-2xl backdrop-blur-md border border-hairline/30">
       <button
         type="button"
         onClick={() => zp.setZoom((z) => Math.max(0.4, Number((z - 0.2).toFixed(2))))}
