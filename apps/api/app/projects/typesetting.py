@@ -28,7 +28,15 @@ FONTS_MANIFEST = {
         "file": ASSETS_FONTS_DIR / "ComicNeue-Bold.ttf",
         "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/comicneue/ComicNeue-Bold.ttf",
     },
+    "comic-neue": {
+        "file": ASSETS_FONTS_DIR / "ComicNeue-Bold.ttf",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/comicneue/ComicNeue-Bold.ttf",
+    },
     "scream": {
+        "file": ASSETS_FONTS_DIR / "Bangers-Regular.ttf",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/bangers/Bangers-Regular.ttf",
+    },
+    "bangers": {
         "file": ASSETS_FONTS_DIR / "Bangers-Regular.ttf",
         "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/bangers/Bangers-Regular.ttf",
     },
@@ -36,7 +44,23 @@ FONTS_MANIFEST = {
         "file": ASSETS_FONTS_DIR / "Cinzel-Bold.ttf",
         "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/cinzel/Cinzel%5Bwght%5D.ttf",
     },
+    "cinzel": {
+        "file": ASSETS_FONTS_DIR / "Cinzel-Bold.ttf",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/cinzel/Cinzel%5Bwght%5D.ttf",
+    },
+    "thought": {
+        "file": ASSETS_FONTS_DIR / "Cinzel-Bold.ttf",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/cinzel/Cinzel%5Bwght%5D.ttf",
+    },
+    "cormorant": {
+        "file": ASSETS_FONTS_DIR / "Cinzel-Bold.ttf",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/cinzel/Cinzel%5Bwght%5D.ttf",
+    },
     "sfx": {
+        "file": ASSETS_FONTS_DIR / "PermanentMarker-Regular.ttf",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/apache/permanentmarker/PermanentMarker-Regular.ttf",
+    },
+    "permanent-marker": {
         "file": ASSETS_FONTS_DIR / "PermanentMarker-Regular.ttf",
         "url": "https://raw.githubusercontent.com/google/fonts/main/apache/permanentmarker/PermanentMarker-Regular.ttf",
     },

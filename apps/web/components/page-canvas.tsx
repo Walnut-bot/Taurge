@@ -5,11 +5,12 @@ import { Maximize2, Trash2, RotateCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { OcrBlock } from '@/lib/types'
 import { TextOverlay } from '@/components/workspace/text-overlay'
+import { getFontClassName } from '@/lib/fonts'
 import { useZoomPan } from './page-canvas/use-zoom-pan'
 import { ZoomControls } from './page-canvas/zoom-controls'
 import { QcCurtain, BlockMarker } from './page-canvas/qc-curtain'
 
-export type ManhwaStyle = 'dialogue' | 'scream' | 'system' | 'thought' | 'sfx'
+export type ManhwaStyle = 'dialogue' | 'scream' | 'system' | 'thought' | 'sfx' | 'cinzel' | 'comic-neue' | 'bangers' | 'cormorant' | 'permanent-marker' | 'sans' | (string & {})
 export type StrokeStyle = 'none' | 'white' | 'black'
 
 type ResizeCorner = 'nw' | 'ne' | 'sw' | 'se'
@@ -306,14 +307,6 @@ export function PageCanvas({
     }
   }, [rotatingBlockId, liveRotation, onUpdateRotation])
 
-  const manhwaFontClass: Record<ManhwaStyle, string> = {
-    dialogue: 'font-manhwa-dialogue',
-    scream: 'font-manhwa-scream text-red-600',
-    system: 'font-manhwa-system text-cyan-400',
-    thought: 'font-manhwa-thought text-neutral-800',
-    sfx: 'font-manhwa-sfx text-amber-500',
-  }
-
   const strokeColorValue = strokeStyle === 'white' ? '#ffffff' : strokeStyle === 'black' ? '#000000' : 'transparent'
 
   function commitInlineEdit(blockId: string) {
@@ -395,8 +388,8 @@ export function PageCanvas({
             }
             const lettering = showLettering && b.translation?.translated_text
 
-            const blockStyle: ManhwaStyle =
-              (active ? manhwaStyle : b.manhwa_style) || (b.bubble_type === 'SFX' ? 'sfx' : b.bubble_type === 'C' ? 'system' : 'dialogue')
+            const blockStyle =
+              (active ? manhwaStyle : b.manhwa_style) || (b.bubble_type === 'SFX' ? 'sfx' : b.bubble_type === 'C' ? 'cinzel' : 'dialogue')
 
             const curRotation =
               liveRotation && liveRotation.id === b.id
@@ -405,7 +398,17 @@ export function PageCanvas({
                   ? rotationAngle
                   : (b.rotation_angle ?? 0)
             const curScale = active ? fontSizeScale : (b.font_size_scale ?? 1)
-            const curColor = active ? textColor : (b.text_color ?? '#0d0d0d')
+            const curColor = active ? textColor : (b.text_color ?? (blockStyle === 'cinzel' || blockStyle === 'system' ? '#ffffff' : '#0d0d0d'))
+
+            // Chaque bulle a son contour indépendant (b.stroke_color, b.stroke_width)
+            const curStrokeStyle = active
+              ? strokeStyle
+              : (b.stroke_color === '#000000' ? 'black' : b.stroke_color === 'transparent' ? 'none' : 'white')
+            const curStrokeColorValue =
+              curStrokeStyle === 'white' ? '#ffffff' : curStrokeStyle === 'black' ? '#000000' : 'transparent'
+            const curStrokeWidth = active ? strokeWidth : (b.stroke_width ?? 2)
+            const hasStroke = curStrokeStyle !== 'none' && curStrokeWidth > 0
+            const fontClass = getFontClassName(blockStyle)
 
             return (
               <div
@@ -416,11 +419,15 @@ export function PageCanvas({
                 {(maskBubbles || lettering || isEditing) && (
                   <div
                     className={cn(
-                      'absolute inset-0 flex items-center justify-center text-center',
+                      'absolute inset-0 flex items-center justify-center text-center cursor-pointer',
                       maskBubbles && 'rounded-[45%] bg-white',
                     )}
                     style={{
                       transform: curRotation !== 0 ? `rotate(${curRotation}deg)` : undefined,
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onSelect?.(b.id)
                     }}
                     onDoubleClick={(e) => {
                       e.stopPropagation()
@@ -435,7 +442,7 @@ export function PageCanvas({
                         scale={curScale}
                         rotationAngle={curRotation}
                         textClassName={cn(
-                          manhwaFontClass[blockStyle],
+                          fontClass,
                           isBold && 'font-bold',
                           isItalic && 'italic',
                           isUppercase && 'uppercase',
@@ -456,7 +463,7 @@ export function PageCanvas({
                               }
                             }}
                             className={cn(
-                              manhwaFontClass[blockStyle],
+                              fontClass,
                               'h-full w-full resize-none rounded border-2 border-seal bg-white/95 p-1 text-center shadow-xl outline-none scanlation-stroke z-50',
                               isBold && 'font-bold',
                               isItalic && 'italic',
@@ -472,7 +479,7 @@ export function PageCanvas({
                         scale={curScale}
                         rotationAngle={curRotation}
                         textClassName={cn(
-                          manhwaFontClass[blockStyle],
+                          fontClass,
                           'scanlation-stroke',
                           isBold && 'font-bold',
                           isItalic && 'italic',
@@ -480,9 +487,9 @@ export function PageCanvas({
                         )}
                         textStyle={{
                           color: curColor,
-                          WebkitTextStroke: strokeStyle !== 'none' ? `${strokeWidth}px ${strokeColorValue}` : undefined,
+                          WebkitTextStroke: hasStroke ? `${curStrokeWidth}px ${curStrokeColorValue}` : undefined,
                         }}
-                        title="Double-click to edit the text directly"
+                        title="Cliquer pour sélectionner · Double-clic pour modifier directement le texte"
                         metricsKey={`${blockStyle}|${isBold}|${isItalic}|${isUppercase}|${curScale}|${curRotation}`}
                       />
                     ) : null}

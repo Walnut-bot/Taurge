@@ -1,12 +1,20 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { ChevronLeft, ChevronRight, Loader2, Columns, Eye, Plus, Layers, RotateCcw, Trash2, FileText, Sparkles, Undo2, Redo2, ShieldCheck, MessageSquare, History, CheckCircle2 } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { ChevronLeft, ChevronRight, Loader2, Columns, Eye, Plus, Layers, RotateCcw, Trash2, FileText, Sparkles, Undo2, Redo2, ShieldCheck, MessageSquare, History, CheckCircle2, Type, Palette } from 'lucide-react'
 import { PageCanvas, type ManhwaStyle, type StrokeStyle } from '@/components/page-canvas'
 import { Button } from '@/components/ui/button'
 import { IS_DEMO, api, ApiError } from '@/lib/api'
 import { usePageImage } from '@/lib/hooks'
 import { pageStage } from '@/lib/pipeline'
+import {
+  FONTS_LIST,
+  COLOR_SWATCHES,
+  FONT_SIZE_SCALES,
+  STROKE_OPTIONS,
+  STROKE_WIDTHS,
+  normalizeFontId,
+} from '@/lib/fonts'
 import type { Page, QCIssue, PageComment, PageVersion } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import type { Runner } from './workspace'
@@ -71,6 +79,14 @@ export function PageStage(props: Props) {
   const [strokeStyle, setStrokeStyle] = useState<StrokeStyle>('white')
   const [strokeWidth, setStrokeWidth] = useState(2)
   const [rotationAngle, setRotationAngle] = useState(0)
+  const [blockStyles, setBlockStyles] = useState<Record<string, {
+    manhwa_style?: string
+    font_size_scale?: number
+    rotation_angle?: number
+    text_color?: string
+    stroke_color?: string
+    stroke_width?: number
+  }>>({})
 
   const [isQcMode, setIsQcMode] = useState(false)
   const [isPeekingOriginal, setIsPeekingOriginal] = useState(false)
@@ -89,6 +105,14 @@ export function PageStage(props: Props) {
   const [versionLabel, setVersionLabel] = useState('')
   const [workflowStatus, setWorkflowStatus] = useState(page.workflow_status || 'raw')
 
+  // Blocs réactifs isolés : chaque bulle conserve ses propres propriétés de police, taille, couleur, contour
+  const effectiveBlocks = useMemo(() => {
+    return page.ocr_blocks.map((b) => {
+      const override = blockStyles[b.id]
+      return override ? { ...b, ...override } : b
+    })
+  }, [page.ocr_blocks, blockStyles])
+
   const effectiveView: View = page.cleaned_at ? view : 'original'
   const { url: originalUrl, error: originalError } = usePageImage(page.id, 'original', 'raw')
   const { url: cleanedUrl, error: cleanedError } = usePageImage(
@@ -99,19 +123,27 @@ export function PageStage(props: Props) {
   const displayUrl = isPeekingOriginal ? originalUrl : (effectiveView === 'cleaned' ? (cleanedUrl || originalUrl) : originalUrl)
   const error = isPeekingOriginal ? originalError : (effectiveView === 'cleaned' ? (cleanedError && originalError) : originalError)
 
-  // Sync the inspector when a bubble is selected
+  // Synchronise l'inspecteur uniquement pour la bulle actuellement sélectionnée
   useEffect(() => {
     if (!props.activeBlockId) return
     const blk = page.ocr_blocks.find((b) => b.id === props.activeBlockId)
     if (blk) {
-      setManhwaStyle(blk.manhwa_style || 'dialogue')
-      setFontSizeScale(blk.font_size_scale || 1)
-      setRotationAngle(blk.rotation_angle || 0)
-      setTextColor(blk.text_color || '#0d0d0d')
-      setStrokeStyle(blk.stroke_color === '#000000' ? 'black' : blk.stroke_color === 'transparent' ? 'none' : 'white')
-      setStrokeWidth(blk.stroke_width || 2)
+      const override = blockStyles[blk.id]
+      const style = override?.manhwa_style ?? blk.manhwa_style ?? (blk.bubble_type === 'C' ? 'cinzel' : 'dialogue')
+      const scale = override?.font_size_scale ?? blk.font_size_scale ?? 1
+      const rot = override?.rotation_angle ?? blk.rotation_angle ?? 0
+      const color = override?.text_color ?? blk.text_color ?? (style === 'cinzel' || style === 'system' ? '#ffffff' : '#0d0d0d')
+      const stroke = override?.stroke_color ?? blk.stroke_color ?? (style === 'cinzel' || style === 'system' ? '#000000' : '#ffffff')
+      const width = override?.stroke_width ?? blk.stroke_width ?? 2
+
+      setManhwaStyle(style)
+      setFontSizeScale(scale)
+      setRotationAngle(rot)
+      setTextColor(color)
+      setStrokeStyle(stroke === '#000000' ? 'black' : stroke === 'transparent' ? 'none' : 'white')
+      setStrokeWidth(width)
     }
-  }, [props.activeBlockId, page.ocr_blocks])
+  }, [props.activeBlockId, page.ocr_blocks, blockStyles])
 
   // Active block resolved against the current page data: null when the selected
   // ID is stale (deleted block, re-OCR, batch), so the inspector is never
@@ -140,9 +172,16 @@ export function PageStage(props: Props) {
     for (const k of Object.keys(updates) as (keyof typeof updates)[]) {
       before[k] = blk[k]
     }
+
+    // 1. Mise à jour locale immédiate et réactive pour CE bloc uniquement (n'affecte aucune autre bulle)
+    setBlockStyles((prev) => ({
+      ...prev,
+      [blockId]: { ...(prev[blockId] || {}), ...updates },
+    }))
+    Object.assign(blk, updates)
+
     try {
       await api.updateBlockStyle(blockId, updates)
-      Object.assign(blk, updates)
       setUndoStack((prev) => [...prev.slice(-29), { kind: 'style', blockId, before, after: { ...updates } }])
       setRedoStack([])
     } catch (e) {
@@ -834,81 +873,193 @@ export function PageStage(props: Props) {
 
       {/* MANHWA TYPOGRAPHY INSPECTOR WITH DATABASE PERSISTENCE */}
       {activeBlock && (
-        <div className="flex min-w-0 max-w-full flex-wrap items-center justify-between gap-2.5 bg-sheet border-b border-hairline px-3 py-2 shadow-sm text-xs sm:px-4">
-          <div className="flex items-center gap-2 font-semibold">
-            <Sparkles className="size-4 text-seal" />
-            <span>Manhwa style:</span>
+        <div className="flex min-w-0 max-w-full flex-wrap items-center justify-between gap-3 bg-sheet border-b border-hairline px-3 py-2.5 shadow-sm text-xs sm:px-4">
+          {/* Section 1: Choix de la police (Catalogue de styles complet incluant Cinzel) */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 font-semibold text-ink">
+              <Type className="size-4 text-seal" />
+              <span>Police :</span>
+            </div>
+            <select
+              value={normalizeFontId(manhwaStyle)}
+              onChange={(e) => {
+                const selectedId = e.target.value
+                setManhwaStyle(selectedId)
+                let nextColor = textColor
+                let nextStroke = strokeStyle
+                if (selectedId === 'cinzel') {
+                  // Norme scanlation pour récitatifs / boîtes noires : texte blanc
+                  if (nextColor === '#0d0d0d') nextColor = '#ffffff'
+                  if (nextStroke === 'white') nextStroke = 'black'
+                } else if (selectedId === 'comic-neue' || selectedId === 'sans') {
+                  // Norme dialogue standard : texte noir
+                  if (nextColor === '#ffffff') nextColor = '#0d0d0d'
+                  if (nextStroke === 'black') nextStroke = 'white'
+                }
+                setTextColor(nextColor)
+                setStrokeStyle(nextStroke)
+                persistBlockStyle({
+                  manhwa_style: selectedId,
+                  text_color: nextColor,
+                  stroke_color: nextStroke === 'black' ? '#000000' : nextStroke === 'white' ? '#ffffff' : 'transparent',
+                })
+              }}
+              className="rounded border border-hairline bg-paper px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-seal"
+              title="Choisir la police pour cette bulle"
+            >
+              {FONTS_LIST.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+
+            {/* Raccourcis rapides 1-clic pour styles courants */}
+            <div className="hidden sm:flex items-center gap-1 rounded bg-paper/80 p-0.5 border border-hairline">
+              {[
+                { id: 'cinzel', label: 'Carré noir', icon: '🏛️' },
+                { id: 'comic-neue', label: 'Dialogue', icon: '💬' },
+                { id: 'bangers', label: 'Cris', icon: '💥' },
+                { id: 'cormorant', label: 'Pensée', icon: '💭' },
+                { id: 'permanent-marker', label: 'SFX', icon: '⚡' },
+              ].map((p) => {
+                const isCur = normalizeFontId(manhwaStyle) === p.id
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setManhwaStyle(p.id)
+                      let nextColor = textColor
+                      let nextStroke = strokeStyle
+                      if (p.id === 'cinzel') {
+                        if (nextColor === '#0d0d0d') nextColor = '#ffffff'
+                        if (nextStroke === 'white') nextStroke = 'black'
+                      } else if (p.id === 'comic-neue') {
+                        if (nextColor === '#ffffff') nextColor = '#0d0d0d'
+                        if (nextStroke === 'black') nextStroke = 'white'
+                      }
+                      setTextColor(nextColor)
+                      setStrokeStyle(nextStroke)
+                      persistBlockStyle({
+                        manhwa_style: p.id,
+                        text_color: nextColor,
+                        stroke_color: nextStroke === 'black' ? '#000000' : nextStroke === 'white' ? '#ffffff' : 'transparent',
+                      })
+                    }}
+                    className={cn(
+                      'px-2 py-0.5 rounded text-[11px] font-medium transition-all flex items-center gap-1',
+                      isCur ? 'bg-ink text-sheet shadow-xs font-semibold' : 'text-ink-soft hover:text-ink hover:bg-sheet'
+                    )}
+                    title={p.label}
+                  >
+                    <span>{p.icon}</span>
+                    <span>{p.label}</span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
-          <div className="flex min-w-0 flex-wrap items-center gap-1 rounded bg-paper p-1 border border-hairline">
-            {[
-              { id: 'dialogue', label: '💬 Dialogue' },
-              { id: 'scream', label: '💥 Shout / Fight' },
-              { id: 'system', label: '🎮 System' },
-              { id: 'thought', label: '💭 Thought' },
-              { id: 'sfx', label: '⚡ SFX' },
-            ].map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => {
-                  const style = p.id as ManhwaStyle
-                  setManhwaStyle(style)
-                  let color = textColor, stroke = strokeStyle, strkW = strokeWidth
-                  if (style === 'system') {
-                    color = '#00e5ff'
-                    stroke = 'black'
-                  } else if (style === 'scream') {
-                    color = '#ffffff'
-                    stroke = 'black'
-                    strkW = 3
-                  } else {
-                    color = '#0d0d0d'
-                    stroke = 'white'
-                    strkW = 2
-                  }
-                  setTextColor(color)
-                  setStrokeStyle(stroke)
-                  setStrokeWidth(strkW)
-                  persistBlockStyle({
-                    manhwa_style: style,
-                    text_color: color,
-                    stroke_color: stroke === 'black' ? '#000000' : '#ffffff',
-                    stroke_width: strkW,
-                  })
-                }}
-                className={cn(
-                  'px-2.5 py-1 rounded font-medium transition-all',
-                  manhwaStyle === p.id ? 'bg-ink text-sheet shadow' : 'hover:bg-sheet text-ink-soft hover:text-ink'
-                )}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-
+          {/* Section 2: Taille, Couleur, Contour & Rotation */}
           <div className="flex min-w-0 flex-wrap items-center gap-3">
+            {/* Taille du texte avec A- et A+ */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-ink-soft">Size:</span>
-              <select
-                value={fontSizeScale}
-                onChange={(e) => {
-                  const val = Number(e.target.value)
-                  setFontSizeScale(val)
-                  persistBlockStyle({ font_size_scale: val })
-                }}
-                className="rounded border border-hairline bg-paper px-1.5 py-0.5 text-xs font-semibold"
-              >
-                <option value={0.75}>75% (Small)</option>
-                <option value={1}>100% (Standard)</option>
-                <option value={1.3}>130% (Medium)</option>
-                <option value={1.6}>160% (Large)</option>
-                <option value={2}>200% (Impact)</option>
-              </select>
+              <span className="text-[11px] font-semibold text-ink-soft">Taille :</span>
+              <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  title="Réduire la taille (-15%)"
+                  onClick={() => {
+                    const next = Math.max(0.5, Math.round((fontSizeScale - 0.15) * 100) / 100)
+                    setFontSizeScale(next)
+                    persistBlockStyle({ font_size_scale: next })
+                  }}
+                  className="size-6 rounded border border-hairline bg-paper text-ink hover:bg-muted font-bold text-xs grid place-items-center transition-colors"
+                >
+                  A-
+                </button>
+                <select
+                  value={fontSizeScale}
+                  onChange={(e) => {
+                    const val = Number(e.target.value)
+                    setFontSizeScale(val)
+                    persistBlockStyle({ font_size_scale: val })
+                  }}
+                  className="rounded border border-hairline bg-paper px-1.5 py-0.5 text-xs font-semibold"
+                  title="Échelle de taille"
+                >
+                  {FONT_SIZE_SCALES.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                  {!FONT_SIZE_SCALES.some((s) => s.value === fontSizeScale) && (
+                    <option value={fontSizeScale}>{Math.round(fontSizeScale * 100)}% (Personnalisé)</option>
+                  )}
+                </select>
+                <button
+                  type="button"
+                  title="Agrandir la taille (+15%)"
+                  onClick={() => {
+                    const next = Math.min(2.5, Math.round((fontSizeScale + 0.15) * 100) / 100)
+                    setFontSizeScale(next)
+                    persistBlockStyle({ font_size_scale: next })
+                  }}
+                  className="size-6 rounded border border-hairline bg-paper text-ink hover:bg-muted font-bold text-xs grid place-items-center transition-colors"
+                >
+                  A+
+                </button>
+              </div>
             </div>
 
+            {/* Nuancier de couleurs + Sélecteur personnalisé */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-ink-soft">Outline:</span>
+              <span className="text-[11px] font-semibold text-ink-soft">Couleur :</span>
+              <div className="flex items-center gap-1">
+                {COLOR_SWATCHES.map((swatch) => (
+                  <button
+                    key={swatch.value}
+                    type="button"
+                    title={`${swatch.label} (${swatch.value})`}
+                    onClick={() => {
+                      setTextColor(swatch.value)
+                      let nextStroke = strokeStyle
+                      if (swatch.value === '#ffffff' && strokeStyle === 'white') {
+                        nextStroke = 'black'
+                        setStrokeStyle('black')
+                      }
+                      persistBlockStyle({
+                        text_color: swatch.value,
+                        stroke_color: nextStroke === 'black' ? '#000000' : nextStroke === 'white' ? '#ffffff' : 'transparent',
+                      })
+                    }}
+                    className={cn(
+                      'size-5 rounded-full transition-transform hover:scale-115 active:scale-95 cursor-pointer',
+                      swatch.border ? 'border border-hairline' : '',
+                      textColor.toLowerCase() === swatch.value.toLowerCase() ? 'ring-2 ring-seal ring-offset-1 scale-110' : ''
+                    )}
+                    style={{ backgroundColor: swatch.value }}
+                  />
+                ))}
+                <label className="flex items-center cursor-pointer ml-0.5" title="Couleur personnalisée (Palette)">
+                  <input
+                    type="color"
+                    value={textColor}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setTextColor(val)
+                      persistBlockStyle({ text_color: val })
+                    }}
+                    className="size-5 cursor-pointer rounded border border-hairline bg-transparent p-0"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Contour (Outline) */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-ink-soft">Contour :</span>
               <select
                 value={strokeStyle}
                 onChange={(e) => {
@@ -919,15 +1070,37 @@ export function PageStage(props: Props) {
                   })
                 }}
                 className="rounded border border-hairline bg-paper px-1.5 py-0.5 text-xs font-semibold"
+                title="Style de contour"
               >
-                <option value="white">White</option>
-                <option value="black">Black</option>
-                <option value="none">None</option>
+                {STROKE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
               </select>
+              {strokeStyle !== 'none' && (
+                <select
+                  value={strokeWidth}
+                  onChange={(e) => {
+                    const val = Number(e.target.value)
+                    setStrokeWidth(val)
+                    persistBlockStyle({ stroke_width: val })
+                  }}
+                  className="rounded border border-hairline bg-paper px-1 py-0.5 text-xs font-semibold"
+                  title="Épaisseur du contour"
+                >
+                  {STROKE_WIDTHS.map((w) => (
+                    <option key={w.value} value={w.value}>
+                      {w.label}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
+            {/* Contrôles de rotation (-180° à +180°) */}
             <div className="flex items-center gap-1.5" title="Angle de rotation du texte (-180° à +180°)">
-              <span className="text-[11px] text-ink-soft">Rotation :</span>
+              <span className="text-[11px] font-semibold text-ink-soft">Rotation :</span>
               <div className="flex items-center gap-1">
                 {[
                   { label: '↺ -90°', angle: -90 },
@@ -964,9 +1137,9 @@ export function PageStage(props: Props) {
                   setRotationAngle(val)
                   persistBlockStyle({ rotation_angle: val })
                 }}
-                className="w-20 accent-seal cursor-pointer"
+                className="w-16 accent-seal cursor-pointer"
               />
-              <span className="font-mono text-[10px] w-9 text-right">
+              <span className="font-mono text-[10px] w-8 text-right">
                 {rotationAngle > 0 ? `+${rotationAngle}°` : `${rotationAngle}°`}
               </span>
               <button
@@ -991,31 +1164,19 @@ export function PageStage(props: Props) {
                 className="rounded border border-hairline bg-paper px-1.5 py-0.5 font-mono text-[10px] font-semibold text-ink hover:bg-muted transition-colors"
                 title="Pivoter les dimensions du cadre (Largeur ↔ Hauteur)"
               >
-                ⇄ Cadre L/H
+                ⇄ L/H
               </button>
             </div>
 
-            <label className="flex items-center cursor-pointer" title="Color">
-              <input
-                type="color"
-                value={textColor}
-                onChange={(e) => {
-                  const val = e.target.value
-                  setTextColor(val)
-                  persistBlockStyle({ text_color: val })
-                }}
-                className="size-5 cursor-pointer rounded border border-hairline bg-transparent p-0"
-              />
-            </label>
-
+            {/* Supprimer cette bulle */}
             <button
               type="button"
-              className="h-6 px-2 rounded bg-red-600 hover:bg-red-700 text-white font-medium flex items-center gap-1 text-[11px] transition-colors"
+              className="h-6 px-2 rounded bg-red-600 hover:bg-red-700 text-white font-medium flex items-center gap-1 text-[11px] transition-colors ml-auto"
               onClick={() => handleDeleteBlock(activeBlock.id)}
-              title="Delete this bubble"
+              title="Supprimer cette bulle"
             >
               <Trash2 className="size-3" />
-              <span>Delete</span>
+              <span>Supprimer</span>
             </button>
           </div>
         </div>
@@ -1034,7 +1195,7 @@ export function PageStage(props: Props) {
             alt={`Page ${page.page_number}${effectiveView === 'cleaned' ? ', cleaned' : ''}`}
             width={page.width ?? 1000}
             height={page.height ?? 1414}
-            blocks={page.ocr_blocks}
+            blocks={effectiveBlocks}
             activeId={props.activeBlockId}
             hoverId={props.hoverBlockId}
             onSelect={props.onSelectBlock}

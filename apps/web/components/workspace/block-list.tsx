@@ -1,12 +1,20 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Loader2, RotateCcw } from 'lucide-react'
+import { Loader2, RotateCcw, Type, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/field'
 import { StatusBadge } from '@/components/ui/status'
 import { useTranslations } from '@/i18n/provider'
 import { api } from '@/lib/api'
+import {
+  FONTS_LIST,
+  COLOR_SWATCHES,
+  FONT_SIZE_SCALES,
+  STROKE_OPTIONS,
+  STROKE_WIDTHS,
+  normalizeFontId,
+} from '@/lib/fonts'
 import type { OcrBlock, Page, TranslationMemoryMatch } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import type { Runner } from './workspace'
@@ -114,6 +122,11 @@ function BlockItem({
   const [translation, setTranslation] = useState(block.translation?.translated_text ?? '')
   const [bubbleType, setBubbleType] = useState(block.bubble_type || 'B')
   const [rotationAngle, setRotationAngle] = useState(block.rotation_angle ?? 0)
+  const [manhwaStyle, setManhwaStyle] = useState(block.manhwa_style || (block.bubble_type === 'C' ? 'cinzel' : 'dialogue'))
+  const [fontSizeScale, setFontSizeScale] = useState(block.font_size_scale ?? 1)
+  const [textColor, setTextColor] = useState(block.text_color ?? (block.manhwa_style === 'cinzel' || block.bubble_type === 'C' ? '#ffffff' : '#0d0d0d'))
+  const [strokeColor, setStrokeColor] = useState(block.stroke_color ?? (block.manhwa_style === 'cinzel' || block.bubble_type === 'C' ? '#000000' : '#ffffff'))
+  const [strokeWidth, setStrokeWidth] = useState(block.stroke_width ?? 2)
   const [tmMatches, setTmMatches] = useState<TranslationMemoryMatch[]>([])
   const lowConfidence = block.confidence < 0.7
   const dirtyOriginal = original.trim() !== block.text
@@ -142,7 +155,12 @@ function BlockItem({
 
   useEffect(() => {
     setRotationAngle(block.rotation_angle ?? 0)
-  }, [block.rotation_angle])
+    setManhwaStyle(block.manhwa_style || (block.bubble_type === 'C' ? 'cinzel' : 'dialogue'))
+    setFontSizeScale(block.font_size_scale ?? 1)
+    setTextColor(block.text_color ?? (block.manhwa_style === 'cinzel' || block.bubble_type === 'C' ? '#ffffff' : '#0d0d0d'))
+    setStrokeColor(block.stroke_color ?? (block.manhwa_style === 'cinzel' || block.bubble_type === 'C' ? '#000000' : '#ffffff'))
+    setStrokeWidth(block.stroke_width ?? 2)
+  }, [block.rotation_angle, block.manhwa_style, block.font_size_scale, block.text_color, block.stroke_color, block.stroke_width, block.bubble_type])
 
   async function handleRotationChange(nextAngle: number) {
     const clamped = Math.max(-180, Math.min(180, Math.round(nextAngle)))
@@ -152,6 +170,26 @@ function BlockItem({
       await api.updateBlockStyle(block.id, { rotation_angle: clamped })
     } catch (err) {
       console.error('Failed to update rotation angle', err)
+    }
+  }
+
+  async function handleStyleChange(updates: {
+    manhwa_style?: string
+    font_size_scale?: number
+    text_color?: string
+    stroke_color?: string
+    stroke_width?: number
+  }) {
+    if (updates.manhwa_style !== undefined) setManhwaStyle(updates.manhwa_style)
+    if (updates.font_size_scale !== undefined) setFontSizeScale(updates.font_size_scale)
+    if (updates.text_color !== undefined) setTextColor(updates.text_color)
+    if (updates.stroke_color !== undefined) setStrokeColor(updates.stroke_color)
+    if (updates.stroke_width !== undefined) setStrokeWidth(updates.stroke_width)
+    Object.assign(block, updates)
+    try {
+      await api.updateBlockStyle(block.id, updates)
+    } catch (err) {
+      console.error('Failed to update block style', err)
     }
   }
 
@@ -290,6 +328,171 @@ function BlockItem({
                 💡 Sound effect / onomatopoeia: adapt or preserve it following the team guidelines.
               </p>
             )}
+          </div>
+
+          {/* Typographie de la bulle (Police, Taille, Couleur, Contour) */}
+          <div className="flex min-w-0 flex-col gap-2.5 rounded border border-hairline bg-paper/60 p-2.5">
+            <div className="flex items-center justify-between gap-1">
+              <span className="label-mono text-ink-soft flex items-center gap-1.5">
+                <Type className="size-3.5 text-seal" />
+                <span>Typographie</span>
+              </span>
+              <span className="font-mono text-[10px] text-ink-soft">
+                {FONTS_LIST.find((f) => f.id === normalizeFontId(manhwaStyle))?.shortLabel || 'Standard'}
+              </span>
+            </div>
+
+            {/* Choix de la police */}
+            <div className="flex flex-col gap-1">
+              <label htmlFor={`font-${block.id}`} className="text-[11px] font-semibold text-ink-soft">
+                Police de caractères :
+              </label>
+              <select
+                id={`font-${block.id}`}
+                value={normalizeFontId(manhwaStyle)}
+                onChange={(e) => {
+                  const fontId = e.target.value
+                  let nextColor = textColor
+                  let nextStroke = strokeColor
+                  if (fontId === 'cinzel') {
+                    if (nextColor === '#0d0d0d') nextColor = '#ffffff'
+                    if (nextStroke === '#ffffff') nextStroke = '#000000'
+                  } else if (fontId === 'comic-neue' || fontId === 'sans') {
+                    if (nextColor === '#ffffff') nextColor = '#0d0d0d'
+                    if (nextStroke === '#000000') nextStroke = '#ffffff'
+                  }
+                  handleStyleChange({
+                    manhwa_style: fontId,
+                    text_color: nextColor,
+                    stroke_color: nextStroke,
+                  })
+                }}
+                className="w-full rounded border border-hairline bg-sheet px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-seal"
+              >
+                {FONTS_LIST.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Raccourcis styles */}
+            <div className="flex flex-wrap gap-1">
+              {[
+                { id: 'cinzel', label: 'Carré noir', icon: '🏛️' },
+                { id: 'comic-neue', label: 'Dialogue', icon: '💬' },
+                { id: 'bangers', label: 'Cris', icon: '💥' },
+                { id: 'cormorant', label: 'Pensée', icon: '💭' },
+                { id: 'permanent-marker', label: 'SFX', icon: '⚡' },
+              ].map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    let nextColor = textColor
+                    let nextStroke = strokeColor
+                    if (p.id === 'cinzel') {
+                      if (nextColor === '#0d0d0d') nextColor = '#ffffff'
+                      if (nextStroke === '#ffffff') nextStroke = '#000000'
+                    } else if (p.id === 'comic-neue') {
+                      if (nextColor === '#ffffff') nextColor = '#0d0d0d'
+                      if (nextStroke === '#000000') nextStroke = '#ffffff'
+                    }
+                    handleStyleChange({
+                      manhwa_style: p.id,
+                      text_color: nextColor,
+                      stroke_color: nextStroke,
+                    })
+                  }}
+                  className={cn(
+                    'rounded px-2 py-0.5 text-[10px] font-medium transition-all flex items-center gap-1',
+                    normalizeFontId(manhwaStyle) === p.id
+                      ? 'bg-seal text-seal-ink shadow-xs font-semibold'
+                      : 'border border-hairline bg-sheet text-ink-soft hover:bg-muted hover:text-ink'
+                  )}
+                >
+                  <span>{p.icon}</span>
+                  <span>{p.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Taille et Couleur */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-hairline">
+              {/* Taille */}
+              <div className="flex items-center gap-1">
+                <span className="text-[11px] font-semibold text-ink-soft">Taille :</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = Math.max(0.5, Math.round((fontSizeScale - 0.15) * 100) / 100)
+                    handleStyleChange({ font_size_scale: next })
+                  }}
+                  className="size-5 rounded border border-hairline bg-sheet text-ink hover:bg-muted font-bold text-[10px] grid place-items-center"
+                  title="Réduire"
+                >
+                  -
+                </button>
+                <select
+                  value={fontSizeScale}
+                  onChange={(e) => handleStyleChange({ font_size_scale: Number(e.target.value) })}
+                  className="rounded border border-hairline bg-sheet px-1 py-0.5 text-[11px] font-semibold"
+                >
+                  {FONT_SIZE_SCALES.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label.split(' ')[0]}
+                    </option>
+                  ))}
+                  {!FONT_SIZE_SCALES.some((s) => s.value === fontSizeScale) && (
+                    <option value={fontSizeScale}>{Math.round(fontSizeScale * 100)}%</option>
+                  )}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = Math.min(2.5, Math.round((fontSizeScale + 0.15) * 100) / 100)
+                    handleStyleChange({ font_size_scale: next })
+                  }}
+                  className="size-5 rounded border border-hairline bg-sheet text-ink hover:bg-muted font-bold text-[10px] grid place-items-center"
+                  title="Agrandir"
+                >
+                  +
+                </button>
+              </div>
+
+              {/* Couleur */}
+              <div className="flex items-center gap-1">
+                <span className="text-[11px] font-semibold text-ink-soft">Couleur :</span>
+                {COLOR_SWATCHES.slice(0, 5).map((swatch) => (
+                  <button
+                    key={swatch.value}
+                    type="button"
+                    title={`${swatch.label} (${swatch.value})`}
+                    onClick={() => {
+                      let nextStroke = strokeColor
+                      if (swatch.value === '#ffffff' && strokeColor === '#ffffff') {
+                        nextStroke = '#000000'
+                      }
+                      handleStyleChange({ text_color: swatch.value, stroke_color: nextStroke })
+                    }}
+                    className={cn(
+                      'size-4 rounded-full transition-transform hover:scale-120 cursor-pointer',
+                      swatch.border ? 'border border-hairline' : '',
+                      textColor.toLowerCase() === swatch.value.toLowerCase() ? 'ring-2 ring-seal ring-offset-1' : ''
+                    )}
+                    style={{ backgroundColor: swatch.value }}
+                  />
+                ))}
+                <input
+                  type="color"
+                  value={textColor}
+                  onChange={(e) => handleStyleChange({ text_color: e.target.value })}
+                  className="size-4 cursor-pointer rounded border border-hairline bg-transparent p-0"
+                  title="Couleur personnalisée"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Contrôle de rotation du texte (-180° à +180°) directement dans la fiche de la bulle */}

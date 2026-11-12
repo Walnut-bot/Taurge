@@ -27,7 +27,7 @@ export type OcrBlock = {
   confidence: number
   provider: string
   bubble_type?: string
-  manhwa_style?: 'dialogue' | 'scream' | 'system' | 'thought' | 'sfx'
+  manhwa_style?: 'dialogue' | 'scream' | 'system' | 'thought' | 'sfx' | 'cinzel' | 'comic-neue' | 'bangers' | 'cormorant' | 'permanent-marker' | 'sans' | (string & {})
   rotation_angle?: number
   font_size_scale?: number
   text_color?: string

@@ -1,16 +1,50 @@
+@import url('https://fonts.googleapis.com/css2?family=Bangers&family=Cinzel:wght@600;700;800;900&family=Comic+Neue:ital,wght@0,400;0,700;1,400;1,700&family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&family=Permanent+Marker&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
+
+@font-face {
+  font-family: 'Cinzel';
+  src: url('/fonts/Cinzel-Bold.ttf') format('truetype');
+  font-weight: 600 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Comic Neue';
+  src: url('/fonts/ComicNeue-Bold.ttf') format('truetype');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Bangers';
+  src: url('/fonts/Bangers-Regular.ttf') format('truetype');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Permanent Marker';
+  src: url('/fonts/PermanentMarker-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-  --font-comic: var(--font-comic-neue), cursive, sans-serif;
-  --font-bangers: var(--font-bangers), cursive, impact, sans-serif;
-  --font-cinzel: var(--font-cinzel), serif;
-  --font-marker: var(--font-permanent-marker), cursive, sans-serif;
+  --font-comic: 'Comic Neue', var(--font-comic-neue), cursive, sans-serif;
+  --font-bangers: 'Bangers', var(--font-bangers), cursive, impact, sans-serif;
+  --font-cinzel: 'Cinzel', var(--font-cinzel), Georgia, serif;
+  --font-marker: 'Permanent Marker', var(--font-permanent-marker), cursive, sans-serif;
+  --font-cormorant: 'Cormorant Garamond', Garamond, serif;
 
   --color-paper: var(--paper);
   --color-sheet: var(--sheet);
@@ -49,10 +83,11 @@
   --danger: oklch(0.5 0.19 27);
   --danger-wash: oklch(0.94 0.04 27);
   --tone-dot: oklch(0.205 0.012 60 / 0.14);
-  --font-bangers: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
-  --font-cinzel: Georgia, 'Times New Roman', serif;
-  --font-comic-neue: 'Comic Sans MS', 'Trebuchet MS', sans-serif;
-  --font-permanent-marker: 'Comic Sans MS', 'Segoe Print', cursive;
+  --font-bangers: 'Bangers', Impact, Haettenschweiler, sans-serif;
+  --font-cinzel: 'Cinzel', Georgia, 'Times New Roman', serif;
+  --font-comic-neue: 'Comic Neue', 'Comic Sans MS', cursive, sans-serif;
+  --font-permanent-marker: 'Permanent Marker', 'Comic Sans MS', cursive;
+  --font-cormorant: 'Cormorant Garamond', Garamond, serif;
 }
 
 /* ─── Mode Sombre ───────────────────────────────────────────── */
@@ -94,16 +129,16 @@
 
 .font-manhwa-system {
   font-family: var(--font-cinzel);
-  font-weight: 900;
-  letter-spacing: 0.08em;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   line-height: 1.1;
   text-transform: uppercase;
 }
 
 .font-manhwa-thought {
-  font-family: var(--font-comic);
+  font-family: var(--font-cormorant);
   font-style: italic;
-  font-weight: 400;
+  font-weight: 600;
   line-height: 1.1;
 }
 
