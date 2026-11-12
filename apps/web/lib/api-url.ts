@@ -46,3 +46,9 @@ export function readRuntimeApiOverride(): string | null {
     return null
   }
 }
+
+// Capture et mémorise immédiatement l'override d'URL dès le chargement du script dans le navigateur
+if (typeof window !== 'undefined') {
+  readRuntimeApiOverride()
+}
+

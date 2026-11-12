@@ -122,10 +122,11 @@ _cors_origins = ["http://localhost:3000", "http://127.0.0.1:3000", "https://taur
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
-    allow_origin_regex=r"https://taurge(-[a-z0-9-]+)?\.vercel\.app",
+    allow_origin_regex=r"https://([a-zA-Z0-9-]+\.)*(vercel\.app|trycloudflare\.com)",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition", "Content-Length", "X-Total-Count"],
 )
 
 # Ajouté en dernier = exécuté en premier : normalise le chemin avant

@@ -35,6 +35,13 @@ def test_cors_preflight_allows_vercel_preview():
     assert response.headers["access-control-allow-origin"] == origin
 
 
+def test_cors_preflight_allows_cloudflare_tunnel():
+    origin = "https://my-test-tunnel.trycloudflare.com"
+    response = _preflight(origin)
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == origin
+
+
 def test_cors_preflight_rejects_unknown_origin():
     response = _preflight("https://evil.example.com")
     assert "access-control-allow-origin" not in response.headers
