@@ -247,7 +247,7 @@ class TesseractOCRProvider:
 
             ink_mask = ((roi_holes > 0) & (roi_img < 130)).astype(np.uint8) * 255
             ink_pixels = int(np.count_nonzero(ink_mask))
-            if ink_pixels < 45 or ink_pixels / float(max(1, area)) < 0.024:
+            if ink_pixels < 20 or ink_pixels / float(max(1, area)) < 0.018:
                 continue
 
             clean_crop, (tx, ty, tw, th) = _clean_and_strip_furigana(roi_img, roi_holes)

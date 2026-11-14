@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Maximize2, Trash2, RotateCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { OcrBlock } from '@/lib/types'
+import type { OcrBlock, WatermarkConfig } from '@/lib/types'
 import { TextOverlay } from '@/components/workspace/text-overlay'
 import { getFontClassName } from '@/lib/fonts'
 import { useZoomPan } from './page-canvas/use-zoom-pan'
@@ -45,6 +45,7 @@ type Props = {
   strokeStyle?: StrokeStyle
   strokeWidth?: number
   rotationAngle?: number
+  watermark?: WatermarkConfig | null
   /** Image originale à comparer en rideau QC (gauche = original). */
   qcOriginalSrc?: string | null
   className?: string
@@ -80,6 +81,7 @@ export function PageCanvas({
   strokeStyle = 'white',
   strokeWidth = 2,
   rotationAngle = 0,
+  watermark = null,
   qcOriginalSrc = null,
   className,
 }: Props) {
@@ -625,6 +627,28 @@ export function PageCanvas({
               </div>
             )
           })}
+
+          {/* Filigrane / Logo d'équipe de scanlation */}
+          {watermark && watermark.image_url && (
+            <div
+              className="absolute pointer-events-none select-none z-30"
+              style={{
+                left: `${watermark.x}%`,
+                top: `${watermark.y}%`,
+                width: `${watermark.scale * 100}%`,
+                transform: `translate(-50%, -50%) rotate(${watermark.rotation || 0}deg)`,
+                opacity: watermark.opacity,
+              }}
+              title="Logo d'équipe de scanlation"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={watermark.image_url}
+                alt="Filigrane d'équipe"
+                className="w-full h-auto drop-shadow-md object-contain"
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -96,7 +96,7 @@ class MangaOCRProvider:
         regions = []
         for contour in contours:
             x, y, w, h = cv2.boundingRect(contour)
-            if w < 12 or h < 12 or w * h < 400:
+            if w < 8 or h < 8 or w * h < 80:
                 continue  # bruit, trames, filets
             if w > width * 0.98 and h > height * 0.98:
                 continue  # page entière

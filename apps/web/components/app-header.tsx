@@ -14,6 +14,7 @@ import {
 import { Logo } from '@/components/brand/logo'
 import { CreditsModal } from '@/components/credits-modal'
 import { LanguageSwitcher } from '@/components/language-switcher'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { ProfileAvatar } from '@/components/profile-avatar'
 import { Link as LocaleLink, localizeHref } from '@/i18n/navigation'
 import { useLocale, useTranslations } from '@/i18n/provider'
@@ -104,8 +105,9 @@ export function AppHeader({ children, center }: AppHeaderProps) {
           </div>
         )}
 
-        {/* Côté Droit : Langue + Badge de crédits (Pill) + Avatar utilisateur (Dropdown) */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {/* Côté Droit : Langue + Thème + Badge de crédits + Avatar utilisateur */}
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          <ThemeToggle />
           <LanguageSwitcher />
           {/* Badge compact de Crédits ("Pill" moderne) */}
           {me && (

@@ -1,5 +1,6 @@
 from datetime import datetime
-from pydantic import BaseModel
+from typing import Any
+from pydantic import BaseModel, model_validator
 
 
 class ProjectCreate(BaseModel):
@@ -46,6 +47,26 @@ class OCRBlockResponse(BaseModel):
     stroke_width: int = 2
     translation: TranslationResponse | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _coalesce_null_styles(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        defaults = {
+            "bubble_type": "B",
+            "manhwa_style": "dialogue",
+            "rotation_angle": 0,
+            "font_size_scale": 1.0,
+            "text_color": "#0d0d0d",
+            "stroke_color": "#ffffff",
+            "stroke_width": 2,
+        }
+        cleaned = dict(data)
+        for key, default_val in defaults.items():
+            if cleaned.get(key) is None:
+                cleaned[key] = default_val
+        return cleaned
+
 
 class PageResponse(BaseModel):
     id: str
@@ -59,6 +80,14 @@ class PageResponse(BaseModel):
     # Champ additif (compatible frontend actuel qui l'ignore) :
     # URL de la miniature, servie par GET /pages/{id}/thumbnail.
     thumbnail_url: str | None = None
+    watermark: str | None = None
+    workflow_status: str | None = None
+
+
+class WatermarkPayload(BaseModel):
+    watermark: str | None = None  # JSON string or None to remove
+    scope: str = "single"  # "single" or "all"
+    page_id: str | None = None
 
 
 class ProjectResponse(BaseModel):

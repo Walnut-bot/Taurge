@@ -1,6 +1,23 @@
 import logging
+import os
 import re
+import sys
+import warnings
 from contextlib import asynccontextmanager
+
+# Silence le warning inoffensif de PaddlePaddle concernant ccache (inutile pour l'inférence OCR)
+warnings.filterwarnings("ignore", message=".*ccache.*", category=UserWarning)
+
+# Assure la présence de ccache fictif dans PATH pour éviter le message Windows "where.exe"
+_scripts_dir = os.path.dirname(sys.executable)
+if _scripts_dir and _scripts_dir not in os.environ.get("PATH", ""):
+    os.environ["PATH"] = _scripts_dir + os.pathsep + os.environ.get("PATH", "")
+_dummy_ccache = os.path.join(_scripts_dir, "ccache")
+if _scripts_dir and not os.path.exists(_dummy_ccache):
+    try:
+        open(_dummy_ccache, "a").close()
+    except OSError:
+        pass
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -48,26 +65,39 @@ app = FastAPI(title="Taurge API", version="0.4.0", lifespan=lifespan)
 
 
 class NormalizePathMiddleware:
-    """Fusionne les slashes multiples du chemin avant le routage.
-
-    Un client qui concatène une URL de base terminée par `/` avec un
-    chemin commençant par `/` envoie `//auth/register` : aucune route
-    FastAPI ne correspond, d'où un 404 « Not Found » alors que la route
-    existe. On normalise ici pour que l'API y réponde quand même.
+    """Fusionne les slashes multiples du chemin avant le routage et
+    ajoute l'en-tête Private Network Access (CORS-RFC1918) permettant
+    au frontend HTTPS (taurge.vercel.app) de joindre directement
+    http://localhost:8000 sur le PC de l'utilisateur.
     """
 
     def __init__(self, app):
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] == "http":
-            path = scope.get("path", "")
-            normalized = re.sub(r"/{2,}", "/", path)
-            if normalized != path:
-                scope = dict(scope)
-                scope["path"] = normalized
-                scope["raw_path"] = normalized.encode()
-        await self.app(scope, receive, send)
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+        normalized = re.sub(r"/{2,}", "/", path)
+        if normalized != path:
+            scope = dict(scope)
+            scope["path"] = normalized
+            scope["raw_path"] = normalized.encode()
+
+        async def send_with_pna(message):
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                if not any(
+                    k.lower() == b"access-control-allow-private-network"
+                    for k, _ in headers
+                ):
+                    headers.append((b"access-control-allow-private-network", b"true"))
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, send_with_pna)
 
 
 class LocaleMiddleware(BaseHTTPMiddleware):
@@ -94,6 +124,21 @@ async def localized_http_exception_handler(
         status_code=exc.status_code,
         content={"detail": translate_detail(exc.detail, locale)},
         headers=exc.headers,
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(
+    request: Request, exc: Exception
+) -> JSONResponse:
+    """Capture toute exception interne à l'intérieur de CORSMiddleware afin que
+    les en-têtes CORS soient toujours envoyés et que le navigateur n'interprète
+    jamais une erreur 500 comme une coupure réseau (« Cannot reach the Taurge server »).
+    """
+    logging.getLogger(__name__).exception("Erreur interne sur %s", request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {exc}"},
     )
 
 

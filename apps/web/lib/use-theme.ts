@@ -8,7 +8,7 @@ import { type Theme, getSavedTheme, saveAndApplyTheme, applyTheme, getEffectiveT
  * Returns [current theme, light↔dark toggle function].
  */
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>('system')
+  const [theme, setTheme] = useState<Theme>('light')
 
   useEffect(() => {
     // Initialize from localStorage

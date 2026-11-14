@@ -11,6 +11,18 @@
 // un nouvel essai.
 export type FetchFn = (url: string, init?: RequestInit) => Promise<Response>
 
+const LOCAL_CANDIDATES = ['http://127.0.0.1:8000', 'http://localhost:8000']
+const API_URL_STORAGE_KEY = 'taurge_api_url'
+
+function persistLocalFallback(localUrl: string): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(API_URL_STORAGE_KEY, localUrl)
+  } catch {
+    // ignore storage errors
+  }
+}
+
 export interface ResilientFetchOptions {
   fetchFn?: FetchFn
   /** URL de base de l'API, pour le ping de réveil `/health`. */
@@ -42,6 +54,27 @@ async function withTimeout(
   }
 }
 
+/**
+ * Si une URL de tunnel (*.trycloudflare.com) mémorisée dans localStorage est
+ * expirée ou inaccessible, vérifie si le backend local tourne directement sur
+ * ce PC (http://127.0.0.1:8000 ou http://localhost:8000).
+ */
+async function probeDirectLocalBackend(fetchFn: FetchFn, currentApiUrl: string): Promise<string | null> {
+  if (!currentApiUrl.includes('trycloudflare.com')) return null
+  for (const candidate of LOCAL_CANDIDATES) {
+    try {
+      const res = await withTimeout(fetchFn, `${candidate}/health`, { method: 'GET' }, 2_500)
+      if (res.ok) {
+        persistLocalFallback(candidate)
+        return candidate
+      }
+    } catch {
+      // candidat local non joignable
+    }
+  }
+  return null
+}
+
 /** Attend que l'API réponde sur /health (réveil de l'API locale). Best effort. */
 export async function wakeServer(
   fetchFn: FetchFn,
@@ -71,17 +104,26 @@ export async function resilientFetch(
   const sleep = options.sleep ?? defaultSleep
   const attempts = Math.max(1, options.attempts ?? 2)
   const timeoutMs = options.timeoutMs ?? 30_000
+  let currentApiUrl = options.apiUrl
+  let currentUrl = url
   let lastError: unknown
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
-      return await withTimeout(fetchFn, url, init, timeoutMs)
+      return await withTimeout(fetchFn, currentUrl, init, timeoutMs)
     } catch (err) {
       lastError = err
+      // Repli automatique vers le backend local direct si un tunnel Cloudflare mémorisé est mort
+      const localFallback = await probeDirectLocalBackend(fetchFn, currentApiUrl)
+      if (localFallback && currentUrl.startsWith(currentApiUrl)) {
+        currentUrl = `${localFallback}${currentUrl.slice(currentApiUrl.length)}`
+        currentApiUrl = localFallback
+        return await withTimeout(fetchFn, currentUrl, init, timeoutMs)
+      }
       if (attempt === attempts) break
       // Aucune réponse reçue : le serveur dort peut-être. On attend
       // son réveil avant de réessayer, plutôt que de réessayer en
       // aveugle pendant qu'il démarre.
-      await wakeServer(fetchFn, options.apiUrl, options.wakeTimeoutMs ?? 90_000, sleep)
+      await wakeServer(fetchFn, currentApiUrl, options.wakeTimeoutMs ?? 90_000, sleep)
     }
   }
   throw lastError

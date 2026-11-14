@@ -59,3 +59,22 @@ test('politique de tentatives: GET/DELETE 3, ecritures 2', () => {
   assert.equal(attemptsForMethod('PATCH'), 2)
   assert.equal(attemptsForMethod(undefined), 3)
 })
+
+test('tunnel trycloudflare mort: bascule automatiquement sur 127.0.0.1:8000', async () => {
+  const calls = []
+  const fetchFn = async (url) => {
+    calls.push(url)
+    if (url.includes('trycloudflare.com')) {
+      throw new TypeError('Failed to fetch')
+    }
+    return ok('{"projects":[]}')
+  }
+  const res = await resilientFetch(
+    'https://dead-tunnel.trycloudflare.com/projects',
+    { method: 'GET' },
+    { apiUrl: 'https://dead-tunnel.trycloudflare.com', attempts: 3, fetchFn, sleep: noSleep },
+  )
+  assert.equal(res.status, 200)
+  assert.ok(calls.includes('http://127.0.0.1:8000/health'))
+  assert.ok(calls.includes('http://127.0.0.1:8000/projects'))
+})

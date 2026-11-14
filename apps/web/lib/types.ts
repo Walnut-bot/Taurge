@@ -36,6 +36,15 @@ export type OcrBlock = {
   translation: Translation | null
 }
 
+export interface WatermarkConfig {
+  image_url: string // data URL ou URL d'image
+  x: number // position horizontale (0 à 100%)
+  y: number // position verticale (0 à 100%)
+  scale: number // taille relative à la page (ex: 0.20 = 20%)
+  opacity: number // opacité (0.1 à 1.0)
+  rotation: number // rotation en degrés (-180 à 180)
+}
+
 export type Page = {
   id: string
   source_file_id: string
@@ -46,6 +55,7 @@ export type Page = {
   ocr_blocks: OcrBlock[]
   cleaned_at: string | null
   workflow_status?: 'raw' | 'cleaned' | 'translated' | 'typeset' | 'ready'
+  watermark?: string | null
 }
 
 export type SourceFile = {

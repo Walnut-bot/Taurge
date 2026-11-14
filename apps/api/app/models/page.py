@@ -17,6 +17,8 @@ class Page(SQLModel, table=True):
     # Ordre d'affichage personnalisé (réordonnancement manuel).
     # NULL = jamais réordonné : repli sur (fichier source, numéro de page).
     sort_order: int | None = Field(default=None, nullable=True)
+    # Filigrane / Logo d'équipe de scanlation (configuration JSON : image_url, x, y, scale, opacity, rotation)
+    watermark: str | None = Field(default=None, nullable=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )

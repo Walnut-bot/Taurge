@@ -161,6 +161,52 @@ def export_project(
                     target_image=image,
                 )
 
+        # Incrustation du filigrane / logo d'équipe de scanlation
+        wm_str = getattr(page_obj, "watermark", None)
+        if wm_str:
+            try:
+                import json, base64
+                wm_data = json.loads(wm_str)
+                data_uri = wm_data.get("image_url", "")
+                if data_uri and data_uri.startswith("data:image/"):
+                    _hdr, encoded = data_uri.split(",", 1)
+                    wm_bytes = base64.b64decode(encoded)
+                    wm_img = Image.open(io.BytesIO(wm_bytes)).convert("RGBA")
+
+                    # Échelle relative à la largeur de page
+                    scale = float(wm_data.get("scale", 0.20))
+                    target_w = max(16, int(image.width * scale))
+                    aspect = wm_img.height / max(1, wm_img.width)
+                    target_h = max(16, int(target_w * aspect))
+                    wm_img = wm_img.resize((target_w, target_h), Image.Resampling.LANCZOS)
+
+                    # Opacité
+                    opacity = float(wm_data.get("opacity", 0.85))
+                    if opacity < 1.0:
+                        alpha = wm_img.split()[3]
+                        alpha = alpha.point(lambda p: int(p * max(0.0, min(1.0, opacity))))
+                        wm_img.putalpha(alpha)
+
+                    # Rotation éventuelle
+                    rot = int(wm_data.get("rotation", 0))
+                    if rot != 0:
+                        wm_img = wm_img.rotate(-rot, expand=True, resample=Image.Resampling.BICUBIC)
+
+                    # Position en pourcentage
+                    x_pct = float(wm_data.get("x", 85)) / 100.0
+                    y_pct = float(wm_data.get("y", 90)) / 100.0
+                    pos_x = int(x_pct * image.width - wm_img.width / 2)
+                    pos_y = int(y_pct * image.height - wm_img.height / 2)
+                    pos_x = max(0, min(image.width - wm_img.width, pos_x))
+                    pos_y = max(0, min(image.height - wm_img.height, pos_y))
+
+                    # Composite sur l'image
+                    image_rgba = image.convert("RGBA")
+                    image_rgba.alpha_composite(wm_img, (pos_x, pos_y))
+                    image = image_rgba.convert("RGB")
+            except Exception as exc:
+                logger.warning("[ExportService] Erreur filigrane : %s", exc)
+
         out_io = io.BytesIO()
         image.save(out_io, format="PNG")
         return out_io.getvalue()

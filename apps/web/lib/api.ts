@@ -446,7 +446,18 @@ export const api = {
     stroke_width?: number
   }) {
     return patch(`/ocr-blocks/${blockId}`, style)
-  },// Team management & scanlation workflow
+  },
+  setWatermark(
+    projectId: string,
+    payload: {
+      watermark: string | null
+      scope: 'single' | 'all'
+      page_id?: string
+    }
+  ): Promise<{ status: string; updated_pages: number; scope: string }> {
+    return post(`/projects/${projectId}/watermark`, payload)
+  },
+  // Team management & scanlation workflow
   listMembers(projectId: string): Promise<import('./types').ProjectMember[]> {
     return request(`/projects/${projectId}/members`)
   },

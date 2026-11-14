@@ -1,65 +1,27 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Moon, Sun } from 'lucide-react'
+import { Sun, Moon } from 'lucide-react'
 import { useTheme } from '@/lib/use-theme'
+import { cn } from '@/lib/utils'
 
-/**
- * Light / dark toggle button.
- * Usable in any navigation bar or form header.
- *
- * Safe against hydration mismatches (waits for mount before
- * resolving the effective client-side theme).
- */
 export function ThemeToggle({ className }: { className?: string }) {
-  const [mounted, setMounted] = useState(false)
   const { effectiveTheme, toggle } = useTheme()
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  if (!mounted) {
-    // Neutral placeholder identical between SSR and client initial hydration
-    return (
-      <button
-        type="button"
-        aria-label="Toggle theme"
-        disabled
-        suppressHydrationWarning
-        className={[
-          'flex size-9 items-center justify-center rounded-full border border-hairline',
-          'bg-sheet text-ink-soft opacity-60 pointer-events-none',
-          className ?? '',
-        ].join(' ')}
-      >
-        <span className="size-4 block" />
-      </button>
-    )
-  }
-
-  const isDark = effectiveTheme === 'dark'
 
   return (
     <button
       type="button"
-      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-      title={isDark ? 'Light mode' : 'Dark mode'}
       onClick={toggle}
-      suppressHydrationWarning
-      className={[
-        'flex size-9 items-center justify-center rounded-full border border-hairline',
-        'bg-sheet text-ink-soft',
-        'hover:border-ink hover:text-ink hover:bg-paper',
-        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-seal',
-        'transition-colors duration-200',
-        className ?? '',
-      ].join(' ')}
+      className={cn(
+        'relative inline-flex size-8 items-center justify-center rounded-lg border border-hairline bg-sheet text-ink-soft hover:bg-paper hover:text-ink transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-seal cursor-pointer shadow-2xs',
+        className
+      )}
+      title={effectiveTheme === 'dark' ? 'Passer en mode clair (Thème par défaut)' : 'Passer en mode sombre'}
+      aria-label={effectiveTheme === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'}
     >
-      {isDark ? (
-        <Sun aria-hidden="true" className="size-4" />
+      {effectiveTheme === 'dark' ? (
+        <Sun className="size-4 text-amber-500 transition-transform" />
       ) : (
-        <Moon aria-hidden="true" className="size-4" />
+        <Moon className="size-4 text-seal transition-transform" />
       )}
     </button>
   )

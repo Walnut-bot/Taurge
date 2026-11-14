@@ -18,12 +18,14 @@ export function getSystemTheme(): 'light' | 'dark' {
 }
 
 export function getSavedTheme(): Theme {
-  if (typeof window === 'undefined') return 'system'
-  return (localStorage.getItem(THEME_KEY) as Theme) ?? 'system'
+  if (typeof window === 'undefined') return 'light'
+  return (localStorage.getItem(THEME_KEY) as Theme) ?? 'light'
 }
 
 export function getEffectiveTheme(theme: Theme): 'light' | 'dark' {
-  return theme === 'system' ? getSystemTheme() : theme
+  if (theme === 'dark') return 'dark'
+  if (theme === 'light') return 'light'
+  return theme === 'system' ? getSystemTheme() : 'light'
 }
 
 export function applyTheme(theme: Theme) {
@@ -38,11 +40,15 @@ export function saveAndApplyTheme(theme: Theme) {
   window.dispatchEvent(new StorageEvent('storage', { key: THEME_KEY, newValue: theme }))
 }
 
-/** Inline script injected into <head> to avoid the white flash on load. */
+/** Inline script injected into <head> to avoid the white flash on load. Defaults to light. */
 export const themeScript = `
 (function(){
-  var t = localStorage.getItem('taurge_theme') || 'system';
+  var t = localStorage.getItem('taurge_theme') || 'light';
   var d = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  if (d) document.documentElement.classList.add('dark');
+  if (d) {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
 })();
 `

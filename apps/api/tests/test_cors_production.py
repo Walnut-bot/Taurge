@@ -42,6 +42,22 @@ def test_cors_preflight_allows_cloudflare_tunnel():
     assert response.headers["access-control-allow-origin"] == origin
 
 
+def test_cors_preflight_allows_private_network_access():
+    with TestClient(app) as client:
+        response = client.options(
+            "/projects",
+            headers={
+                "Origin": "https://taurge.vercel.app",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "authorization,content-type",
+                "Access-Control-Request-Private-Network": "true",
+            },
+        )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://taurge.vercel.app"
+    assert response.headers["access-control-allow-private-network"] == "true"
+
+
 def test_cors_preflight_rejects_unknown_origin():
     response = _preflight("https://evil.example.com")
     assert "access-control-allow-origin" not in response.headers

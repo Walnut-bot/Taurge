@@ -13,6 +13,7 @@ class Project(SQLModel, table=True):
     source_lang: str
     target_lang: str
     content_type: str  # manga, manhwa, manhua, webtoon, comic, autre
+    default_watermark: str | None = Field(default=None, nullable=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )

@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 from sqlmodel import SQLModel, Session, create_engine
 from app.core.config import settings
 
@@ -45,6 +45,31 @@ def init_db() -> None:
 
     SQLModel.metadata.create_all(engine)
     _sync_alembic_state()
+    _ensure_missing_columns()
+
+
+def _ensure_missing_columns() -> None:
+    """Garantit que toutes les colonnes déclarées dans les modèles SQLModel
+    existent bien dans la base SQLite existante (auto-réparation si une
+    colonne a été ajoutée après un stamp Alembic).
+    """
+    try:
+        insp = inspect(engine)
+        dialect = engine.dialect
+        with engine.begin() as conn:
+            for table_name, table in SQLModel.metadata.tables.items():
+                if not insp.has_table(table_name):
+                    continue
+                existing_cols = {c["name"] for c in insp.get_columns(table_name)}
+                for col in table.columns:
+                    if col.name not in existing_cols:
+                        col_type = col.type.compile(dialect=dialect)
+                        conn.execute(
+                            text(f'ALTER TABLE "{table_name}" ADD COLUMN "{col.name}" {col_type}')
+                        )
+                        logger.info("Colonne manquante ajoutée automatiquement : %s.%s", table_name, col.name)
+    except Exception:
+        logger.warning("Vérification automatique des colonnes échouée.", exc_info=True)
 
 
 def _sync_alembic_state() -> None:

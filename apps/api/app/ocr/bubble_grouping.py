@@ -469,20 +469,27 @@ def refine_blocks(
     page_h = image_size[1] if image_size else None
     page_w = image_size[0] if image_size else None
     for block in _geometric_group(outside, source_lang):
-        if block.confidence < MIN_OUTSIDE_CONFIDENCE:
+        stripped = block.text.strip()
+        if not stripped:
             continue
-        if len(block.text.strip()) < 2:
+        # Détection des tout petits textes (chuchotements, notes manuscrites, onomatopées)
+        has_text_chars = any(_is_cjk(ch) or _is_hangul(ch) or ch.isalnum() for ch in stripped)
+        min_conf = 0.45 if has_text_chars else MIN_OUTSIDE_CONFIDENCE
+        if block.confidence < min_conf:
+            continue
+        if len(stripped) < 2 and not has_text_chars:
             continue
         if is_ja:
-            cjk_chars = [ch for ch in block.text if _is_japanese_char(ch)]
-            if len(cjk_chars) < 2:
+            cjk_chars = [ch for ch in stripped if _is_japanese_char(ch)]
+            # Permet les kanji ou kana uniques (« 何 », « あ », « え ») ou chiffres
+            if not cjk_chars and not any(ch.isalnum() for ch in stripped):
                 continue
             # Sur une page de manga japonais comportant des bulles/cadres détectés,
             # exclure tout bloc hors-bulle qui ne repose pas sur un fond clair uniforme
             # (rideaux, draps, vêtements, trames de décor).
             if bubbles and gray is not None:
                 light = _light_ring_fraction(gray, block)
-                if light is None or light < 0.85 or block.confidence < 0.82:
+                if light is None or light < 0.85 or block.confidence < 0.78:
                     continue
         if page_h:
             cy = block.bbox_y + block.bbox_h / 2

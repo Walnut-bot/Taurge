@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Loader2, Columns, Eye, Plus, Layers, RotateCcw, Trash2, FileText, Sparkles, Undo2, Redo2, ShieldCheck, MessageSquare, History, CheckCircle2, Type, Palette } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, Columns, Eye, Plus, Layers, RotateCcw, Trash2, FileText, Sparkles, Undo2, Redo2, ShieldCheck, MessageSquare, History, CheckCircle2, Type, Palette, Image as ImageIcon } from 'lucide-react'
 import { PageCanvas, type ManhwaStyle, type StrokeStyle } from '@/components/page-canvas'
 import { Button } from '@/components/ui/button'
 import { IS_DEMO, api, ApiError } from '@/lib/api'
@@ -15,7 +15,8 @@ import {
   STROKE_WIDTHS,
   normalizeFontId,
 } from '@/lib/fonts'
-import type { Page, QCIssue, PageComment, PageVersion } from '@/lib/types'
+import { WatermarkDialog } from './watermark-dialog'
+import type { Page, QCIssue, PageComment, PageVersion, WatermarkConfig } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import type { Runner } from './workspace'
 
@@ -104,6 +105,45 @@ export function PageStage(props: Props) {
   const [versions, setVersions] = useState<PageVersion[]>([])
   const [versionLabel, setVersionLabel] = useState('')
   const [workflowStatus, setWorkflowStatus] = useState(page.workflow_status || 'raw')
+  const [watermarkOpen, setWatermarkOpen] = useState(false)
+  const [currentWatermark, setCurrentWatermark] = useState<WatermarkConfig | null>(() => {
+    if (page.watermark) {
+      try {
+        return JSON.parse(page.watermark)
+      } catch {
+        return null
+      }
+    }
+    return null
+  })
+
+  useEffect(() => {
+    if (page.watermark) {
+      try {
+        setCurrentWatermark(JSON.parse(page.watermark))
+      } catch {
+        setCurrentWatermark(null)
+      }
+    } else {
+      setCurrentWatermark(null)
+    }
+  }, [page.watermark])
+
+  const handleApplyWatermark = async (config: WatermarkConfig | null, scope: 'single' | 'all') => {
+    setCurrentWatermark(config)
+    const jsonVal = config ? JSON.stringify(config) : null
+    page.watermark = jsonVal
+    try {
+      await api.setWatermark(projectId, {
+        watermark: jsonVal,
+        scope,
+        page_id: page.id,
+      })
+      await props.onRefresh?.()
+    } catch (err) {
+      console.error('Failed to set watermark', err)
+    }
+  }
 
   // Blocs réactifs isolés : chaque bulle conserve ses propres propriétés de police, taille, couleur, contour
   const effectiveBlocks = useMemo(() => {
@@ -562,6 +602,21 @@ export function PageStage(props: Props) {
           >
             <Layers className="size-3.5" />
             <span className="hidden sm:inline">Frames</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setWatermarkOpen(true)}
+            className={cn(
+              'h-8 px-2.5 text-xs font-semibold flex items-center gap-1.5 rounded transition-all border border-hairline',
+              currentWatermark
+                ? 'bg-seal/15 text-seal border-seal/50 font-bold shadow-2xs'
+                : 'bg-sheet text-ink hover:bg-muted'
+            )}
+            title="Apposer le logo ou filigrane de votre équipe de scanlation sur cette page ou tout le chapitre"
+          >
+            <ImageIcon className="size-3.5 text-seal" />
+            <span className="hidden sm:inline">{currentWatermark ? 'Logo actif' : 'Logo / Filigrane'}</span>
           </button>
 
           {totalBlocks > 0 && (
@@ -1222,8 +1277,17 @@ export function PageStage(props: Props) {
             strokeStyle={strokeStyle}
             strokeWidth={strokeWidth}
             rotationAngle={rotationAngle}
+            watermark={currentWatermark}
           />
         )}
+
+        <WatermarkDialog
+          open={watermarkOpen}
+          onClose={() => setWatermarkOpen(false)}
+          page={page}
+          pageCount={props.pageCount}
+          onApply={handleApplyWatermark}
+        />
 
         {isPeekingOriginal && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-black/90 text-white font-mono text-xs px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 pointer-events-none z-50">

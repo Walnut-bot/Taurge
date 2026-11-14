@@ -28,7 +28,12 @@ if not exist venv (
 call "%~dp0venv\Scripts\activate.bat"
 
 echo Verification et mise a jour des dependances...
-pip install -r requirements.txt
+pip install -r requirements.txt --disable-pip-version-check --quiet
+
+REM Evite le faux warning Windows/PaddlePaddle sur ccache (inutile en inference)
+if not exist "%~dp0venv\Scripts\ccache" (
+    type nul > "%~dp0venv\Scripts\ccache"
+)
 
 REM Load the local .env file if present (API keys, never committed - see .gitignore).
 REM Values already defined in the environment keep priority over .env.

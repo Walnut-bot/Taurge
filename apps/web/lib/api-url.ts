@@ -12,6 +12,7 @@
 // Priorité : override du navigateur > NEXT_PUBLIC_API_URL (build
 // Vercel, si un jour un backend distant revient) > localhost.
 export const LOCAL_API_URL = 'http://localhost:8000'
+export const LOCAL_IPV4_API_URL = 'http://127.0.0.1:8000'
 export const API_URL_STORAGE_KEY = 'taurge_api_url'
 
 export function resolveApiUrl(
@@ -23,6 +24,20 @@ export function resolveApiUrl(
   const fromEnv = (configured ?? '').trim().replace(/\/+$/, '')
   if (fromEnv) return fromEnv
   return LOCAL_API_URL
+}
+
+/** Efface un override de tunnel obsolète et bascule sur l'API locale directe. */
+export function clearRuntimeApiOverride(fallbackUrl?: string): void {
+  if (typeof window === 'undefined') return
+  try {
+    if (fallbackUrl) {
+      window.localStorage.setItem(API_URL_STORAGE_KEY, fallbackUrl)
+    } else {
+      window.localStorage.removeItem(API_URL_STORAGE_KEY)
+    }
+  } catch {
+    // ignore storage errors
+  }
 }
 
 /** Override mémorisé dans ce navigateur (posé par ?api=…). */

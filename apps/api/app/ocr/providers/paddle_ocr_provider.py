@@ -18,6 +18,12 @@ Les modèles sont chargés paresseusement, un par langue, dans un thread
 import asyncio
 import io
 import logging
+import os
+import sys
+import warnings
+
+# Silencer le warning inoffensif ccache de PaddlePaddle (inutile en inférence)
+warnings.filterwarnings("ignore", message=".*ccache.*", category=UserWarning)
 
 import numpy as np
 from PIL import Image

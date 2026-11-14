@@ -20,7 +20,7 @@ from app.projects.schemas import (
     BatchProcessResponse, ExportResponse, OCRBlockResponse, PageResponse,
     ProjectCreate, ProjectDetailResponse, ProjectResponse, ProjectUpdate,
     QCReportResponse, SourceFileResponse, TranslationMemoryMatchResponse,
-    TranslationResponse,
+    TranslationResponse, WatermarkPayload,
 )
 from app.storage.dependencies import get_storage_provider
 from app.storage.provider import StorageProvider
@@ -156,4 +156,45 @@ def search_translation_memory(
     session: Session = Depends(get_session),
 ):
     return qc_service.search_translation_memory(project_id, q, current_user, session, limit=limit)
+
+
+@router.post("/{project_id}/watermark")
+def set_project_watermark(
+    project_id: uuid.UUID,
+    payload: WatermarkPayload,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    project = _get_owned_project_impl(session, project_id, current_user.id)
+    if not project:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Projet introuvable.")
+
+    from app.models.page import Page
+    from sqlmodel import select
+
+    updated_count = 0
+    if payload.scope == "all":
+        project.default_watermark = payload.watermark
+        session.add(project)
+        pages = session.exec(select(Page).where(Page.project_id == project_id)).all()
+        for p in pages:
+            p.watermark = payload.watermark
+            session.add(p)
+            updated_count += 1
+    else:
+        if payload.page_id:
+            try:
+                page_uuid = uuid.UUID(payload.page_id) if isinstance(payload.page_id, str) else payload.page_id
+                page = session.exec(select(Page).where(Page.id == page_uuid, Page.project_id == project_id)).first()
+                if page:
+                    page.watermark = payload.watermark
+                    session.add(page)
+                    updated_count += 1
+            except Exception:
+                pass
+
+    session.commit()
+    return {"status": "ok", "updated_pages": updated_count, "scope": payload.scope}
+
 

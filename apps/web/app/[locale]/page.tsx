@@ -16,6 +16,7 @@ import type { Metadata } from 'next'
 import { Logo } from '@/components/brand/logo'
 import { LandingSpecimen } from '@/components/landing/specimen'
 import { LanguageSwitcher } from '@/components/language-switcher'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { buttonVariants } from '@/components/ui/button'
 import { Link } from '@/i18n/navigation'
 import { getTranslations, parseLocale } from '@/i18n/server'
@@ -72,6 +73,7 @@ export default async function HomePage({
         <div className="flex h-16 w-full items-center justify-between gap-2 px-4 sm:px-6 lg:px-10">
           <Logo />
           <nav aria-label="Account" className="flex items-center gap-2 sm:gap-3">
+            <ThemeToggle />
             <LanguageSwitcher />
             <Link href="/login" className={`${buttonVariants({ variant: 'ghost', size: 'sm' })} max-sm:hidden`}>
               {tNav('login')}
