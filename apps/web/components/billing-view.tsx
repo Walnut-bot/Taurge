@@ -25,6 +25,7 @@ import { AppShell } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { useLocale, useTranslations } from '@/i18n/provider'
 import { api } from '@/lib/api'
+import { SHOW_PUBLIC_PRICES } from '@/lib/billing-config'
 import { useDetailedBalance, useMe, useRequireAuth } from '@/lib/hooks'
 import { cn } from '@/lib/utils'
 import type { CreditPack } from '@/lib/types'
@@ -209,18 +210,20 @@ export function BillingView() {
             </div>
 
             <div className="flex items-center gap-3 shrink-0">
-              <a
-                href="#packs"
-                className="flex items-center gap-1.5 rounded-xl bg-seal px-4 py-2 text-xs font-semibold text-seal-ink hover:opacity-90 active:scale-95 transition-all shadow-sm"
-              >
-                <Coins className="h-4 w-4" />
-                <span>{locale === 'en' ? 'Buy credits' : 'Acheter des crédits'}</span>
-              </a>
+              {SHOW_PUBLIC_PRICES && (
+                <a
+                  href="#packs"
+                  className="flex items-center gap-1.5 rounded-xl bg-seal px-4 py-2 text-xs font-semibold text-seal-ink hover:opacity-90 active:scale-95 transition-all shadow-sm"
+                >
+                  <Coins className="h-4 w-4" />
+                  <span>{locale === 'en' ? 'Buy credits' : 'Acheter des crédits'}</span>
+                </a>
+              )}
               <a
                 href="#plans"
                 className="rounded-xl border border-hairline bg-sheet px-4 py-2 text-xs font-semibold text-ink hover:bg-sheet/80 transition-all"
               >
-                {locale === 'en' ? 'Change plan' : 'Changer de forfait'}
+                {locale === 'en' ? 'View plans' : 'Voir les forfaits'}
               </a>
             </div>
           </section>
@@ -442,9 +445,17 @@ export function BillingView() {
                       </span>
                     )}
                   </div>
-                  <p className="mt-4 text-3xl font-extrabold font-mono text-ink">
-                    0 € <span className="text-xs font-normal text-ink-soft">/ mois</span>
-                  </p>
+                  <div className="mt-4">
+                    {SHOW_PUBLIC_PRICES ? (
+                      <p className="text-3xl font-extrabold font-mono text-ink">
+                        0 € <span className="text-xs font-normal text-ink-soft">/ mois</span>
+                      </p>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-seal/10 px-3 py-1 font-mono text-xs font-bold text-seal uppercase tracking-wider">
+                        {locale === 'en' ? 'Free / Beta Access' : 'Accès Bêta Gratuit'}
+                      </span>
+                    )}
+                  </div>
                   <p className="mt-2 font-mono text-xs font-semibold text-seal">
                     {locale === 'en' ? '100 monthly credits' : '100 crédits mensuels'}
                   </p>
@@ -490,9 +501,17 @@ export function BillingView() {
                       </span>
                     )}
                   </div>
-                  <p className="mt-4 text-3xl font-extrabold font-mono text-ink">
-                    8,99 € <span className="text-xs font-normal text-ink-soft">/ mois</span>
-                  </p>
+                  <div className="mt-4">
+                    {SHOW_PUBLIC_PRICES ? (
+                      <p className="text-3xl font-extrabold font-mono text-ink">
+                        8,99 € <span className="text-xs font-normal text-ink-soft">/ mois</span>
+                      </p>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-seal/10 px-3 py-1 font-mono text-xs font-bold text-seal uppercase tracking-wider">
+                        {locale === 'en' ? 'Included in Beta' : 'Inclus en Bêta'}
+                      </span>
+                    )}
+                  </div>
                   <p className="mt-2 font-mono text-xs font-semibold text-seal">
                     {locale === 'en' ? '500 monthly credits' : '500 crédits mensuels'}
                   </p>
@@ -540,9 +559,17 @@ export function BillingView() {
                       </span>
                     )}
                   </div>
-                  <p className="mt-4 text-3xl font-extrabold font-mono text-ink">
-                    24,99 € <span className="text-xs font-normal text-ink-soft">/ mois</span>
-                  </p>
+                  <div className="mt-4">
+                    {SHOW_PUBLIC_PRICES ? (
+                      <p className="text-3xl font-extrabold font-mono text-ink">
+                        24,99 € <span className="text-xs font-normal text-ink-soft">/ mois</span>
+                      </p>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-seal/10 px-3 py-1 font-mono text-xs font-bold text-seal uppercase tracking-wider">
+                        {locale === 'en' ? 'Included in Beta' : 'Inclus en Bêta'}
+                      </span>
+                    )}
+                  </div>
                   <p className="mt-2 font-mono text-xs font-semibold text-seal">
                     {locale === 'en' ? '1,500 monthly credits' : '1 500 crédits mensuels'}
                   </p>
@@ -587,9 +614,17 @@ export function BillingView() {
                       </span>
                     )}
                   </div>
-                  <p className="mt-4 text-3xl font-extrabold font-mono text-ink">
-                    79 €+ <span className="text-xs font-normal text-ink-soft">/ mois</span>
-                  </p>
+                  <div className="mt-4">
+                    {SHOW_PUBLIC_PRICES ? (
+                      <p className="text-3xl font-extrabold font-mono text-ink">
+                        79 €+ <span className="text-xs font-normal text-ink-soft">/ mois</span>
+                      </p>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-seal/10 px-3 py-1 font-mono text-xs font-bold text-seal uppercase tracking-wider">
+                        {locale === 'en' ? 'Custom Quotas' : 'Quotas Personnalisés'}
+                      </span>
+                    )}
+                  </div>
                   <p className="mt-2 font-mono text-xs font-semibold text-seal">
                     {locale === 'en' ? 'Custom quotas' : 'Quotas personnalisés'}
                   </p>
@@ -630,35 +665,53 @@ export function BillingView() {
               </div>
 
               {/* Sélecteur de méthode de paiement (FedaPay vs Paddle) */}
-              <div className="flex items-center gap-2 bg-sheet p-1 rounded-xl border border-hairline shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setPaymentProvider('paddle')}
-                  className={cn(
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
-                    paymentProvider === 'paddle'
-                      ? 'bg-paper text-ink shadow-xs'
-                      : 'text-ink-soft hover:text-ink'
-                  )}
-                >
-                  <CreditCard className="h-3.5 w-3.5" />
-                  <span>Carte Bancaire (Paddle)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaymentProvider('fedapay')}
-                  className={cn(
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
-                    paymentProvider === 'fedapay'
-                      ? 'bg-paper text-ink shadow-xs'
-                      : 'text-ink-soft hover:text-ink'
-                  )}
-                >
-                  <Smartphone className="h-3.5 w-3.5" />
-                  <span>Mobile Money (FedaPay)</span>
-                </button>
-              </div>
+              {SHOW_PUBLIC_PRICES && (
+                <div className="flex items-center gap-2 bg-sheet p-1 rounded-xl border border-hairline shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentProvider('paddle')}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                      paymentProvider === 'paddle'
+                        ? 'bg-paper text-ink shadow-xs'
+                        : 'text-ink-soft hover:text-ink'
+                    )}
+                  >
+                    <CreditCard className="h-3.5 w-3.5" />
+                    <span>Carte Bancaire (Paddle)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentProvider('fedapay')}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                      paymentProvider === 'fedapay'
+                        ? 'bg-paper text-ink shadow-xs'
+                        : 'text-ink-soft hover:text-ink'
+                    )}
+                  >
+                    <Smartphone className="h-3.5 w-3.5" />
+                    <span>Mobile Money (FedaPay)</span>
+                  </button>
+                </div>
+              )}
             </div>
+
+            {!SHOW_PUBLIC_PRICES && (
+              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs flex items-start gap-3">
+                <Sparkles className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-semibold text-ink">
+                    {locale === 'en' ? 'Beta Testing Program' : 'Programme Bêta-Testeurs Taurge'}
+                  </span>
+                  <p className="mt-0.5 text-ink-soft">
+                    {locale === 'en'
+                      ? 'Credit pack purchases are temporarily closed during testing. Test credits are directly provisioned to your account to evaluate all AI features freely.'
+                      : 'La boutique de packs payants est temporairement fermée pendant la phase de test. Vos crédits d’essai vous sont alloués directement afin que vous puissiez tester librement l’ensemble des fonctionnalités IA.'}
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="grid gap-6 md:grid-cols-3">
               {packs.map((pack) => (
@@ -688,37 +741,53 @@ export function BillingView() {
                       {pack.credits.toLocaleString()}{' '}
                       <span className="text-sm font-normal text-ink-soft">crédits</span>
                     </p>
-                    <p className="mt-2 text-xs text-ink-soft font-mono">
-                      {pack.price_eur} €{' '}
-                      <span className="text-[10px] opacity-75">
-                        (~{(pack.price_eur / (pack.credits / 100)).toFixed(2)} c€ / 100 crédits)
-                      </span>
-                    </p>
+                    {SHOW_PUBLIC_PRICES ? (
+                      <p className="mt-2 text-xs text-ink-soft font-mono">
+                        {pack.price_eur} €{' '}
+                        <span className="text-[10px] opacity-75">
+                          (~{(pack.price_eur / (pack.credits / 100)).toFixed(2)} c€ / 100 crédits)
+                        </span>
+                      </p>
+                    ) : (
+                      <p className="mt-2 text-xs text-seal font-mono font-medium">
+                        {locale === 'en' ? '★ Test allowance' : '★ Dotation Bêta'}
+                      </p>
+                    )}
                   </div>
 
                   <div className="mt-6 pt-4 border-t border-hairline">
-                    <Button
-                      onClick={() => handleBuyPack(pack.key)}
-                      disabled={checkoutLoading === pack.key}
-                      className={cn(
-                        'w-full text-xs font-semibold flex items-center justify-center gap-2',
-                        pack.recommended
-                          ? 'bg-seal text-seal-ink hover:opacity-90'
-                          : 'bg-sheet border border-hairline hover:bg-sheet/80 text-ink'
-                      )}
-                    >
-                      {checkoutLoading === pack.key ? (
-                        <>
-                          <span className="h-3 w-3 animate-spin rounded-full border-2 border-seal-ink border-t-transparent" />
-                          <span>Redirection...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>Acheter {pack.price_eur} €</span>
-                          <ArrowRight className="h-3.5 w-3.5" />
-                        </>
-                      )}
-                    </Button>
+                    {SHOW_PUBLIC_PRICES ? (
+                      <Button
+                        onClick={() => handleBuyPack(pack.key)}
+                        disabled={checkoutLoading === pack.key}
+                        className={cn(
+                          'w-full text-xs font-semibold flex items-center justify-center gap-2',
+                          pack.recommended
+                            ? 'bg-seal text-seal-ink hover:opacity-90'
+                            : 'bg-sheet border border-hairline hover:bg-sheet/80 text-ink'
+                        )}
+                      >
+                        {checkoutLoading === pack.key ? (
+                          <>
+                            <span className="h-3 w-3 animate-spin rounded-full border-2 border-seal-ink border-t-transparent" />
+                            <span>Redirection...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>Acheter {pack.price_eur} €</span>
+                            <ArrowRight className="h-3.5 w-3.5" />
+                          </>
+                        )}
+                      </Button>
+                    ) : (
+                      <Button
+                        disabled
+                        className="w-full text-xs font-semibold flex items-center justify-center gap-2 bg-sheet border border-hairline text-ink-soft opacity-80 cursor-not-allowed"
+                      >
+                        <span>{locale === 'en' ? 'Included in Beta' : 'Inclus pour les testeurs'}</span>
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}

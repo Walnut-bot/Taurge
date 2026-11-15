@@ -3,6 +3,7 @@
 import { Coins, Sparkles, Check, History, Layers, ArrowRight, ShieldCheck, Zap } from 'lucide-react'
 import { Link } from '@/i18n/navigation'
 import { useTranslations } from '@/i18n/provider'
+import { SHOW_PUBLIC_PRICES } from '@/lib/billing-config'
 import { useDetailedBalance } from '@/lib/hooks'
 import { cn } from '@/lib/utils'
 import type { Settings } from './use-settings'
@@ -13,8 +14,8 @@ function getPlans(locale: string) {
     {
       id: 'free',
       name: isEn ? 'Free' : 'Gratuit',
-      price: isEn ? '€0' : '0 €',
-      period: isEn ? '/ mo' : '/ mois',
+      price: SHOW_PUBLIC_PRICES ? (isEn ? '€0' : '0 €') : (isEn ? 'Beta' : 'Bêta'),
+      period: SHOW_PUBLIC_PRICES ? (isEn ? '/ mo' : '/ mois') : '',
       credits: isEn ? '100 monthly credits' : '100 crédits mensuels',
       features: isEn
         ? [
@@ -31,8 +32,8 @@ function getPlans(locale: string) {
     {
       id: 'creator',
       name: isEn ? 'Creator' : 'Créateur',
-      price: isEn ? '€8.99' : '8,99 €',
-      period: isEn ? '/ mo' : '/ mois',
+      price: SHOW_PUBLIC_PRICES ? (isEn ? '€8.99' : '8,99 €') : (isEn ? 'Beta' : 'Bêta'),
+      period: SHOW_PUBLIC_PRICES ? (isEn ? '/ mo' : '/ mois') : '',
       credits: isEn ? '500 monthly credits' : '500 crédits mensuels',
       features: isEn
         ? [
@@ -49,8 +50,8 @@ function getPlans(locale: string) {
     {
       id: 'team',
       name: isEn ? 'Team' : 'Équipe',
-      price: isEn ? '€24.99' : '24,99 €',
-      period: isEn ? '/ mo' : '/ mois',
+      price: SHOW_PUBLIC_PRICES ? (isEn ? '€24.99' : '24,99 €') : (isEn ? 'Beta' : 'Bêta'),
+      period: SHOW_PUBLIC_PRICES ? (isEn ? '/ mo' : '/ mois') : '',
       credits: isEn ? '1,500 monthly credits' : '1 500 crédits mensuels',
       features: isEn
         ? [
@@ -67,8 +68,8 @@ function getPlans(locale: string) {
     {
       id: 'studio',
       name: isEn ? 'Studio' : 'Studio',
-      price: isEn ? '€79+' : '79 €+',
-      period: isEn ? '/ mo' : '/ mois',
+      price: SHOW_PUBLIC_PRICES ? (isEn ? '€79+' : '79 €+') : (isEn ? 'Custom' : 'Sur devis'),
+      period: SHOW_PUBLIC_PRICES ? (isEn ? '/ mo' : '/ mois') : '',
       credits: isEn ? 'Custom quotas' : 'Quotas personnalisés',
       features: isEn
         ? [
