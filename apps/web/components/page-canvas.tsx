@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Maximize2, Trash2, RotateCw } from 'lucide-react'
+import { Maximize2, Trash2, RotateCw, Move, Settings2 } from 'lucide-react'
 import { useLocale } from '@/i18n/provider'
 import { cn } from '@/lib/utils'
 import type { OcrBlock, WatermarkConfig } from '@/lib/types'
@@ -47,6 +47,9 @@ type Props = {
   strokeWidth?: number
   rotationAngle?: number
   watermark?: WatermarkConfig | null
+  onUpdateWatermark?: (config: WatermarkConfig) => void
+  onRemoveWatermark?: () => void
+  onOpenWatermarkDialog?: () => void
   /** Image originale à comparer en rideau QC (gauche = original). */
   qcOriginalSrc?: string | null
   className?: string
@@ -83,6 +86,9 @@ export function PageCanvas({
   strokeWidth = 2,
   rotationAngle = 0,
   watermark = null,
+  onUpdateWatermark,
+  onRemoveWatermark,
+  onOpenWatermarkDialog,
   qcOriginalSrc = null,
   className,
 }: Props) {
@@ -109,6 +115,34 @@ export function PageCanvas({
   const [liveDrawnBox, setLiveDrawnBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
 
   const dragStartRef = useRef({ startX: 0, startY: 0, origX: 0, origY: 0, origW: 0, origH: 0 })
+
+  // Watermark interactive manipulation (move, pull/shrink corners)
+  const [isWatermarkSelected, setIsWatermarkSelected] = useState(false)
+  const [isDraggingWatermark, setIsDraggingWatermark] = useState(false)
+  const [resizingWatermarkCorner, setResizingWatermarkCorner] = useState<'nw' | 'ne' | 'se' | 'sw' | null>(null)
+  const [liveWatermark, setLiveWatermark] = useState<{ x: number; y: number; scale: number; rotation: number } | null>(null)
+
+  const watermarkDragStartRef = useRef<{
+    startX: number
+    startY: number
+    origX: number
+    origY: number
+    containerWidth: number
+    containerHeight: number
+  }>({ startX: 0, startY: 0, origX: 0, origY: 0, containerWidth: 1, containerHeight: 1 })
+
+  const watermarkResizeStartRef = useRef<{
+    startX: number
+    startY: number
+    centerX: number
+    centerY: number
+    origScale: number
+    initialDist: number
+    containerWidth: number
+    corner: 'nw' | 'ne' | 'se' | 'sw'
+  }>({ startX: 0, startY: 0, centerX: 0, centerY: 0, origScale: 0.2, initialDist: 50, containerWidth: 1, corner: 'se' })
+
+  const latestWatermarkRef = useRef<{ x: number; y: number; scale: number } | null>(null)
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -159,6 +193,7 @@ export function PageCanvas({
   }, [width, height])
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    setIsWatermarkSelected(false)
     if (zp.startPan(e)) return
 
     if (isDrawMode && e.button === 0) {
@@ -311,6 +346,155 @@ export function PageCanvas({
       window.removeEventListener('mouseup', handleMouseUp)
     }
   }, [rotatingBlockId, liveRotation, onUpdateRotation])
+
+  const handleWatermarkMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0 || isSpacePressed || isDrawMode) return
+    e.preventDefault()
+    e.stopPropagation()
+    setIsWatermarkSelected(true)
+    setIsDraggingWatermark(true)
+    if (!imageContainerRef.current || !watermark) return
+    const rect = imageContainerRef.current.getBoundingClientRect()
+    const currentX = liveWatermark?.x ?? (typeof watermark.x === 'number' ? watermark.x : 85)
+    const currentY = liveWatermark?.y ?? (typeof watermark.y === 'number' ? watermark.y : 90)
+    const currentScale = liveWatermark?.scale ?? (typeof watermark.scale === 'number' ? watermark.scale : 0.2)
+    watermarkDragStartRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: currentX,
+      origY: currentY,
+      containerWidth: rect.width,
+      containerHeight: rect.height,
+    }
+    latestWatermarkRef.current = {
+      x: currentX,
+      y: currentY,
+      scale: currentScale,
+    }
+  }
+
+  const handleWatermarkCornerMouseDown = (corner: 'nw' | 'ne' | 'se' | 'sw', e: React.MouseEvent) => {
+    if (e.button !== 0 || isSpacePressed || isDrawMode) return
+    e.preventDefault()
+    e.stopPropagation()
+    setIsWatermarkSelected(true)
+    setResizingWatermarkCorner(corner)
+    if (!imageContainerRef.current || !watermark) return
+    const rect = imageContainerRef.current.getBoundingClientRect()
+    const currentScale = liveWatermark?.scale ?? (typeof watermark.scale === 'number' ? watermark.scale : 0.2)
+    const currentX = liveWatermark?.x ?? (typeof watermark.x === 'number' ? watermark.x : 85)
+    const currentY = liveWatermark?.y ?? (typeof watermark.y === 'number' ? watermark.y : 90)
+    const centerX = rect.left + (currentX / 100) * rect.width
+    const centerY = rect.top + (currentY / 100) * rect.height
+    const initialDist = Math.hypot(e.clientX - centerX, e.clientY - centerY)
+    watermarkResizeStartRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      centerX,
+      centerY,
+      origScale: currentScale,
+      initialDist: Math.max(10, initialDist),
+      containerWidth: rect.width,
+      corner,
+    }
+    latestWatermarkRef.current = {
+      x: currentX,
+      y: currentY,
+      scale: currentScale,
+    }
+  }
+
+  // Drag & resize effect for watermark (supports mouse & touch)
+  useEffect(() => {
+    if (!isDraggingWatermark && !resizingWatermarkCorner) return
+
+    function handleMouseMove(e: MouseEvent) {
+      if (!imageContainerRef.current) return
+      const rect = imageContainerRef.current.getBoundingClientRect()
+
+      if (isDraggingWatermark) {
+        const deltaPxX = e.clientX - watermarkDragStartRef.current.startX
+        const deltaPxY = e.clientY - watermarkDragStartRef.current.startY
+        const deltaPercentX = (deltaPxX / rect.width) * 100
+        const deltaPercentY = (deltaPxY / rect.height) * 100
+
+        const newX = Math.max(2, Math.min(98, Math.round((watermarkDragStartRef.current.origX + deltaPercentX) * 10) / 10))
+        const newY = Math.max(2, Math.min(98, Math.round((watermarkDragStartRef.current.origY + deltaPercentY) * 10) / 10))
+
+        latestWatermarkRef.current = {
+          x: newX,
+          y: newY,
+          scale: latestWatermarkRef.current?.scale ?? (watermark?.scale || 0.2),
+        }
+
+        setLiveWatermark((prev) => ({
+          x: newX,
+          y: newY,
+          scale: prev?.scale ?? (watermark?.scale || 0.2),
+          rotation: prev?.rotation ?? (watermark?.rotation || 0),
+        }))
+      } else if (resizingWatermarkCorner) {
+        const { centerX, centerY, origScale, initialDist } = watermarkResizeStartRef.current
+        const currentDist = Math.hypot(e.clientX - centerX, e.clientY - centerY)
+        const ratio = currentDist / Math.max(10, initialDist)
+        // Redimensionner proportionnellement par rapport au centre (entre 4% et 85% de la planche)
+        const newScale = Math.max(0.04, Math.min(0.85, Math.round(origScale * ratio * 100) / 100))
+
+        latestWatermarkRef.current = {
+          x: latestWatermarkRef.current?.x ?? (watermark?.x || 85),
+          y: latestWatermarkRef.current?.y ?? (watermark?.y || 90),
+          scale: newScale,
+        }
+
+        setLiveWatermark((prev) => ({
+          x: prev?.x ?? (watermark?.x || 85),
+          y: prev?.y ?? (watermark?.y || 90),
+          scale: newScale,
+          rotation: prev?.rotation ?? (watermark?.rotation || 0),
+        }))
+      }
+    }
+
+    function handleMouseUp() {
+      const finalWm = latestWatermarkRef.current
+      if (finalWm && onUpdateWatermark && watermark) {
+        onUpdateWatermark({
+          ...watermark,
+          x: finalWm.x,
+          y: finalWm.y,
+          scale: finalWm.scale,
+        })
+      }
+      setIsDraggingWatermark(false)
+      setResizingWatermarkCorner(null)
+      setLiveWatermark(null)
+      latestWatermarkRef.current = null
+    }
+
+    function handleTouchMove(e: TouchEvent) {
+      if (e.touches.length === 1) {
+        handleMouseMove({
+          clientX: e.touches[0].clientX,
+          clientY: e.touches[0].clientY,
+        } as MouseEvent)
+      }
+    }
+
+    function handleTouchEnd() {
+      handleMouseUp()
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    window.addEventListener('touchmove', handleTouchMove, { passive: false })
+    window.addEventListener('touchend', handleTouchEnd)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+      window.removeEventListener('touchmove', handleTouchMove)
+      window.removeEventListener('touchend', handleTouchEnd)
+    }
+  }, [isDraggingWatermark, resizingWatermarkCorner, watermark, onUpdateWatermark])
 
   const strokeColorValue = strokeStyle === 'white' ? '#ffffff' : strokeStyle === 'black' ? '#000000' : 'transparent'
 
@@ -647,27 +831,201 @@ export function PageCanvas({
             )
           })}
 
-          {/* Filigrane / Logo d'équipe de scanlation */}
-          {watermark && watermark.image_url && (
-            <div
-              className="absolute pointer-events-none select-none z-30"
-              style={{
-                left: `${watermark.x}%`,
-                top: `${watermark.y}%`,
-                width: `${watermark.scale * 100}%`,
-                transform: `translate(-50%, -50%) rotate(${watermark.rotation || 0}deg)`,
-                opacity: watermark.opacity,
-              }}
-              title={isEn ? 'Team watermark logo' : "Logo d'équipe"}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={watermark.image_url}
-                alt={isEn ? 'Team watermark' : "Filigrane d'équipe"}
-                className="w-full h-auto drop-shadow-md object-contain"
-              />
-            </div>
-          )}
+          {/* Filigrane / Logo d'équipe de scanlation (déplaçable et redimensionnable par les coins) */}
+          {watermark && watermark.image_url && (() => {
+            const currentWmX = liveWatermark?.x ?? (typeof watermark.x === 'number' ? watermark.x : 85)
+            const currentWmY = liveWatermark?.y ?? (typeof watermark.y === 'number' ? watermark.y : 90)
+            const currentWmScale = liveWatermark?.scale ?? (typeof watermark.scale === 'number' ? watermark.scale : 0.2)
+            const currentWmRotation = liveWatermark?.rotation ?? (watermark.rotation || 0)
+            const isInteracting = isDraggingWatermark || resizingWatermarkCorner !== null
+            const showControls = isWatermarkSelected || isInteracting
+
+            return (
+              <div
+                className={cn(
+                  'absolute z-30 group touch-none select-none',
+                  isInteracting ? 'cursor-grabbing' : 'cursor-grab'
+                )}
+                style={{
+                  left: `${currentWmX}%`,
+                  top: `${currentWmY}%`,
+                  width: `${currentWmScale * 100}%`,
+                  transform: `translate(-50%, -50%) rotate(${currentWmRotation}deg)`,
+                }}
+                onMouseDown={handleWatermarkMouseDown}
+                onTouchStart={(e) => {
+                  if (e.touches.length === 1) {
+                    handleWatermarkMouseDown({
+                      button: 0,
+                      clientX: e.touches[0].clientX,
+                      clientY: e.touches[0].clientY,
+                      preventDefault: () => e.preventDefault(),
+                      stopPropagation: () => e.stopPropagation(),
+                    } as any)
+                  }
+                }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setIsWatermarkSelected(true)
+                }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation()
+                  onOpenWatermarkDialog?.()
+                }}
+                title={isEn ? "Logo d'équipe — Glisser pour déplacer, tirer les coins pour redimensionner" : "Logo d'équipe — Glisser pour déplacer, tirer les coins pour redimensionner"}
+              >
+                {/* Cadre de sélection & poignées visibles au survol ou sélection */}
+                <div
+                  className={cn(
+                    'relative w-full h-auto transition-all',
+                    showControls
+                      ? 'ring-2 ring-seal ring-offset-2 ring-offset-transparent shadow-xl rounded-sm'
+                      : 'group-hover:ring-1 group-hover:ring-seal/70 group-hover:ring-offset-1 rounded-sm'
+                  )}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={watermark.image_url}
+                    alt={isEn ? 'Team watermark' : "Filigrane d'équipe"}
+                    style={{ opacity: watermark.opacity }}
+                    className="w-full h-auto drop-shadow-md object-contain select-none pointer-events-none"
+                    draggable={false}
+                  />
+
+                  {/* 4 Poignées de redimensionnement aux coins */}
+                  {/* NW : Haut-Gauche */}
+                  <div
+                    className={cn(
+                      'absolute -top-2 -left-2 size-4 rounded-full bg-white border-2 border-seal shadow-md transition-all z-40',
+                      showControls ? 'opacity-100 scale-100' : 'opacity-0 group-hover:opacity-100 group-hover:scale-100 scale-75',
+                      'cursor-nwse-resize hover:scale-125 hover:bg-seal hover:border-white'
+                    )}
+                    onMouseDown={(e) => handleWatermarkCornerMouseDown('nw', e)}
+                    onTouchStart={(e) => {
+                      if (e.touches.length === 1) {
+                        handleWatermarkCornerMouseDown('nw', {
+                          button: 0,
+                          clientX: e.touches[0].clientX,
+                          clientY: e.touches[0].clientY,
+                          preventDefault: () => e.preventDefault(),
+                          stopPropagation: () => e.stopPropagation(),
+                        } as any)
+                      }
+                    }}
+                    title={isEn ? 'Pull or shrink corner' : 'Tirer ou rétrécir par le coin'}
+                  />
+
+                  {/* NE : Haut-Droit */}
+                  <div
+                    className={cn(
+                      'absolute -top-2 -right-2 size-4 rounded-full bg-white border-2 border-seal shadow-md transition-all z-40',
+                      showControls ? 'opacity-100 scale-100' : 'opacity-0 group-hover:opacity-100 group-hover:scale-100 scale-75',
+                      'cursor-nesw-resize hover:scale-125 hover:bg-seal hover:border-white'
+                    )}
+                    onMouseDown={(e) => handleWatermarkCornerMouseDown('ne', e)}
+                    onTouchStart={(e) => {
+                      if (e.touches.length === 1) {
+                        handleWatermarkCornerMouseDown('ne', {
+                          button: 0,
+                          clientX: e.touches[0].clientX,
+                          clientY: e.touches[0].clientY,
+                          preventDefault: () => e.preventDefault(),
+                          stopPropagation: () => e.stopPropagation(),
+                        } as any)
+                      }
+                    }}
+                    title={isEn ? 'Pull or shrink corner' : 'Tirer ou rétrécir par le coin'}
+                  />
+
+                  {/* SE : Bas-Droit */}
+                  <div
+                    className={cn(
+                      'absolute -bottom-2 -right-2 size-4 rounded-full bg-white border-2 border-seal shadow-md transition-all z-40',
+                      showControls ? 'opacity-100 scale-100' : 'opacity-0 group-hover:opacity-100 group-hover:scale-100 scale-75',
+                      'cursor-nwse-resize hover:scale-125 hover:bg-seal hover:border-white'
+                    )}
+                    onMouseDown={(e) => handleWatermarkCornerMouseDown('se', e)}
+                    onTouchStart={(e) => {
+                      if (e.touches.length === 1) {
+                        handleWatermarkCornerMouseDown('se', {
+                          button: 0,
+                          clientX: e.touches[0].clientX,
+                          clientY: e.touches[0].clientY,
+                          preventDefault: () => e.preventDefault(),
+                          stopPropagation: () => e.stopPropagation(),
+                        } as any)
+                      }
+                    }}
+                    title={isEn ? 'Pull or shrink corner' : 'Tirer ou rétrécir par le coin'}
+                  />
+
+                  {/* SW : Bas-Gauche */}
+                  <div
+                    className={cn(
+                      'absolute -bottom-2 -left-2 size-4 rounded-full bg-white border-2 border-seal shadow-md transition-all z-40',
+                      showControls ? 'opacity-100 scale-100' : 'opacity-0 group-hover:opacity-100 group-hover:scale-100 scale-75',
+                      'cursor-nesw-resize hover:scale-125 hover:bg-seal hover:border-white'
+                    )}
+                    onMouseDown={(e) => handleWatermarkCornerMouseDown('sw', e)}
+                    onTouchStart={(e) => {
+                      if (e.touches.length === 1) {
+                        handleWatermarkCornerMouseDown('sw', {
+                          button: 0,
+                          clientX: e.touches[0].clientX,
+                          clientY: e.touches[0].clientY,
+                          preventDefault: () => e.preventDefault(),
+                          stopPropagation: () => e.stopPropagation(),
+                        } as any)
+                      }
+                    }}
+                    title={isEn ? 'Pull or shrink corner' : 'Tirer ou rétrécir par le coin'}
+                  />
+
+                  {/* Mini-barre d'information et d'actions rapides au survol */}
+                  <div
+                    className={cn(
+                      'absolute bottom-full left-1/2 -translate-x-1/2 mb-2 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-neutral-900/90 text-white shadow-xl backdrop-blur-xs text-[10px] font-mono pointer-events-auto transition-all z-50 whitespace-nowrap',
+                      showControls ? 'opacity-100 translate-y-0' : 'opacity-0 group-hover:opacity-100 translate-y-1'
+                    )}
+                  >
+                    <span className="flex items-center gap-1 font-semibold text-seal-ink bg-seal px-1.5 py-0.5 rounded-full text-[9px] uppercase tracking-wider">
+                      <Move className="size-2.5" />
+                      {isEn ? 'Logo' : 'Filigrane'}
+                    </span>
+                    <span className="text-white/90 font-bold">
+                      {Math.round(currentWmScale * 100)}%
+                    </span>
+                    {onOpenWatermarkDialog && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onOpenWatermarkDialog()
+                        }}
+                        className="p-1 hover:bg-white/20 rounded-full transition-colors text-white/80 hover:text-white"
+                        title={isEn ? 'Watermark settings (opacity, change file…)' : 'Paramètres (opacité, changer l’image…)'}
+                      >
+                        <Settings2 className="size-3" />
+                      </button>
+                    )}
+                    {onRemoveWatermark && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onRemoveWatermark()
+                        }}
+                        className="p-1 hover:bg-red-500/30 text-red-300 hover:text-white rounded-full transition-colors"
+                        title={isEn ? 'Remove watermark' : 'Retirer le filigrane'}
+                      >
+                        <Trash2 className="size-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
         </div>
       </div>
     </div>

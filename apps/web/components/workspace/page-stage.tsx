@@ -158,6 +158,39 @@ export function PageStage(props: Props) {
     }
   }
 
+  const handleQuickUpdateWatermark = useCallback(
+    async (config: WatermarkConfig) => {
+      setCurrentWatermark(config)
+      const jsonVal = JSON.stringify(config)
+      page.watermark = jsonVal
+      try {
+        await api.setWatermark(projectId, {
+          watermark: jsonVal,
+          scope: 'single',
+          page_id: page.id,
+        })
+      } catch (err) {
+        console.error('Failed to update watermark', err)
+      }
+    },
+    [projectId, page]
+  )
+
+  const handleRemoveWatermark = useCallback(async () => {
+    setCurrentWatermark(null)
+    page.watermark = null
+    try {
+      await api.setWatermark(projectId, {
+        watermark: null,
+        scope: 'single',
+        page_id: page.id,
+      })
+      await props.onRefresh?.()
+    } catch (err) {
+      console.error('Failed to remove watermark', err)
+    }
+  }, [projectId, page, props])
+
   // Blocs réactifs isolés : chaque bulle conserve ses propres propriétés de police, taille, couleur, contour
   const effectiveBlocks = useMemo(() => {
     return page.ocr_blocks.map((b) => {
@@ -1378,6 +1411,9 @@ export function PageStage(props: Props) {
             strokeWidth={strokeWidth}
             rotationAngle={rotationAngle}
             watermark={currentWatermark}
+            onUpdateWatermark={handleQuickUpdateWatermark}
+            onRemoveWatermark={handleRemoveWatermark}
+            onOpenWatermarkDialog={() => setWatermarkOpen(true)}
           />
         )}
 
