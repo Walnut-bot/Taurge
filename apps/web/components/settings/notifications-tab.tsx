@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import type { Settings } from './use-settings'
 
 export function NotificationsTab({ s }: { s: Settings }) {
+  const isEn = s.locale === 'en'
+
   return (
     <div className="space-y-6">
       {/* 1. Alertes dans l'Atelier */}
@@ -12,10 +14,14 @@ export function NotificationsTab({ s }: { s: Settings }) {
         <div className="border-b border-hairline pb-4">
           <h2 className="text-lg font-semibold text-ink flex items-center gap-2">
             <Bell className="size-4 text-seal" />
-            <span>Alertes de l’Atelier &amp; Équipe</span>
+            <span>
+              {isEn ? 'Studio & Team Alerts' : 'Alertes de l’Atelier & Équipe'}
+            </span>
           </h2>
           <p className="mt-1 text-xs text-ink-soft">
-            Choisissez quelles notifications s’affichent pendant que vous traduisez et nettoyez vos chapitres.
+            {isEn
+              ? 'Choose which notifications appear while you translate and clean your chapters.'
+              : 'Choisissez quelles notifications s’affichent pendant que vous traduisez et nettoyez vos chapitres.'}
           </p>
         </div>
 
@@ -27,10 +33,14 @@ export function NotificationsTab({ s }: { s: Settings }) {
               </div>
               <div>
                 <p className="text-sm font-medium text-ink">
-                  Fin de traitement de chapitre complet (Batch IA)
+                  {isEn
+                    ? 'Full chapter processing complete (AI Batch)'
+                    : 'Fin de traitement de chapitre complet (Lot IA)'}
                 </p>
                 <p className="mt-0.5 text-xs text-ink-soft">
-                  Affiche une alerte dès que l’OCR, la traduction et l’inpainting d’un chapitre entier sont terminés.
+                  {isEn
+                    ? 'Displays an alert as soon as OCR, translation and inpainting for an entire chapter finish.'
+                    : 'Affiche une alerte dès que l’OCR, la traduction et le nettoyage d’un chapitre entier sont terminés.'}
                 </p>
               </div>
             </div>
@@ -49,10 +59,14 @@ export function NotificationsTab({ s }: { s: Settings }) {
               </div>
               <div>
                 <p className="text-sm font-medium text-ink">
-                  Notes de relecture &amp; activité de l’équipe
+                  {isEn
+                    ? 'Proofreading notes & team activity'
+                    : 'Notes de relecture & activité de l’équipe'}
                 </p>
                 <p className="mt-0.5 text-xs text-ink-soft">
-                  Me prévenir lorsqu’un relecteur (QC), traducteur ou éditeur ajoute une note sur une planche ou change son statut.
+                  {isEn
+                    ? 'Notify me when a proofreader (QC), translator or editor adds a note on a page or changes its status.'
+                    : 'Me prévenir lorsqu’un relecteur (QC), traducteur ou éditeur ajoute une note sur une planche ou change son statut.'}
                 </p>
               </div>
             </div>
@@ -70,9 +84,13 @@ export function NotificationsTab({ s }: { s: Settings }) {
                 <Coins className="size-4" />
               </div>
               <div>
-                <p className="text-sm font-medium text-ink">Alerte de seuil de crédits IA bas</p>
+                <p className="text-sm font-medium text-ink">
+                  {isEn ? 'Low AI credit balance alert' : 'Alerte de seuil de crédits IA bas'}
+                </p>
                 <p className="mt-0.5 text-xs text-ink-soft">
-                  M’avertir lorsque mon solde mensuel de crédits IA passe sous la barre des 20% disponibles.
+                  {isEn
+                    ? 'Warn me when my monthly AI credit balance drops below 20% remaining.'
+                    : 'M’avertir lorsque mon solde mensuel de crédits IA passe sous la barre des 20 % disponibles.'}
                 </p>
               </div>
             </div>
@@ -91,10 +109,16 @@ export function NotificationsTab({ s }: { s: Settings }) {
         <div className="border-b border-hairline pb-4">
           <h2 className="text-lg font-semibold text-ink flex items-center gap-2">
             <Mail className="size-4 text-seal" />
-            <span>Communications par e-mail &amp; Nouveautés (RGPD)</span>
+            <span>
+              {isEn
+                ? 'Email Communications & Product Updates (GDPR)'
+                : 'Communications par e-mail & Nouveautés (RGPD)'}
+            </span>
           </h2>
           <p className="mt-1 text-xs text-ink-soft">
-            Gérez votre consentement pour les annonces de mises à jour majeures de Taurge (modifiable à tout moment).
+            {isEn
+              ? 'Manage your consent for major Taurge update announcements (modifiable at any time).'
+              : 'Gérez votre consentement pour les annonces de mises à jour majeures de Taurge (modifiable à tout moment).'}
           </p>
         </div>
 
@@ -102,10 +126,14 @@ export function NotificationsTab({ s }: { s: Settings }) {
           <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-hairline bg-sheet p-4">
             <div>
               <p className="text-sm font-semibold text-ink">
-                Journal des mises à jour produit &amp; nouveaux modèles IA
+                {isEn
+                  ? 'Product changelog & new AI models'
+                  : 'Journal des mises à jour produit & nouveaux modèles IA'}
               </p>
               <p className="mt-1 text-xs text-ink-soft">
-                Recevoir un e-mail occasionnel lors de l’ajout de nouveaux moteurs OCR, d’inpainting ou d’outils collaboratifs (zéro spam).
+                {isEn
+                  ? 'Receive an occasional email when new OCR, inpainting or collaborative tools are added (zero spam).'
+                  : 'Recevoir un e-mail occasionnel lors de l’ajout de nouveaux moteurs OCR, de nettoyage ou d’outils collaboratifs (zéro courrier indésirable).'}
               </p>
             </div>
             <input
@@ -123,7 +151,9 @@ export function NotificationsTab({ s }: { s: Settings }) {
               ) : (
                 <Save className="size-3.5" />
               )}
-              <span>Enregistrer mes préférences e-mail</span>
+              <span>
+                {isEn ? 'Save my email preferences' : 'Enregistrer mes préférences e-mail'}
+              </span>
             </Button>
           </div>
         </form>

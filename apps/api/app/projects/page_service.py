@@ -171,7 +171,7 @@ def extract_pages(
         try:
             ensure_page_thumbnail(storage, _p)
         except Exception:
-            logger.exception('Miniature non generee pour la page %s', _p.id)
+            logger.exception('Miniature non générée pour la page %s', _p.id)
     return [PageResponse(**p.model_dump(mode="json"), thumbnail_url=thumbnail_url_for(p.id)) for p in created_pages]
 
 

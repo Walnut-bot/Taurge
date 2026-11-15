@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { BookOpen, CreditCard, FolderKanban, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Plus, Settings } from 'lucide-react'
 import { Link, usePathname } from '@/i18n/navigation'
-import { useTranslations } from '@/i18n/provider'
+import { useLocale, useTranslations } from '@/i18n/provider'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -16,6 +16,7 @@ const STORAGE_KEY = 'taurge:sidebar-collapsed'
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const t = useTranslations('Shell')
+  const locale = useLocale()
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
 
@@ -60,7 +61,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         )}
       >
         <nav
-          aria-label="Primary"
+          aria-label={locale === 'en' ? 'Primary navigation' : 'Navigation principale'}
           className="flex flex-1 flex-wrap gap-1 p-2.5 lg:sticky lg:top-14 lg:flex-col lg:flex-nowrap lg:p-3"
         >
           {items.map((item) => (

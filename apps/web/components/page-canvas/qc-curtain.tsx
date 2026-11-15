@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { useLocale } from '@/i18n/provider'
 
 /** Rideau QC original/nettoyé : image originale clippée + séparateur draggable. */
 export function QcCurtain({
@@ -12,6 +13,8 @@ export function QcCurtain({
   originalSrc: string
   containerRef: React.RefObject<HTMLDivElement | null>
 }) {
+  const locale = useLocale()
+  const isEn = locale === 'en'
   const [qcSplit, setQcSplit] = useState(50)
   const qcDraggingRef = useRef(false)
 
@@ -35,14 +38,14 @@ export function QcCurtain({
         draggable={false}
       />
       <span className="absolute top-2 left-2 z-40 pointer-events-none rounded bg-black/75 px-2 py-0.5 font-mono text-[10px] font-bold text-white">
-        ORIGINAL
+        {isEn ? 'ORIGINAL' : 'ORIGINAL'}
       </span>
       <span className="absolute top-2 right-2 z-40 pointer-events-none rounded bg-black/75 px-2 py-0.5 font-mono text-[10px] font-bold text-white">
-        CLEANED
+        {isEn ? 'CLEANED' : 'NETTOYÉ'}
       </span>
       <div
         role="slider"
-        aria-label="QC curtain position"
+        aria-label={isEn ? 'QC curtain position' : 'Position du rideau de comparaison'}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(qcSplit)}

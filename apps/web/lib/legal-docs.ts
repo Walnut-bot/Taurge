@@ -187,7 +187,7 @@ const en: Record<LegalDocKey, { title: string; updated: string; sections: LegalS
       {
         heading: 'Retention and storage',
         body: [
-          `Data hosted by: ${LEGAL.hostName} (${LEGAL.hostAddress}).`,
+          `Data hosted by: ${LEGAL.hostNameEn} (${LEGAL.hostAddress}).`,
           'Your projects and files are kept while your account exists. Billing history may be kept for the period required by accounting rules.',
         ],
       },
@@ -286,9 +286,9 @@ const en: Record<LegalDocKey, { title: string; updated: string; sections: LegalS
     sections: [
       {
         heading: 'Publisher',
-        body: [LEGAL.companyName, LEGAL.legalStatus, LEGAL.address, `Contact: ${LEGAL.contactEmail}`],
+        body: [LEGAL.companyName, LEGAL.legalStatusEn, LEGAL.addressEn, `Contact: ${LEGAL.contactEmail}`],
       },
-      { heading: 'Hosting', body: [`${LEGAL.hostName} — ${LEGAL.hostAddress}`] },
+      { heading: 'Hosting', body: [`${LEGAL.hostNameEn} — ${LEGAL.hostAddress}`] },
       {
         heading: 'Service intellectual property',
         body: [

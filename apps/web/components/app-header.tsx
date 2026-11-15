@@ -33,6 +33,7 @@ export function AppHeader({ children, center }: AppHeaderProps) {
   const locale = useLocale()
   const t = useTranslations('Nav')
   const tRoles = useTranslations('Roles')
+  const tBilling = useTranslations('Billing')
   const { data: me } = useMe(true)
   const { effectiveTheme, toggle: toggleTheme } = useTheme()
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
@@ -182,7 +183,7 @@ export function AppHeader({ children, center }: AppHeaderProps) {
                       </p>
                     </div>
                     <span className="shrink-0 rounded-full bg-paper px-2 py-0.5 text-[10px] font-mono font-medium uppercase tracking-wider text-ink-soft border border-hairline">
-                      {me.plan || 'Free'}
+                      {planLabel(me.plan, tBilling)}
                     </span>
                   </div>
 
@@ -279,4 +280,12 @@ function roleLabel(role: string, t: (key: string) => string) {
     proofreader: 'proofreader',
   }[role]
   return key ? t(key) : role
+}
+
+function planLabel(plan: string | undefined, tBilling: (key: string) => string) {
+  const normalized = (plan || 'free').toLowerCase()
+  if (normalized === 'free' || normalized === 'creator' || normalized === 'team' || normalized === 'studio') {
+    return tBilling(normalized)
+  }
+  return plan || tBilling('free')
 }

@@ -5,14 +5,12 @@ import { Loader2, RotateCcw, Type, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/field'
 import { StatusBadge } from '@/components/ui/status'
-import { useTranslations } from '@/i18n/provider'
+import { useLocale, useTranslations } from '@/i18n/provider'
 import { api } from '@/lib/api'
 import {
-  FONTS_LIST,
-  COLOR_SWATCHES,
-  FONT_SIZE_SCALES,
-  STROKE_OPTIONS,
-  STROKE_WIDTHS,
+  getFontsList,
+  getColorSwatches,
+  getFontSizeScales,
   normalizeFontId,
 } from '@/lib/fonts'
 import type { OcrBlock, Page, TranslationMemoryMatch } from '@/lib/types'
@@ -116,6 +114,11 @@ function BlockItem({
   run,
 }: Props & { block: OcrBlock; index: number }) {
   const t = useTranslations('Editor')
+  const locale = useLocale()
+  const isEn = locale === 'en'
+  const fontsList = getFontsList(locale)
+  const colorSwatches = getColorSwatches(locale)
+  const fontSizeScales = getFontSizeScales(locale)
   const active = activeId === block.id
   const ref = useRef<HTMLLIElement>(null)
   const [original, setOriginal] = useState(block.text)
@@ -135,13 +138,21 @@ function BlockItem({
   const saving = busy === `save:${block.id}`
   const retranslating = busy === `retranslate:${block.id}`
 
-  const TYPE_CONFIG = {
-    B: { label: 'B', fullName: 'Standard bubble', color: 'bg-muted text-ink' },
-    DB: { label: 'DB', fullName: 'Double bubble (//)', color: 'bg-blue-100 text-blue-900 border border-blue-300' },
-    C: { label: 'C', fullName: 'Narration box', color: 'bg-indigo-100 text-indigo-900 border border-indigo-300' },
-    HB: { label: 'HB', fullName: 'Off-bubble (floating)', color: 'bg-amber-100 text-amber-900 border border-amber-300' },
-    SFX: { label: 'SFX', fullName: 'Sound effect', color: 'bg-rose-100 text-rose-900 border border-rose-300' },
-  } as const
+  const TYPE_CONFIG = isEn
+    ? ({
+        B: { label: 'B', fullName: 'Standard bubble', color: 'bg-muted text-ink' },
+        DB: { label: 'DB', fullName: 'Double bubble (//)', color: 'bg-blue-100 text-blue-900 border border-blue-300' },
+        C: { label: 'C', fullName: 'Narration box', color: 'bg-indigo-100 text-indigo-900 border border-indigo-300' },
+        HB: { label: 'HB', fullName: 'Off-bubble (floating)', color: 'bg-amber-100 text-amber-900 border border-amber-300' },
+        SFX: { label: 'SFX', fullName: 'Sound effect', color: 'bg-rose-100 text-rose-900 border border-rose-300' },
+      } as const)
+    : ({
+        B: { label: 'B', fullName: 'Bulle standard', color: 'bg-muted text-ink' },
+        DB: { label: 'DB', fullName: 'Double bulle (//)', color: 'bg-blue-100 text-blue-900 border border-blue-300' },
+        C: { label: 'C', fullName: 'Récitatif / Encadré', color: 'bg-indigo-100 text-indigo-900 border border-indigo-300' },
+        HB: { label: 'HB', fullName: 'Hors-bulle (flottant)', color: 'bg-amber-100 text-amber-900 border border-amber-300' },
+        SFX: { label: 'SFX', fullName: 'Effet sonore (Onomatopée)', color: 'bg-rose-100 text-rose-900 border border-rose-300' },
+      } as const)
 
   async function handleTypeChange(newType: string) {
     setBubbleType(newType)
@@ -217,7 +228,7 @@ function BlockItem({
   }, [active, projectId, block.text])
 
   async function save() {
-    await run(`save:${block.id}`, `Bubble ${index + 1} saved.`, async () => {
+    await run(`save:${block.id}`, isEn ? `Bubble ${index + 1} saved.` : `Bulle ${index + 1} enregistrée.`, async () => {
       if (dirtyOriginal) await api.updateBlockText(block.id, original.trim())
       if (dirtyTranslation && block.translation) await api.updateTranslation(block.translation.id, translation.trim())
     })
@@ -249,7 +260,7 @@ function BlockItem({
           {index + 1}
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-1 break-words">
-          <span className="sr-only">Bubble {index + 1}.</span>
+          <span className="sr-only">{isEn ? `Bubble ${index + 1}.` : `Bulle ${index + 1}.`}</span>
           <span lang={sourceLang} className="line-clamp-2 break-words text-sm text-ink-soft">
             {block.text}
           </span>
@@ -290,42 +301,52 @@ function BlockItem({
           {/* Scanlation classification picker (FlameScans / Leviathan style) */}
           <div className="flex min-w-0 flex-col gap-1.5 rounded border border-hairline bg-paper/60 p-2.5">
             <div className="flex flex-wrap items-center justify-between gap-1">
-              <span className="label-mono text-ink-soft">Scanlation classification</span>
+              <span className="label-mono text-ink-soft">
+                {isEn ? 'Scanlation classification' : 'Classification scanlation'}
+              </span>
               <span className="font-mono text-[11px] font-medium text-seal">
                 {TYPE_CONFIG[bubbleType as keyof typeof TYPE_CONFIG]?.fullName}
               </span>
             </div>
             <div className="flex flex-wrap gap-1 pt-1">
-              {(['B', 'DB', 'C', 'HB', 'SFX'] as const).map((t) => (
+              {(['B', 'DB', 'C', 'HB', 'SFX'] as const).map((bt) => (
                 <button
-                  key={t}
+                  key={bt}
                   type="button"
-                  onClick={() => handleTypeChange(t)}
+                  onClick={() => handleTypeChange(bt)}
                   className={cn(
                     'rounded px-2.5 py-1 text-xs font-mono font-bold transition-all',
-                    bubbleType === t
+                    bubbleType === bt
                       ? 'bg-seal text-seal-ink ring-1 ring-seal shadow-sm'
                       : 'border border-hairline bg-sheet text-ink-soft hover:bg-muted hover:text-ink'
                   )}
-                  title={TYPE_CONFIG[t].fullName}
+                  title={TYPE_CONFIG[bt].fullName}
                 >
-                  {t}
+                  {bt}
                 </button>
               ))}
             </div>
             {bubbleType === 'DB' && (
               <p className="mt-1 text-[11px] text-seal italic break-words">
-                💡 Scanlation rule: separate the two sentence parts with a double slash <strong>//</strong>
+                {isEn ? (
+                  <>💡 Scanlation rule: separate the two sentence parts with a double slash <strong>//</strong></>
+                ) : (
+                  <>💡 Règle scanlation : séparez les deux parties de la phrase par un double slash <strong>//</strong></>
+                )}
               </p>
             )}
             {bubbleType === 'HB' && (
               <p className="mt-1 text-[11px] text-amber-800 italic break-words">
-                💡 Off-bubble text over artwork: apply an outline (stroke) to keep it readable.
+                {isEn
+                  ? '💡 Off-bubble text over artwork: apply an outline (stroke) to keep it readable.'
+                  : '💡 Texte hors-bulle sur le dessin : appliquez un contour (stroke) pour le garder lisible.'}
               </p>
             )}
             {bubbleType === 'SFX' && (
               <p className="mt-1 text-[11px] text-rose-800 italic break-words">
-                💡 Sound effect / onomatopoeia: adapt or preserve it following the team guidelines.
+                {isEn
+                  ? '💡 Sound effect / onomatopoeia: adapt or preserve it following the team guidelines.'
+                  : '💡 Effet sonore / onomatopée : adaptez-le ou conservez-le selon les consignes de l’équipe.'}
               </p>
             )}
           </div>
@@ -335,17 +356,17 @@ function BlockItem({
             <div className="flex items-center justify-between gap-1">
               <span className="label-mono text-ink-soft flex items-center gap-1.5">
                 <Type className="size-3.5 text-seal" />
-                <span>Typographie</span>
+                <span>{isEn ? 'Typography' : 'Typographie'}</span>
               </span>
               <span className="font-mono text-[10px] text-ink-soft">
-                {FONTS_LIST.find((f) => f.id === normalizeFontId(manhwaStyle))?.shortLabel || 'Standard'}
+                {fontsList.find((f) => f.id === normalizeFontId(manhwaStyle))?.shortLabel || 'Standard'}
               </span>
             </div>
 
             {/* Choix de la police */}
             <div className="flex flex-col gap-1">
               <label htmlFor={`font-${block.id}`} className="text-[11px] font-semibold text-ink-soft">
-                Police de caractères :
+                {isEn ? 'Typeface:' : 'Police de caractères :'}
               </label>
               <select
                 id={`font-${block.id}`}
@@ -369,7 +390,7 @@ function BlockItem({
                 }}
                 className="w-full rounded border border-hairline bg-sheet px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-seal"
               >
-                {FONTS_LIST.map((f) => (
+                {fontsList.map((f) => (
                   <option key={f.id} value={f.id}>
                     {f.name}
                   </option>
@@ -380,10 +401,10 @@ function BlockItem({
             {/* Raccourcis styles */}
             <div className="flex flex-wrap gap-1">
               {[
-                { id: 'cinzel', label: 'Carré noir', icon: '🏛️' },
+                { id: 'cinzel', label: isEn ? 'Black box' : 'Carré noir', icon: '🏛️' },
                 { id: 'comic-neue', label: 'Dialogue', icon: '💬' },
-                { id: 'bangers', label: 'Cris', icon: '💥' },
-                { id: 'cormorant', label: 'Pensée', icon: '💭' },
+                { id: 'bangers', label: isEn ? 'Shout' : 'Cris', icon: '💥' },
+                { id: 'cormorant', label: isEn ? 'Thought' : 'Pensée', icon: '💭' },
                 { id: 'permanent-marker', label: 'SFX', icon: '⚡' },
               ].map((p) => (
                 <button
@@ -422,7 +443,7 @@ function BlockItem({
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-hairline">
               {/* Taille */}
               <div className="flex items-center gap-1">
-                <span className="text-[11px] font-semibold text-ink-soft">Taille :</span>
+                <span className="text-[11px] font-semibold text-ink-soft">{isEn ? 'Size:' : 'Taille :'}</span>
                 <button
                   type="button"
                   onClick={() => {
@@ -430,7 +451,7 @@ function BlockItem({
                     handleStyleChange({ font_size_scale: next })
                   }}
                   className="size-5 rounded border border-hairline bg-sheet text-ink hover:bg-muted font-bold text-[10px] grid place-items-center"
-                  title="Réduire"
+                  title={isEn ? 'Decrease' : 'Réduire'}
                 >
                   -
                 </button>
@@ -439,12 +460,12 @@ function BlockItem({
                   onChange={(e) => handleStyleChange({ font_size_scale: Number(e.target.value) })}
                   className="rounded border border-hairline bg-sheet px-1 py-0.5 text-[11px] font-semibold"
                 >
-                  {FONT_SIZE_SCALES.map((s) => (
+                  {fontSizeScales.map((s) => (
                     <option key={s.value} value={s.value}>
                       {s.label.split(' ')[0]}
                     </option>
                   ))}
-                  {!FONT_SIZE_SCALES.some((s) => s.value === fontSizeScale) && (
+                  {!fontSizeScales.some((s) => s.value === fontSizeScale) && (
                     <option value={fontSizeScale}>{Math.round(fontSizeScale * 100)}%</option>
                   )}
                 </select>
@@ -455,7 +476,7 @@ function BlockItem({
                     handleStyleChange({ font_size_scale: next })
                   }}
                   className="size-5 rounded border border-hairline bg-sheet text-ink hover:bg-muted font-bold text-[10px] grid place-items-center"
-                  title="Agrandir"
+                  title={isEn ? 'Increase' : 'Agrandir'}
                 >
                   +
                 </button>
@@ -463,8 +484,8 @@ function BlockItem({
 
               {/* Couleur */}
               <div className="flex items-center gap-1">
-                <span className="text-[11px] font-semibold text-ink-soft">Couleur :</span>
-                {COLOR_SWATCHES.slice(0, 5).map((swatch) => (
+                <span className="text-[11px] font-semibold text-ink-soft">{isEn ? 'Color:' : 'Couleur :'}</span>
+                {colorSwatches.slice(0, 5).map((swatch) => (
                   <button
                     key={swatch.value}
                     type="button"
@@ -489,7 +510,7 @@ function BlockItem({
                   value={textColor}
                   onChange={(e) => handleStyleChange({ text_color: e.target.value })}
                   className="size-4 cursor-pointer rounded border border-hairline bg-transparent p-0"
-                  title="Couleur personnalisée"
+                  title={isEn ? 'Custom color' : 'Couleur personnalisée'}
                 />
               </div>
             </div>
@@ -498,7 +519,7 @@ function BlockItem({
           {/* Contrôle de rotation du texte (-180° à +180°) directement dans la fiche de la bulle */}
           <div className="flex min-w-0 flex-col gap-2 rounded border border-hairline bg-paper/60 p-2.5">
             <div className="flex flex-wrap items-center justify-between gap-1">
-              <span className="label-mono text-ink-soft">Rotation du texte</span>
+              <span className="label-mono text-ink-soft">{isEn ? 'Text rotation' : 'Rotation du texte'}</span>
               <span className="font-mono text-[11px] font-bold text-seal">
                 {rotationAngle > 0 ? `+${rotationAngle}°` : `${rotationAngle}°`}
               </span>
@@ -535,7 +556,7 @@ function BlockItem({
               value={rotationAngle}
               onChange={(e) => handleRotationChange(Number(e.target.value))}
               className="w-full accent-seal cursor-pointer"
-              aria-label="Angle de rotation du texte"
+              aria-label={isEn ? 'Text rotation angle' : 'Angle de rotation du texte'}
             />
           </div>
           {lowConfidence && (
@@ -568,7 +589,13 @@ function BlockItem({
                   size="sm"
                   className="-mr-2 h-7 text-xs"
                   disabled={busy !== null}
-                  onClick={() => run(`retranslate:${block.id}`, `Bubble ${index + 1} retranslated.`, () => api.retranslate(block.id))}
+                  onClick={() =>
+                    run(
+                      `retranslate:${block.id}`,
+                      isEn ? `Bubble ${index + 1} retranslated.` : `Bulle ${index + 1} retraduite.`,
+                      () => api.retranslate(block.id),
+                    )
+                  }
                 >
                   {retranslating ? <Loader2 className="animate-spin" aria-hidden="true" /> : <RotateCcw aria-hidden="true" />}
                   {t('retranslate')}
@@ -597,7 +624,7 @@ function BlockItem({
               {tmMatches.length > 0 && (
                 <div className="mt-1 rounded border border-hairline bg-paper/70 p-2 text-xs">
                   <span className="label-mono block text-[10px] text-ink-soft mb-1">
-                    Translation Memory ({tmMatches.length})
+                    {isEn ? `Translation Memory (${tmMatches.length})` : `Mémoire de traduction (${tmMatches.length})`}
                   </span>
                   <ul className="flex flex-col gap-1.5">
                     {tmMatches.map((m, idx) => (
@@ -610,9 +637,13 @@ function BlockItem({
                           type="button"
                           onClick={() => setTranslation(m.translated_text)}
                           className="shrink-0 rounded border border-hairline bg-sheet px-1.5 py-0.5 font-mono text-[10px] font-semibold hover:bg-muted"
-                          title={`Similarity ${Math.round(m.similarity * 100)}% (${m.project_name})`}
+                          title={
+                            isEn
+                              ? `Similarity ${Math.round(m.similarity * 100)}% (${m.project_name})`
+                              : `Similarité ${Math.round(m.similarity * 100)}% (${m.project_name})`
+                          }
                         >
-                          {Math.round(m.similarity * 100)}% · Use
+                          {Math.round(m.similarity * 100)}% · {isEn ? 'Use' : 'Utiliser'}
                         </button>
                       </li>
                     ))}
@@ -645,10 +676,20 @@ function BlockItem({
               size="sm"
               variant="ghost"
               className="text-danger hover:bg-danger-wash"
-              title="Skip this bubble (don't clean or translate it)"
+              title={isEn ? "Skip this bubble (don't clean or translate it)" : 'Ignorer cette bulle (ne pas la nettoyer ni la traduire)'}
               onClick={async () => {
-                if (window.confirm('Exclude this bubble? It will not be cleaned when the page is processed.')) {
-                  await run(`delete:${block.id}`, 'Bubble excluded from cleaning.', () => api.deleteBlock(block.id))
+                if (
+                  window.confirm(
+                    isEn
+                      ? 'Exclude this bubble? It will not be cleaned when the page is processed.'
+                      : 'Exclure cette bulle ? Elle ne sera pas nettoyée lors du traitement de la page.',
+                  )
+                ) {
+                  await run(
+                    `delete:${block.id}`,
+                    isEn ? 'Bubble excluded from cleaning.' : 'Bulle exclue du nettoyage.',
+                    () => api.deleteBlock(block.id),
+                  )
                   if (activeId === block.id) onActivate(null)
                 }
               }}

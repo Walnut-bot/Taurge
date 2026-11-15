@@ -18,10 +18,23 @@ const now = () => new Date().toISOString()
 type DemoProject = ProjectDetail
 type ImageSource = { original: string; cleaned?: string }
 
+function getDemoLocale(): 'fr' | 'en' {
+  if (typeof window !== 'undefined') {
+    const cookie = document.cookie
+      .split('; ')
+      .find((entry) => entry.startsWith('NEXT_LOCALE='))
+      ?.split('=')[1]
+    if (cookie === 'en' || cookie === 'fr') return cookie
+    const segment = window.location.pathname.split('/')[1]
+    if (segment === 'en') return 'en'
+  }
+  return 'fr'
+}
+
 let demoUser: User = { id: 'demo-user', email: 'demo@taurge.app' }
 const profileMedia = new Map<'avatar' | 'banner', File>()
 
-const KNOWN_TRANSLATIONS: Record<string, string> = {
+const KNOWN_TRANSLATIONS_EN: Record<string, string> = {
   'らっしゃい！特製醤油、お待たせしました！': 'Welcome in! Here comes your house shoyu!',
   'ほか…': 'Steaming…',
   'わぁ、美味しそう！いただきます！': 'Wow, that looks so good! Thanks for the food!',
@@ -30,6 +43,21 @@ const KNOWN_TRANSLATIONS: Record<string, string> = {
   '…やっぱり、この街は寂しいな。': '…Honestly, this town is so gloomy.',
   'えっ、きみ…！？': 'Huh, you…!?',
   '傘、一緒に入りなよ。': 'Come share my umbrella.',
+  '（デモ）テキストを検出しました': '(Demo) Text detected in this bubble.',
+  '（デモ）二つ目の吹き出し': '(Demo) Second speech bubble.',
+}
+
+const KNOWN_TRANSLATIONS_FR: Record<string, string> = {
+  'らっしゃい！特製醤油、お待たせしました！': 'Bienvenue ! Voici votre ramen shoyu maison !',
+  'ほか…': 'Fumant…',
+  'わぁ、美味しそう！いただきます！': 'Oh, ça a l’air délicieux ! Bon appétit !',
+  'その日も、暖かな灯りに誘われて、いつもの店へ。':
+    'Ce jour-là encore, attiré par la lueur chaleureuse, j’ai poussé la porte de mon petit restaurant habituel.',
+  '…やっぱり、この街は寂しいな。': '…Décidément, cette ville est bien triste.',
+  'えっ、きみ…！？': 'Hein, toi… !?',
+  '傘、一緒に入りなよ。': 'Viens sous mon parapluie.',
+  '（デモ）テキストを検出しました': '(Démo) Texte détecté dans cette bulle.',
+  '（デモ）二つ目の吹き出し': '(Démo) Deuxième bulle de dialogue.',
 }
 
 function block(
@@ -65,14 +93,14 @@ function seed() {
     cleaned_at: now(),
     ocr_blocks: [
       block('…やっぱり、この街は寂しいな。', [140, 90, 175, 245], 0.91, {
-        translated_text: '…Honestly, this town is so gloomy.',
+        translated_text: '…Décidément, cette ville est bien triste.',
         edited_by_user: true,
       }),
       block('えっ、きみ…！？', [600, 630, 135, 175], 0.84, {
-        translated_text: 'Huh, you…!?',
+        translated_text: 'Hein, toi… !?',
       }),
       block('傘、一緒に入りなよ。', [625, 895, 140, 195], 0.88, {
-        translated_text: 'Come share my umbrella.',
+        translated_text: 'Viens sous mon parapluie.',
       }),
     ],
   }
@@ -100,9 +128,9 @@ function seed() {
   const projects: DemoProject[] = [
     {
       id: 'pluie-koenji',
-      name: 'Rain over Kōenji — Chapter 1',
+      name: 'Pluie sur Kōenji — Chapitre 1',
       source_lang: 'ja',
-      target_lang: 'en',
+      target_lang: 'fr',
       content_type: 'manga',
       created_at: new Date(Date.now() - 1000 * 60 * 60 * 26).toISOString(),
       files: [
@@ -119,9 +147,9 @@ function seed() {
     },
     {
       id: 'hors-serie',
-      name: 'Morning Bubbles — One-shot',
+      name: 'Bulles du matin — One-shot',
       source_lang: 'ko',
-      target_lang: 'en',
+      target_lang: 'fr',
       content_type: 'webtoon',
       created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 6).toISOString(),
       files: [],
@@ -135,15 +163,38 @@ function seed() {
 
 let state = seed()
 
+function localizeProjectForView<T extends Project | ProjectDetail>(proj: T): T {
+  const isEn = getDemoLocale() === 'en'
+  const copy = structuredClone(proj)
+  if (copy.id === 'pluie-koenji') {
+    copy.name = isEn ? 'Rain over Kōenji — Chapter 1' : 'Pluie sur Kōenji — Chapitre 1'
+  } else if (copy.id === 'hors-serie') {
+    copy.name = isEn ? 'Morning Bubbles — One-shot' : 'Bulles du matin — One-shot'
+  }
+  if ('pages' in copy) {
+    for (const p of copy.pages) {
+      for (const b of p.ocr_blocks) {
+        if (b.translation && !b.translation.edited_by_user) {
+          const dict = isEn ? KNOWN_TRANSLATIONS_EN : KNOWN_TRANSLATIONS_FR
+          if (dict[b.text]) {
+            b.translation.translated_text = dict[b.text]
+          }
+        }
+      }
+    }
+  }
+  return copy
+}
+
 function findProject(id: string) {
   const p = state.projects.find((x) => x.id === id)
-  if (!p) throw new Error('Project not found.')
+  if (!p) throw new Error(getDemoLocale() === 'en' ? 'Project not found.' : 'Projet introuvable.')
   return p
 }
 
 function findPage(projectId: string, pageId: string) {
   const page = findProject(projectId).pages.find((p) => p.id === pageId)
-  if (!page) throw new Error('Page not found.')
+  if (!page) throw new Error(getDemoLocale() === 'en' ? 'Page not found.' : 'Page introuvable.')
   return page
 }
 
@@ -151,7 +202,7 @@ function findBlock(blockId: string) {
   for (const p of state.projects)
     for (const page of p.pages)
       for (const b of page.ocr_blocks) if (b.id === blockId) return { block: b, project: p }
-  throw new Error('Block not found.')
+  throw new Error(getDemoLocale() === 'en' ? 'Block not found.' : 'Bulle introuvable.')
 }
 
 function clone<T>(v: T): T {
@@ -159,20 +210,28 @@ function clone<T>(v: T): T {
 }
 
 function fakeTranslate(text: string, target: string) {
-  return KNOWN_TRANSLATIONS[text] ?? `[${target}] ${text}`
+  const useEn = target === 'en' || (target !== 'fr' && getDemoLocale() === 'en')
+  const dict = useEn ? KNOWN_TRANSLATIONS_EN : KNOWN_TRANSLATIONS_FR
+  return dict[text] ?? `[${target}] ${text}`
 }
 
 export const demo = {
   async login(email: string, password: string) {
     await wait(450)
-    if (!email.includes('@')) throw new Error('Invalid email address.')
-    if (password.length < 8) throw new Error('Incorrect email or password.')
+    const isEn = getDemoLocale() === 'en'
+    if (!email.includes('@')) throw new Error(isEn ? 'Invalid email address.' : 'Adresse e-mail invalide.')
+    if (password.length < 8) throw new Error(isEn ? 'Incorrect email or password.' : 'E-mail ou mot de passe incorrect.')
     return 'demo-token'
   },
   async register(email: string, password: string) {
     await wait(500)
-    if (!email.includes('@')) throw new Error('Invalid email address.')
-    if (password.length < 8) throw new Error('Password must be at least 8 characters.')
+    const isEn = getDemoLocale() === 'en'
+    if (!email.includes('@')) throw new Error(isEn ? 'Invalid email address.' : 'Adresse e-mail invalide.')
+    if (password.length < 8) {
+      throw new Error(
+        isEn ? 'Password must be at least 8 characters.' : 'Le mot de passe doit contenir au moins 8 caractères.',
+      )
+    }
   },
   async me() {
     await wait(120)
@@ -193,7 +252,7 @@ export const demo = {
   async profileImage(kind: 'avatar' | 'banner') {
     await wait(80)
     const file = profileMedia.get(kind)
-    if (!file) throw new Error('No profile image.')
+    if (!file) throw new Error(getDemoLocale() === 'en' ? 'No profile image.' : 'Aucune image de profil.')
     return file
   },
   async deleteProfileImage(kind: 'avatar' | 'banner') {
@@ -206,12 +265,16 @@ export const demo = {
   async listProjects(): Promise<Project[]> {
     await wait(250)
     return state.projects
-      .map(({ files: _f, pages: _p, exports: _e, ...rest }) => rest)
+      .map((proj) => {
+        const localized = localizeProjectForView(proj)
+        const { files: _f, pages: _p, exports: _e, ...rest } = localized
+        return rest
+      })
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
   },
   async getProject(id: string): Promise<ProjectDetail> {
     await wait(220)
-    return clone(findProject(id))
+    return localizeProjectForView(findProject(id))
   },
   async createProject(payload: ProjectCreate): Promise<Project> {
     await wait(400)
@@ -245,7 +308,7 @@ export const demo = {
     await wait(1100)
     const project = findProject(projectId)
     const file = project.files.find((f) => f.id === fileId)
-    if (!file) throw new Error('File not found.')
+    if (!file) throw new Error(getDemoLocale() === 'en' ? 'File not found.' : 'Fichier introuvable.')
     const sources =
       file.file_type === 'pdf'
         ? ['/demo/page-01.png', '/demo/page-02.png']
@@ -273,8 +336,8 @@ export const demo = {
       page.ocr_blocks = seed().projects[0].pages[1].ocr_blocks
     } else {
       page.ocr_blocks = [
-        block('ï¼ˆãƒ‡ãƒ¢ï¼‰ãƒ†ã‚­ã‚¹ãƒˆã‚’æ¤œå‡ºã—ã¾ã—ãŸ', [120, 110, 180, 220], 0.74),
-        block('ï¼ˆãƒ‡ãƒ¢ï¼‰äºŒã¤ç›®ã®å¹ãå‡ºã—', [560, 640, 160, 190], 0.68),
+        block('（デモ）テキストを検出しました', [120, 110, 180, 220], 0.74),
+        block('（デモ）二つ目の吹き出し', [560, 640, 160, 190], 0.68),
       ]
     }
   },
@@ -311,7 +374,7 @@ export const demo = {
             b.translation.edited_by_user = true
             return
           }
-    throw new Error('Translation not found.')
+    throw new Error(getDemoLocale() === 'en' ? 'Translation not found.' : 'Traduction introuvable.')
   },
   async retranslate(blockId: string) {
     await wait(900)
@@ -331,11 +394,14 @@ export const demo = {
   },
   async downloadExport(projectId: string, filename: string) {
     const project = findProject(projectId)
+    const isEn = getDemoLocale() === 'en'
     const payload = {
       project: project.name,
       source_lang: project.source_lang,
       target_lang: project.target_lang,
-      note: 'Demo export — the real export is a ZIP (cleaned pages + JSON).',
+      note: isEn
+        ? 'Demo export — the real export is a ZIP (cleaned pages + JSON).'
+        : 'Export de démonstration — le véritable export est une archive ZIP (planches nettoyées + JSON).',
       pages: project.pages.map((p) => ({
         page_number: p.page_number,
         blocks: p.ocr_blocks.map((b) => ({
@@ -355,4 +421,3 @@ export const demo = {
     state = seed()
   },
 }
-

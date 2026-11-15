@@ -5,22 +5,33 @@ import { Button } from '@/components/ui/button'
 import { Input, Label } from '@/components/ui/field'
 import type { Settings } from './use-settings'
 
-function getPasswordStrength(pw: string): { label: string; score: number; color: string } {
-  if (!pw) return { label: '8 caractères minimum', score: 0, color: 'bg-hairline' }
+function getPasswordStrength(
+  pw: string,
+  locale: string,
+): { label: string; score: number; color: string } {
+  const isEn = locale === 'en'
+  if (!pw) {
+    return {
+      label: isEn ? '8 characters minimum' : '8 caractères minimum',
+      score: 0,
+      color: 'bg-hairline',
+    }
+  }
   let score = 0
   if (pw.length >= 8) score += 1
   if (pw.length >= 12) score += 1
   if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score += 1
   if (/\d/.test(pw) || /[^A-Za-z0-9]/.test(pw)) score += 1
 
-  if (score <= 1) return { label: 'Faible', score: 25, color: 'bg-danger' }
-  if (score === 2) return { label: 'Moyen', score: 50, color: 'bg-amber' }
-  if (score === 3) return { label: 'Robuste', score: 75, color: 'bg-moss' }
-  return { label: 'Excellent', score: 100, color: 'bg-moss' }
+  if (score <= 1) return { label: isEn ? 'Weak' : 'Faible', score: 25, color: 'bg-danger' }
+  if (score === 2) return { label: isEn ? 'Medium' : 'Moyen', score: 50, color: 'bg-amber' }
+  if (score === 3) return { label: isEn ? 'Strong' : 'Robuste', score: 75, color: 'bg-moss' }
+  return { label: isEn ? 'Excellent' : 'Excellent', score: 100, color: 'bg-moss' }
 }
 
 export function SecurityTab({ s }: { s: Settings }) {
-  const strength = getPasswordStrength(s.newPassword)
+  const isEn = s.locale === 'en'
+  const strength = getPasswordStrength(s.newPassword, s.locale)
 
   return (
     <div className="space-y-6">
@@ -29,16 +40,20 @@ export function SecurityTab({ s }: { s: Settings }) {
         <div className="border-b border-hairline pb-4">
           <h2 className="text-lg font-semibold text-ink flex items-center gap-2">
             <KeyRound className="size-4 text-seal" />
-            <span>Modifier votre mot de passe</span>
+            <span>{isEn ? 'Change your password' : 'Modifier votre mot de passe'}</span>
           </h2>
           <p className="mt-1 text-xs text-ink-soft">
-            Choisissez un mot de passe robuste d’au moins 8 caractères pour sécuriser votre compte et vos projets.
+            {isEn
+              ? 'Choose a strong password of at least 8 characters to secure your account and projects.'
+              : 'Choisissez un mot de passe robuste d’au moins 8 caractères pour sécuriser votre compte et vos projets.'}
           </p>
         </div>
 
         <form onSubmit={s.handleChangePassword} className="space-y-4 max-w-md">
           <div>
-            <Label htmlFor="sec-current-pw">Mot de passe actuel</Label>
+            <Label htmlFor="sec-current-pw">
+              {isEn ? 'Current password' : 'Mot de passe actuel'}
+            </Label>
             <Input
               id="sec-current-pw"
               type="password"
@@ -53,7 +68,9 @@ export function SecurityTab({ s }: { s: Settings }) {
 
           <div>
             <div className="flex items-center justify-between">
-              <Label htmlFor="sec-new-pw">Nouveau mot de passe</Label>
+              <Label htmlFor="sec-new-pw">
+                {isEn ? 'New password' : 'Nouveau mot de passe'}
+              </Label>
               <span className="font-mono text-[11px] text-ink-soft">{strength.label}</span>
             </div>
             <Input
@@ -64,7 +81,7 @@ export function SecurityTab({ s }: { s: Settings }) {
               autoComplete="new-password"
               value={s.newPassword}
               onChange={(e) => s.setNewPassword(e.target.value)}
-              placeholder="Minimum 8 caractères"
+              placeholder={isEn ? 'Minimum 8 characters' : 'Minimum 8 caractères'}
               className="mt-1.5"
             />
             <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full border border-hairline bg-sheet">
@@ -76,7 +93,9 @@ export function SecurityTab({ s }: { s: Settings }) {
           </div>
 
           <div>
-            <Label htmlFor="sec-confirm-pw">Confirmer le nouveau mot de passe</Label>
+            <Label htmlFor="sec-confirm-pw">
+              {isEn ? 'Confirm new password' : 'Confirmer le nouveau mot de passe'}
+            </Label>
             <Input
               id="sec-confirm-pw"
               type="password"
@@ -85,7 +104,7 @@ export function SecurityTab({ s }: { s: Settings }) {
               autoComplete="new-password"
               value={s.confirmPassword}
               onChange={(e) => s.setConfirmPassword(e.target.value)}
-              placeholder="Répétez le nouveau mot de passe"
+              placeholder={isEn ? 'Repeat the new password' : 'Répétez le nouveau mot de passe'}
               className="mt-1.5"
             />
           </div>
@@ -101,7 +120,7 @@ export function SecurityTab({ s }: { s: Settings }) {
               ) : (
                 <KeyRound className="size-3.5" />
               )}
-              <span>Mettre à jour le mot de passe</span>
+              <span>{isEn ? 'Update password' : 'Mettre à jour le mot de passe'}</span>
             </Button>
           </div>
         </form>
@@ -114,20 +133,30 @@ export function SecurityTab({ s }: { s: Settings }) {
             <div className="flex items-center gap-2">
               <h2 className="text-base font-semibold text-ink flex items-center gap-2">
                 <ShieldCheck className="size-4 text-moss" />
-                <span>Session active sur cet appareil</span>
+                <span>
+                  {isEn ? 'Active session on this device' : 'Session active sur cet appareil'}
+                </span>
               </h2>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-moss/30 bg-moss/10 px-2.5 py-0.5 text-[11px] font-medium text-moss">
                 <span className="size-1.5 rounded-full bg-moss" />
-                Connecté
+                {isEn ? 'Connected' : 'Connecté'}
               </span>
             </div>
             <p className="mt-1 text-xs text-ink-soft">
-              Authentifié en tant que <span className="font-mono text-ink">{s.me?.email}</span> via jeton JWT sécurisé.
+              {isEn ? (
+                <>
+                  Authenticated as <span className="font-mono text-ink">{s.me?.email}</span> via secure JWT token.
+                </>
+              ) : (
+                <>
+                  Authentifié en tant que <span className="font-mono text-ink">{s.me?.email}</span> via jeton JWT sécurisé.
+                </>
+              )}
             </p>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={s.logout} className="self-start sm:self-center">
             <LogOut className="size-3.5" />
-            <span>Se déconnecter</span>
+            <span>{isEn ? 'Sign out' : 'Se déconnecter'}</span>
           </Button>
         </div>
       </section>
@@ -137,10 +166,14 @@ export function SecurityTab({ s }: { s: Settings }) {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="max-w-xl">
             <h2 className="text-base font-semibold text-ink">
-              Portabilité de vos données personnelles (RGPD Art. 20)
+              {isEn
+                ? 'Personal data portability (GDPR Art. 20)'
+                : 'Portabilité de vos données personnelles (RGPD Art. 20)'}
             </h2>
             <p className="mt-1 text-xs text-ink-soft">
-              Téléchargez une archive JSON structurée contenant votre profil, votre abonnement, la liste de vos projets, vos entrées de glossaire et votre historique d’opérations IA.
+              {isEn
+                ? 'Download a structured JSON archive containing your profile, subscription, project list, glossary entries and AI operation history.'
+                : 'Téléchargez une archive JSON structurée contenant votre profil, votre abonnement, la liste de vos projets, vos entrées de glossaire et votre historique d’opérations IA.'}
             </p>
           </div>
           <Button
@@ -156,7 +189,7 @@ export function SecurityTab({ s }: { s: Settings }) {
             ) : (
               <Download className="size-3.5" />
             )}
-            <span>Exporter mes données (.json)</span>
+            <span>{isEn ? 'Export my data (.json)' : 'Exporter mes données (.json)'}</span>
           </Button>
         </div>
       </section>
@@ -166,17 +199,25 @@ export function SecurityTab({ s }: { s: Settings }) {
         <div>
           <h3 className="text-base font-semibold text-danger flex items-center gap-2">
             <Trash2 className="size-4" />
-            <span>Zone de danger — Droit à l’oubli (RGPD Art. 17)</span>
+            <span>
+              {isEn
+                ? 'Danger Zone — Right to erasure (GDPR Art. 17)'
+                : 'Zone de danger — Droit à l’oubli (RGPD Art. 17)'}
+            </span>
           </h3>
           <p className="mt-1 text-xs text-ink-soft">
-            La suppression de votre compte est immédiate et irréversible. Tous vos projets, planches importées, glossaires et traductions seront définitivement effacés de nos serveurs.
+            {isEn
+              ? 'Account deletion is immediate and irreversible. All your projects, imported pages, glossaries and translations will be permanently erased from our servers.'
+              : 'La suppression de votre compte est immédiate et irréversible. Tous vos projets, planches importées, glossaires et traductions seront définitivement effacés de nos serveurs.'}
           </p>
         </div>
 
         <div className="max-w-md space-y-4">
           <div>
             <Label htmlFor="sec-delete-email" className="text-xs">
-              Pour confirmer, saisissez votre adresse e-mail exacte (
+              {isEn
+                ? 'To confirm, enter your exact email address ('
+                : 'Pour confirmer, saisissez votre adresse e-mail exacte ('}
               <span className="font-mono font-semibold text-danger">{s.me?.email}</span>) :
             </Label>
             <Input
@@ -200,7 +241,9 @@ export function SecurityTab({ s }: { s: Settings }) {
             ) : (
               <Trash2 className="size-3.5" />
             )}
-            <span>Supprimer définitivement mon compte</span>
+            <span>
+              {isEn ? 'Permanently delete my account' : 'Supprimer définitivement mon compte'}
+            </span>
           </Button>
         </div>
       </section>

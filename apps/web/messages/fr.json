@@ -38,7 +38,7 @@
   "Roles": {
     "owner": "Propriétaire",
     "translator": "Traducteur",
-    "cleaner": "Clean",
+    "cleaner": "Nettoyage",
     "typesetter": "Lettrage",
     "proofreader": "Relecture"
   },
@@ -75,11 +75,13 @@
       },
       {
         "title": "Lettrage & export",
-        "body": "Lettrage auto-fit officiel, révision rideau QC, export immédiat en CBZ, PDF ou ZIP."
+        "body": "Calibrage automatique du lettrage, révision par rideau QC, export immédiat en CBZ, PDF ou ZIP."
       }
     ],
+    "whyEyebrow": "Studio de localisation nouvelle génération",
     "whyTitle": "Pensé de bout en bout pour la scanlation professionnelle",
     "whySubtitle": "De la détection de texte au lettrage final, tous les outils indispensables réunis dans une plateforme fluide et moderne.",
+    "includedInTaurge": "Inclus dans Taurge",
     "advantages": [
       {
         "badge": "Multi-moteurs IA",
@@ -88,13 +90,13 @@
       },
       {
         "badge": "Zéro résidu",
-        "title": "Nettoyage & Inpainting précis",
+        "title": "Nettoyage & reconstruction d'image précis",
         "body": "Effacement net des textes sur bulles claires et cartouches sombres. Trames et contours d'encre préservés à 100 % grâce aux moteurs Telea et LaMa ONNX."
       },
       {
         "badge": "Polices comics",
         "title": "Lettrage automatique & Styles",
-        "body": "Découpage harmonieux des lignes (Diamond wrap), rotation 360°, contour protecteur et styles spécialisés Dialogue, Cri, Pensée, Système et SFX."
+        "body": "Découpage harmonieux des lignes en losange, rotation 360°, contour protecteur et styles spécialisés Dialogue, Cri, Pensée, Système et SFX."
       },
       {
         "badge": "Contrôle qualité",
@@ -104,7 +106,7 @@
       {
         "badge": "Multi-utilisateurs",
         "title": "Collaboration d'équipe & Rôles",
-        "body": "Traducteur, Clean, Lettrage, Relecture : travaillez à plusieurs sur le même chapitre avec gestion fine des permissions, commentaires et historique des versions."
+        "body": "Traducteur, Nettoyage, Lettrage, Relecture : travaillez à plusieurs sur le même chapitre avec gestion fine des permissions, commentaires et historique des versions."
       },
       {
         "badge": "Prêt à publier",
@@ -165,7 +167,7 @@
   },
   "Demo": {
     "badge": "Démo",
-    "body": "Données fictives en mémoire, OCR et traduction simulés. Définissez NEXT_PUBLIC_API_URL pour brancher votre backend FastAPI."
+    "body": "Données fictives en mémoire, OCR et traduction simulés. Lancez le backend local (LANCER_TAURGE_EN_LIGNE_NGROK.bat) ou définissez NEXT_PUBLIC_API_URL pour brancher votre serveur FastAPI."
   },
   "Shell": {
     "dashboard": "Tableau de bord",
@@ -220,8 +222,8 @@
     "historyEmpty": "Aucune opération enregistrée pour le moment.",
     "creditsUnit": "crédits",
     "free": "Gratuit",
-    "creator": "Creator",
-    "team": "Team",
+    "creator": "Créateur",
+    "team": "Équipe",
     "studio": "Studio",
     "freeDesc": "Pour découvrir Taurge et tester le flux de localisation sur un petit projet.",
     "creatorDesc": "Pour les traducteurs indépendants qui travaillent régulièrement.",

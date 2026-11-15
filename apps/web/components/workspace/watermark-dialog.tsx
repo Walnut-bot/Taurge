@@ -6,15 +6,10 @@ import {
   Upload,
   Trash2,
   Check,
-  RotateCw,
-  Maximize2,
-  Eye,
-  Sliders,
-  Layers,
-  Sparkles,
   X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useLocale } from '@/i18n/provider'
 import type { WatermarkConfig, Page } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -26,13 +21,41 @@ interface WatermarkDialogProps {
   onApply: (config: WatermarkConfig | null, scope: 'single' | 'all') => Promise<void>
 }
 
-const PRESET_POSITIONS = [
-  { label: '↘ Bas-Droit (Standard scanlation)', x: 88, y: 92, short: '↘ Bas-Droit' },
-  { label: '↙ Bas-Gauche', x: 12, y: 92, short: '↙ Bas-Gauche' },
-  { label: '↗ Haut-Droit', x: 88, y: 8, short: '↗ Haut-Droit' },
-  { label: '↖ Haut-Gauche', x: 12, y: 8, short: '↖ Haut-Gauche' },
-  { label: '⊙ Centre', x: 50, y: 50, short: '⊙ Centre' },
-]
+function getPresetPositions(locale: string) {
+  const isEn = locale === 'en'
+  return [
+    {
+      label: isEn ? '↘ Bottom-Right (Standard)' : '↘ Bas-Droit (Standard)',
+      x: 88,
+      y: 92,
+      short: isEn ? '↘ Bottom-Right' : '↘ Bas-Droit',
+    },
+    {
+      label: isEn ? '↙ Bottom-Left' : '↙ Bas-Gauche',
+      x: 12,
+      y: 92,
+      short: isEn ? '↙ Bottom-Left' : '↙ Bas-Gauche',
+    },
+    {
+      label: isEn ? '↗ Top-Right' : '↗ Haut-Droit',
+      x: 88,
+      y: 8,
+      short: isEn ? '↗ Top-Right' : '↗ Haut-Droit',
+    },
+    {
+      label: isEn ? '↖ Top-Left' : '↖ Haut-Gauche',
+      x: 12,
+      y: 8,
+      short: isEn ? '↖ Top-Left' : '↖ Haut-Gauche',
+    },
+    {
+      label: isEn ? '⊙ Center' : '⊙ Centre',
+      x: 50,
+      y: 50,
+      short: isEn ? '⊙ Center' : '⊙ Centre',
+    },
+  ]
+}
 
 export function WatermarkDialog({
   open,
@@ -41,6 +64,9 @@ export function WatermarkDialog({
   pageCount,
   onApply,
 }: WatermarkDialogProps) {
+  const locale = useLocale()
+  const isEn = locale === 'en'
+  const presetPositions = getPresetPositions(locale)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [logoUrl, setLogoUrl] = useState<string>('')
   const [x, setX] = useState<number>(88)
@@ -74,7 +100,6 @@ export function WatermarkDialog({
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Convertit l'image en Data URL pour affichage immédiat et portabilité complète
     const reader = new FileReader()
     reader.onload = (event) => {
       const result = event.target?.result as string
@@ -131,10 +156,14 @@ export function WatermarkDialog({
             </div>
             <div>
               <h2 id="wm-dialog-title" className="text-sm font-bold text-ink">
-                Logo d'équipe & Filigrane de Scanlation
+                {isEn
+                  ? 'Team Logo & Watermark'
+                  : "Logo d'équipe & Filigrane"}
               </h2>
               <p className="text-xs text-ink-soft">
-                Apposez les crédits officiels de votre team sur vos pages
+                {isEn
+                  ? 'Stamp your team’s official credits onto your pages'
+                  : 'Apposez les crédits officiels de votre équipe sur vos planches'}
               </p>
             </div>
           </div>
@@ -142,7 +171,7 @@ export function WatermarkDialog({
             type="button"
             onClick={onClose}
             className="rounded-lg p-1.5 text-ink-soft hover:bg-muted hover:text-ink transition-colors"
-            aria-label="Fermer"
+            aria-label={isEn ? 'Close' : 'Fermer'}
           >
             <X className="size-4" />
           </button>
@@ -153,8 +182,14 @@ export function WatermarkDialog({
           {/* 1. Import du Logo */}
           <div className="space-y-2">
             <label className="font-semibold text-ink flex items-center gap-1.5">
-              <span>1. Image du logo / filigrane</span>
-              <span className="text-ink-soft font-normal">(PNG transparent recommandé, JPG, WebP)</span>
+              <span>
+                {isEn ? '1. Logo / watermark image' : '1. Image du logo / filigrane'}
+              </span>
+              <span className="text-ink-soft font-normal">
+                {isEn
+                  ? '(Transparent PNG recommended, JPG, WebP)'
+                  : '(PNG transparent recommandé, JPG, WebP)'}
+              </span>
             </label>
 
             {logoUrl ? (
@@ -163,14 +198,16 @@ export function WatermarkDialog({
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={logoUrl}
-                    alt="Logo filigrane"
+                    alt={isEn ? 'Watermark logo' : 'Logo filigrane'}
                     className="max-size-full object-contain"
                   />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold truncate">Logo chargé avec succès</p>
+                  <p className="font-semibold truncate">
+                    {isEn ? 'Logo loaded successfully' : 'Logo chargé avec succès'}
+                  </p>
                   <p className="text-[11px] text-ink-soft mt-0.5">
-                    Prêt pour incrustation sur la page
+                    {isEn ? 'Ready to overlay on the page' : 'Prêt pour incrustation sur la planche'}
                   </p>
                 </div>
                 <Button
@@ -180,7 +217,7 @@ export function WatermarkDialog({
                   onClick={() => fileInputRef.current?.click()}
                   className="shrink-0 text-xs"
                 >
-                  Changer
+                  {isEn ? 'Change' : 'Changer'}
                 </Button>
               </div>
             ) : (
@@ -193,10 +230,14 @@ export function WatermarkDialog({
                 </div>
                 <div>
                   <p className="font-semibold text-ink text-xs">
-                    Cliquez pour importer le logo de votre équipe
+                    {isEn
+                      ? 'Click to upload your team logo'
+                      : 'Cliquez pour importer le logo de votre équipe'}
                   </p>
                   <p className="text-[11px] text-ink-soft mt-0.5">
-                    Glissez-déposez ou sélectionnez un fichier image
+                    {isEn
+                      ? 'Drag and drop or select an image file'
+                      : 'Glissez-déposez ou sélectionnez un fichier image'}
                   </p>
                 </div>
               </div>
@@ -213,10 +254,10 @@ export function WatermarkDialog({
           {/* 2. Positionnement prédéfini */}
           <div className="space-y-2">
             <label className="font-semibold text-ink">
-              2. Emplacement rapide sur la page
+              {isEn ? '2. Quick placement on page' : '2. Emplacement rapide sur la planche'}
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-              {PRESET_POSITIONS.map((preset) => {
+              {presetPositions.map((preset) => {
                 const isActive = Math.abs(x - preset.x) < 3 && Math.abs(y - preset.y) < 3
                 return (
                   <button
@@ -244,14 +285,14 @@ export function WatermarkDialog({
           {/* 3. Réglages fins : Position libre, Taille, Opacité, Rotation */}
           <div className="space-y-3 rounded-xl border border-hairline bg-paper/40 p-3.5">
             <span className="font-semibold text-ink block text-xs">
-              3. Ajustements fins
+              {isEn ? '3. Fine adjustments' : '3. Ajustements fins'}
             </span>
 
             {/* Position X et Y */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <div className="flex justify-between text-[11px] text-ink-soft mb-1 font-mono">
-                  <span>Horizontal (X)</span>
+                  <span>{isEn ? 'Horizontal (X)' : 'Horizontal (X)'}</span>
                   <span>{x}%</span>
                 </div>
                 <input
@@ -265,7 +306,7 @@ export function WatermarkDialog({
               </div>
               <div>
                 <div className="flex justify-between text-[11px] text-ink-soft mb-1 font-mono">
-                  <span>Vertical (Y)</span>
+                  <span>{isEn ? 'Vertical (Y)' : 'Vertical (Y)'}</span>
                   <span>{y}%</span>
                 </div>
                 <input
@@ -283,7 +324,7 @@ export function WatermarkDialog({
             <div className="grid grid-cols-2 gap-3 pt-1">
               <div>
                 <div className="flex justify-between text-[11px] text-ink-soft mb-1 font-mono">
-                  <span>Taille relative</span>
+                  <span>{isEn ? 'Relative size' : 'Taille relative'}</span>
                   <span>{Math.round(scale * 100)}%</span>
                 </div>
                 <input
@@ -298,7 +339,7 @@ export function WatermarkDialog({
               </div>
               <div>
                 <div className="flex justify-between text-[11px] text-ink-soft mb-1 font-mono">
-                  <span>Opacité</span>
+                  <span>{isEn ? 'Opacity' : 'Opacité'}</span>
                   <span>{Math.round(opacity * 100)}%</span>
                 </div>
                 <input
@@ -316,7 +357,7 @@ export function WatermarkDialog({
             {/* Rotation */}
             <div>
               <div className="flex justify-between text-[11px] text-ink-soft mb-1 font-mono">
-                <span>Rotation</span>
+                <span>{isEn ? 'Rotation' : 'Rotation'}</span>
                 <span>{rotation > 0 ? `+${rotation}°` : `${rotation}°`}</span>
               </div>
               <div className="flex items-center gap-2">
@@ -332,7 +373,7 @@ export function WatermarkDialog({
                   type="button"
                   onClick={() => setRotation(0)}
                   className="shrink-0 px-2 py-0.5 rounded border border-hairline bg-paper text-[10px] font-mono hover:bg-muted"
-                  title="Réinitialiser à 0°"
+                  title={isEn ? 'Reset to 0°' : 'Réinitialiser à 0°'}
                 >
                   0°
                 </button>
@@ -343,7 +384,7 @@ export function WatermarkDialog({
           {/* 4. Portée d'application */}
           <div className="space-y-2">
             <label className="font-semibold text-ink">
-              4. Portée d'application
+              {isEn ? '4. Application scope' : "4. Portée d'application"}
             </label>
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -356,9 +397,13 @@ export function WatermarkDialog({
                     : 'border-hairline bg-paper/60 hover:bg-paper'
                 )}
               >
-                <p className="font-semibold text-xs text-ink">Page courante uniquement</p>
+                <p className="font-semibold text-xs text-ink">
+                  {isEn ? 'Current page only' : 'Planche courante uniquement'}
+                </p>
                 <p className="text-[11px] text-ink-soft mt-0.5">
-                  Applique sur la page {page.page_number}
+                  {isEn
+                    ? `Applies to page ${page.page_number}`
+                    : `Applique sur la planche ${page.page_number}`}
                 </p>
               </button>
 
@@ -372,9 +417,13 @@ export function WatermarkDialog({
                     : 'border-hairline bg-paper/60 hover:bg-paper'
                 )}
               >
-                <p className="font-semibold text-xs text-ink">Toutes les pages</p>
+                <p className="font-semibold text-xs text-ink">
+                  {isEn ? 'All pages' : 'Toutes les planches'}
+                </p>
                 <p className="text-[11px] text-ink-soft mt-0.5">
-                  Applique sur les {pageCount} pages du chapitre
+                  {isEn
+                    ? `Applies to all ${pageCount} pages of the chapter`
+                    : `Applique sur les ${pageCount} planches du chapitre`}
                 </p>
               </button>
             </div>
@@ -393,7 +442,7 @@ export function WatermarkDialog({
               className="text-danger hover:bg-danger-wash text-xs flex items-center gap-1.5"
             >
               <Trash2 className="size-3.5" />
-              <span>Retirer le filigrane</span>
+              <span>{isEn ? 'Remove watermark' : 'Retirer le filigrane'}</span>
             </Button>
           ) : (
             <div />
@@ -408,7 +457,7 @@ export function WatermarkDialog({
               disabled={isApplying}
               className="text-xs"
             >
-              Annuler
+              {isEn ? 'Cancel' : 'Annuler'}
             </Button>
             <Button
               type="button"
@@ -418,7 +467,13 @@ export function WatermarkDialog({
               onClick={handleSubmit}
               className="text-xs"
             >
-              {isApplying ? 'Application...' : 'Appliquer le filigrane'}
+              {isApplying
+                ? isEn
+                  ? 'Applying…'
+                  : 'Application…'
+                : isEn
+                  ? 'Apply watermark'
+                  : 'Appliquer le filigrane'}
             </Button>
           </div>
         </div>

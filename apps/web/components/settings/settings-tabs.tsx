@@ -12,70 +12,80 @@ import {
 import { cn } from '@/lib/utils'
 import type { Settings, SettingsTab } from './use-settings'
 
-const TABS: {
+function getTabs(locale: string): {
   key: SettingsTab
   label: string
   subtitle: string
   Icon: typeof UserRound
   group: string
-}[] = [
-  {
-    key: 'profile',
-    label: 'Profil & Identité',
-    subtitle: 'Avatar, nom public et rôles',
-    Icon: UserRound,
-    group: 'Compte',
-  },
-  {
-    key: 'appearance',
-    label: 'Apparence & Interface',
-    subtitle: 'Thème, langue UI et affichage',
-    Icon: Palette,
-    group: 'Application',
-  },
-  {
-    key: 'preferences',
-    label: 'Atelier, OCR & IA',
-    subtitle: 'Langues par défaut, lettrage et moteurs IA',
-    Icon: Sliders,
-    group: 'Application',
-  },
-  {
-    key: 'shortcuts',
-    label: 'Raccourcis Clavier',
-    subtitle: 'Commandes rapides du studio',
-    Icon: Keyboard,
-    group: 'Application',
-  },
-  {
-    key: 'notifications',
-    label: 'Notifications',
-    subtitle: 'Alertes jobs, équipe et e-mails',
-    Icon: Bell,
-    group: 'Compte',
-  },
-  {
-    key: 'security',
-    label: 'Sécurité & RGPD',
-    subtitle: 'Mot de passe, session et export de données',
-    Icon: ShieldCheck,
-    group: 'Sécurité & Facturation',
-  },
-  {
-    key: 'billing',
-    label: 'Facturation & Crédits',
-    subtitle: 'Formule, quotas et historique IA',
-    Icon: Coins,
-    group: 'Sécurité & Facturation',
-  },
-]
+}[] {
+  const isEn = locale === 'en'
+  return [
+    {
+      key: 'profile',
+      label: isEn ? 'Profile & Identity' : 'Profil & Identité',
+      subtitle: isEn ? 'Avatar, display name and roles' : 'Avatar, nom public et rôles',
+      Icon: UserRound,
+      group: isEn ? 'Account' : 'Compte',
+    },
+    {
+      key: 'appearance',
+      label: isEn ? 'Appearance & Interface' : 'Apparence & Interface',
+      subtitle: isEn ? 'Theme, UI language and display' : 'Thème, langue UI et affichage',
+      Icon: Palette,
+      group: isEn ? 'Application' : 'Application',
+    },
+    {
+      key: 'preferences',
+      label: isEn ? 'Studio, OCR & AI' : 'Atelier, OCR & IA',
+      subtitle: isEn
+        ? 'Default languages, lettering and AI engines'
+        : 'Langues par défaut, lettrage et moteurs IA',
+      Icon: Sliders,
+      group: isEn ? 'Application' : 'Application',
+    },
+    {
+      key: 'shortcuts',
+      label: isEn ? 'Keyboard Shortcuts' : 'Raccourcis Clavier',
+      subtitle: isEn ? 'Studio quick commands' : 'Commandes rapides du studio',
+      Icon: Keyboard,
+      group: isEn ? 'Application' : 'Application',
+    },
+    {
+      key: 'notifications',
+      label: isEn ? 'Notifications' : 'Notifications',
+      subtitle: isEn ? 'Job alerts, team and emails' : 'Alertes tâches, équipe et e-mails',
+      Icon: Bell,
+      group: isEn ? 'Account' : 'Compte',
+    },
+    {
+      key: 'security',
+      label: isEn ? 'Security & GDPR' : 'Sécurité & RGPD',
+      subtitle: isEn
+        ? 'Password, session and data export'
+        : 'Mot de passe, session et export de données',
+      Icon: ShieldCheck,
+      group: isEn ? 'Security & Billing' : 'Sécurité & Facturation',
+    },
+    {
+      key: 'billing',
+      label: isEn ? 'Billing & Credits' : 'Facturation & Crédits',
+      subtitle: isEn ? 'Plan, quotas and AI history' : 'Formule, quotas et historique IA',
+      Icon: Coins,
+      group: isEn ? 'Security & Billing' : 'Sécurité & Facturation',
+    },
+  ]
+}
 
 export function SettingsTabs({ s }: { s: Settings }) {
+  const isEn = s.locale === 'en'
+  const tabs = getTabs(s.locale)
+
   return (
     <aside className="w-full lg:w-64 lg:shrink-0">
       {/* Navigation horizontale compacte sur mobile/tablette */}
       <div className="mb-6 flex gap-1.5 overflow-x-auto pb-2 lg:hidden">
-        {TABS.map(({ key, label, Icon }) => {
+        {tabs.map(({ key, label, Icon }) => {
           const active = s.activeTab === key
           return (
             <button
@@ -101,10 +111,10 @@ export function SettingsTabs({ s }: { s: Settings }) {
 
       {/* Barre latérale structurée type logiciel pro sur desktop */}
       <nav
-        aria-label="Sections des paramètres"
+        aria-label={isEn ? 'Settings sections' : 'Sections des paramètres'}
         className="hidden lg:flex lg:flex-col lg:gap-1 rounded-xl border border-hairline bg-sheet/60 p-2"
       >
-        {TABS.map(({ key, label, subtitle, Icon }) => {
+        {tabs.map(({ key, label, subtitle, Icon }) => {
           const active = s.activeTab === key
           return (
             <button

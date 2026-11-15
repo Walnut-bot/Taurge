@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { FileArchive, FileImage, FileText, Loader2, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useLocale } from '@/i18n/provider'
 import { api } from '@/lib/api'
 import { ACCEPTED_UPLOAD, MAX_UPLOAD_BYTES, formatSize } from '@/lib/catalog'
 import type { ProjectDetail } from '@/lib/types'
@@ -22,6 +23,8 @@ export function SourcesPanel({
   run: Runner
   onExtract: (fileId: string) => void
 }) {
+  const locale = useLocale()
+  const isEn = locale === 'en'
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
@@ -30,10 +33,26 @@ export function SourcesPanel({
     const file = list?.[0]
     if (!file) return
     setLocalError(null)
-    if (!EXT_OK.test(file.name)) return setLocalError('Unsupported format. PDF, ZIP, CBZ, PNG, JPG or WEBP.')
-    if (file.size > MAX_UPLOAD_BYTES) return setLocalError('File too large: 50 MB maximum.')
-    await run('upload', `“${file.name}” uploaded. Now extract the pages.`, () =>
-      api.upload(project.id, file),
+    if (!EXT_OK.test(file.name)) {
+      return setLocalError(
+        isEn
+          ? 'Unsupported format. PDF, ZIP, CBZ, PNG, JPG or WEBP.'
+          : 'Format non pris en charge. PDF, ZIP, CBZ, PNG, JPG ou WEBP.',
+      )
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return setLocalError(
+        isEn
+          ? 'File too large: 50 MB maximum.'
+          : 'Fichier trop volumineux : 50 Mo maximum.',
+      )
+    }
+    await run(
+      'upload',
+      isEn
+        ? `“${file.name}” uploaded. Now extract the pages.`
+        : `« ${file.name} » importé. Extrayez maintenant les planches.`,
+      () => api.upload(project.id, file),
     )
     if (inputRef.current) inputRef.current.value = ''
   }
@@ -43,7 +62,7 @@ export function SourcesPanel({
   return (
     <section aria-labelledby="sources-title" className="border-b border-hairline p-4">
       <h2 id="sources-title" className="label-mono mb-3 text-ink-soft">
-        Sources
+        {isEn ? 'Sources' : 'Sources'}
       </h2>
 
       <label
@@ -76,8 +95,20 @@ export function SourcesPanel({
         ) : (
           <Upload className="size-5" aria-hidden="true" />
         )}
-        <span className="text-sm font-medium">{uploading ? 'Uploading…' : 'Drop a file'}</span>
-        <span className="text-xs text-ink-soft">PDF, ZIP/CBZ or image · 50 MB</span>
+        <span className="text-sm font-medium">
+          {uploading
+            ? isEn
+              ? 'Uploading…'
+              : 'Importation…'
+            : isEn
+              ? 'Drop a file'
+              : 'Déposer un fichier'}
+        </span>
+        <span className="text-xs text-ink-soft">
+          {isEn
+            ? 'PDF, ZIP/CBZ or image · 50 MB'
+            : 'PDF, ZIP/CBZ ou image · 50 Mo'}
+        </span>
       </label>
       {localError && (
         <p role="alert" className="mt-2 text-xs text-danger">
@@ -105,7 +136,7 @@ export function SourcesPanel({
                       {f.original_filename}
                     </p>
                     <p className="font-mono text-[11px] text-ink-soft">
-                      {f.file_type.toUpperCase()} · {formatSize(f.size_bytes)}
+                      {f.file_type.toUpperCase()} · {formatSize(f.size_bytes, locale)}
                       {extracted && ` · ${pageCount} p.`}
                     </p>
                   </div>
@@ -118,7 +149,13 @@ export function SourcesPanel({
                     onClick={() => onExtract(f.id)}
                   >
                     {(busy === `extract:${f.id}` || busy === 'extracting') && <Loader2 className="animate-spin" aria-hidden="true" />}
-                    {busy === `extract:${f.id}` || busy === 'extracting' ? 'Extracting…' : 'Extract pages'}
+                    {busy === `extract:${f.id}` || busy === 'extracting'
+                      ? isEn
+                        ? 'Extracting…'
+                        : 'Extraction…'
+                      : isEn
+                        ? 'Extract pages'
+                        : 'Extraire les planches'}
                   </Button>
                 )}
               </li>

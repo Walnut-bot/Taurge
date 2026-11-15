@@ -6,6 +6,7 @@ import { useMe, useRequireAuth } from '@/lib/hooks'
 import { api, clearToken } from '@/lib/api'
 import { getSavedTheme, saveAndApplyTheme, type Theme } from '@/lib/theme'
 import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, type Locale } from '@/i18n/config'
+import { localizeHref } from '@/i18n/navigation'
 import { useLocale } from '@/i18n/provider'
 import type { ContentType, SystemStatus } from '@/lib/types'
 
@@ -135,16 +136,24 @@ export function useSettings(initialTab: SettingsTab = 'profile') {
       .catch(() => setBillingHistory(null))
   }, [authed])
 
+  const isEn = locale === 'en'
+
   function handleSelectTheme(next: Theme) {
     setThemeChoice(next)
     saveAndApplyTheme(next)
     setNotice({
       text:
         next === 'dark'
-          ? 'Thème Sombre (Encre Sumi) activé.'
+          ? isEn
+            ? 'Dark theme (Sumi Ink) enabled.'
+            : 'Thème Sombre (Encre Sumi) activé.'
           : next === 'light'
-          ? 'Thème Clair (Papier Washi) activé.'
-          : 'Thème synchronisé avec votre système.',
+          ? isEn
+            ? 'Light theme (Washi Paper) enabled.'
+            : 'Thème Clair (Papier Washi) activé.'
+          : isEn
+            ? 'Theme synchronized with your system.'
+            : 'Thème synchronisé avec votre système.',
       error: false,
     })
   }
@@ -180,7 +189,12 @@ export function useSettings(initialTab: SettingsTab = 'profile') {
     } catch {
       // ignore
     }
-    setNotice({ text: 'Paramètres locaux de l’atelier réinitialisés aux valeurs d’origine.', error: false })
+    setNotice({
+      text: isEn
+        ? 'Local studio settings reset to defaults.'
+        : 'Paramètres locaux de l’atelier réinitialisés aux valeurs d’origine.',
+      error: false,
+    })
   }
 
   async function handleDeleteAccount() {
@@ -189,9 +203,17 @@ export function useSettings(initialTab: SettingsTab = 'profile') {
     try {
       await api.deleteAccount(deleteEmail.trim())
       clearToken()
-      window.location.href = '/fr/login'
+      window.location.href = localizeHref('/login', locale)
     } catch (err) {
-      setNotice({ text: err instanceof Error ? err.message : 'Impossible de supprimer le compte.', error: true })
+      setNotice({
+        text:
+          err instanceof Error
+            ? err.message
+            : isEn
+              ? 'Unable to delete the account.'
+              : 'Impossible de supprimer le compte.',
+        error: true,
+      })
       setDeletingAccount(false)
     }
   }
@@ -240,12 +262,24 @@ export function useSettings(initialTab: SettingsTab = 'profile') {
       const updated = await api.uploadProfileImage(kind, file)
       await mutate(updated)
       setNotice({
-        text: kind === 'avatar' ? 'Photo de profil mise à jour.' : 'Bannière de profil mise à jour.',
+        text:
+          kind === 'avatar'
+            ? isEn
+              ? 'Profile picture updated.'
+              : 'Photo de profil mise à jour.'
+            : isEn
+              ? 'Profile banner updated.'
+              : 'Bannière de profil mise à jour.',
         error: false,
       })
     } catch (err) {
       setNotice({
-        text: err instanceof Error ? err.message : "Erreur lors de l'enregistrement de l'image.",
+        text:
+          err instanceof Error
+            ? err.message
+            : isEn
+              ? 'Error saving image.'
+              : "Erreur lors de l'enregistrement de l'image.",
         error: true,
       })
     } finally {
@@ -260,12 +294,24 @@ export function useSettings(initialTab: SettingsTab = 'profile') {
       const updated = await api.deleteProfileImage(kind)
       await mutate(updated)
       setNotice({
-        text: kind === 'avatar' ? 'Photo de profil supprimée.' : 'Bannière supprimée.',
+        text:
+          kind === 'avatar'
+            ? isEn
+              ? 'Profile picture removed.'
+              : 'Photo de profil supprimée.'
+            : isEn
+              ? 'Profile banner removed.'
+              : 'Bannière supprimée.',
         error: false,
       })
     } catch (err) {
       setNotice({
-        text: err instanceof Error ? err.message : "Erreur lors de la suppression de l'image.",
+        text:
+          err instanceof Error
+            ? err.message
+            : isEn
+              ? 'Error removing image.'
+              : "Erreur lors de la suppression de l'image.",
         error: true,
       })
     } finally {
@@ -280,10 +326,20 @@ export function useSettings(initialTab: SettingsTab = 'profile') {
     try {
       const updated = await api.updateProfile({ display_name: displayName })
       await mutate(updated)
-      setNotice({ text: "Nom d'affichage enregistré avec succès.", error: false })
+      setNotice({
+        text: isEn
+          ? 'Display name saved successfully.'
+          : "Nom d'affichage enregistré avec succès.",
+        error: false,
+      })
     } catch (err) {
       setNotice({
-        text: err instanceof Error ? err.message : "Impossible d'enregistrer le nom.",
+        text:
+          err instanceof Error
+            ? err.message
+            : isEn
+              ? 'Unable to save display name.'
+              : "Impossible d'enregistrer le nom.",
         error: true,
       })
     } finally {
@@ -296,7 +352,12 @@ export function useSettings(initialTab: SettingsTab = 'profile') {
   async function handleSavePreferences(e: React.FormEvent) {
     e.preventDefault()
     if (sameLanguage) {
-      setNotice({ text: 'Veuillez choisir deux langues différentes.', error: true })
+      setNotice({
+        text: isEn
+          ? 'Please choose two different languages.'
+          : 'Veuillez choisir deux langues différentes.',
+        error: true,
+      })
       return
     }
     setSavingPrefs(true)
@@ -304,10 +365,20 @@ export function useSettings(initialTab: SettingsTab = 'profile') {
     try {
       const updated = await api.updateProfile(preferences)
       await mutate(updated)
-      setNotice({ text: 'Préférences d’atelier et de projet enregistrées avec succès.', error: false })
+      setNotice({
+        text: isEn
+          ? 'Studio and project preferences saved successfully.'
+          : 'Préférences d’atelier et de projet enregistrées avec succès.',
+        error: false,
+      })
     } catch (err) {
       setNotice({
-        text: err instanceof Error ? err.message : 'Impossible de sauvegarder les préférences.',
+        text:
+          err instanceof Error
+            ? err.message
+            : isEn
+              ? 'Unable to save preferences.'
+              : 'Impossible de sauvegarder les préférences.',
         error: true,
       })
     } finally {
@@ -322,10 +393,20 @@ export function useSettings(initialTab: SettingsTab = 'profile') {
     try {
       const updated = await api.updateProfile({ newsletter_opt_in: newsletterOptIn })
       await mutate(updated)
-      setNotice({ text: 'Préférences de notifications enregistrées.', error: false })
+      setNotice({
+        text: isEn
+          ? 'Notification preferences saved.'
+          : 'Préférences de notifications enregistrées.',
+        error: false,
+      })
     } catch (err) {
       setNotice({
-        text: err instanceof Error ? err.message : 'Impossible de sauvegarder les notifications.',
+        text:
+          err instanceof Error
+            ? err.message
+            : isEn
+              ? 'Unable to save notification preferences.'
+              : 'Impossible de sauvegarder les notifications.',
         error: true,
       })
     } finally {
@@ -336,15 +417,30 @@ export function useSettings(initialTab: SettingsTab = 'profile') {
   async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault()
     if (!currentPassword || !newPassword) {
-      setNotice({ text: 'Veuillez renseigner votre mot de passe actuel et le nouveau.', error: true })
+      setNotice({
+        text: isEn
+          ? 'Please enter your current password and the new one.'
+          : 'Veuillez renseigner votre mot de passe actuel et le nouveau.',
+        error: true,
+      })
       return
     }
     if (newPassword.length < 8) {
-      setNotice({ text: 'Le nouveau mot de passe doit contenir au moins 8 caractères.', error: true })
+      setNotice({
+        text: isEn
+          ? 'The new password must be at least 8 characters long.'
+          : 'Le nouveau mot de passe doit contenir au moins 8 caractères.',
+        error: true,
+      })
       return
     }
     if (newPassword !== confirmPassword) {
-      setNotice({ text: 'La confirmation du nouveau mot de passe ne correspond pas.', error: true })
+      setNotice({
+        text: isEn
+          ? 'New password confirmation does not match.'
+          : 'La confirmation du nouveau mot de passe ne correspond pas.',
+        error: true,
+      })
       return
     }
     setSavingPassword(true)
@@ -354,10 +450,20 @@ export function useSettings(initialTab: SettingsTab = 'profile') {
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
-      setNotice({ text: res.message || 'Mot de passe modifié avec succès.', error: false })
+      setNotice({
+        text:
+          res.message ||
+          (isEn ? 'Password updated successfully.' : 'Mot de passe modifié avec succès.'),
+        error: false,
+      })
     } catch (err) {
       setNotice({
-        text: err instanceof Error ? err.message : 'Impossible de modifier le mot de passe.',
+        text:
+          err instanceof Error
+            ? err.message
+            : isEn
+              ? 'Unable to update password.'
+              : 'Impossible de modifier le mot de passe.',
         error: true,
       })
     } finally {
@@ -371,10 +477,20 @@ export function useSettings(initialTab: SettingsTab = 'profile') {
     setNotice(null)
     try {
       await api.exportPersonalData()
-      setNotice({ text: 'Archive RGPD (.json) générée et téléchargée avec succès.', error: false })
+      setNotice({
+        text: isEn
+          ? 'GDPR archive (.json) generated and downloaded successfully.'
+          : 'Archive RGPD (.json) générée et téléchargée avec succès.',
+        error: false,
+      })
     } catch (err) {
       setNotice({
-        text: err instanceof Error ? err.message : 'Impossible d’exporter vos données personnelles.',
+        text:
+          err instanceof Error
+            ? err.message
+            : isEn
+              ? 'Unable to export your personal data.'
+              : 'Impossible d’exporter vos données personnelles.',
         error: true,
       })
     } finally {
@@ -384,7 +500,7 @@ export function useSettings(initialTab: SettingsTab = 'profile') {
 
   function logout() {
     clearToken()
-    window.location.href = '/login'
+    window.location.href = localizeHref('/login', locale)
   }
 
   const remaining = me?.credits_remaining ?? 30

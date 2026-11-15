@@ -4,7 +4,7 @@
 // l'API tourne EN LOCAL sur le PC de l'utilisateur (plus aucun
 // hébergeur backend). Deux façons de la joindre depuis le navigateur :
 // 1. même machine : http://localhost:8000 (défaut) ;
-// 2. via un tunnel HTTPS (Cloudflare, voir LANCER_TAURGE_TUNNEL.bat) :
+// 2. via un tunnel HTTPS fixe (Ngrok, voir LANCER_TAURGE_EN_LIGNE_NGROK.bat) :
 //    ouvrir le site avec ?api=https://<tunnel> — l'URL est mémorisée
 //    dans le navigateur (localStorage) pour les visites suivantes,
 //    ?api=local l'efface et revient à localhost.

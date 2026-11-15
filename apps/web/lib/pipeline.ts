@@ -2,6 +2,20 @@ import type { Page, ProjectDetail } from './types'
 
 export type PageStage = 'extracted' | 'ocr' | 'translated' | 'cleaned'
 
+function detectLocale(explicit?: string): 'fr' | 'en' {
+  if (explicit === 'en' || explicit === 'fr') return explicit
+  if (typeof window !== 'undefined') {
+    const cookie = document.cookie
+      .split('; ')
+      .find((entry) => entry.startsWith('NEXT_LOCALE='))
+      ?.split('=')[1]
+    if (cookie === 'en' || cookie === 'fr') return cookie
+    const segment = window.location.pathname.split('/')[1]
+    if (segment === 'en') return 'en'
+  }
+  return 'fr'
+}
+
 export function pageStage(page: Page): PageStage {
   if (page.ocr_blocks.length === 0) return 'extracted'
   const allTranslated = page.ocr_blocks.every((b) => b.translation !== null)
@@ -10,11 +24,24 @@ export function pageStage(page: Page): PageStage {
   return 'cleaned'
 }
 
-export const PAGE_STAGE_LABEL: Record<PageStage, string> = {
+export const PAGE_STAGE_LABEL_EN: Record<PageStage, string> = {
   extracted: 'To read',
   ocr: 'To translate',
   translated: 'To clean',
   cleaned: 'Ready',
+}
+
+export const PAGE_STAGE_LABEL_FR: Record<PageStage, string> = {
+  extracted: 'À lire',
+  ocr: 'À traduire',
+  translated: 'À nettoyer',
+  cleaned: 'Prête',
+}
+
+export const PAGE_STAGE_LABEL = PAGE_STAGE_LABEL_EN
+
+export function getPageStageLabel(stage: PageStage, locale?: string): string {
+  return (detectLocale(locale) === 'en' ? PAGE_STAGE_LABEL_EN : PAGE_STAGE_LABEL_FR)[stage]
 }
 
 export type StepState = 'done' | 'partial' | 'todo'
@@ -33,7 +60,8 @@ function stateOf(done: number, total: number): StepState {
   return 'partial'
 }
 
-export function projectPipeline(project: ProjectDetail): PipelineStep[] {
+export function projectPipeline(project: ProjectDetail, locale?: string): PipelineStep[] {
+  const isEn = detectLocale(locale) === 'en'
   const pages = project.pages
   const pageCount = pages.length
   const filesWithPages = project.files.filter((f) =>
@@ -62,12 +90,18 @@ export function projectPipeline(project: ProjectDetail): PipelineStep[] {
     { key: 'ocr', label: 'OCR', done: ocrDone, total: pageCount, state: stateOf(ocrDone, pageCount) },
     {
       key: 'translate',
-      label: 'Translation',
+      label: isEn ? 'Translation' : 'Traduction',
       done: translated,
       total: blocks.length,
       state: stateOf(translated, blocks.length),
     },
-    { key: 'clean', label: 'Cleaning', done: cleaned, total: pageCount, state: stateOf(cleaned, pageCount) },
+    {
+      key: 'clean',
+      label: isEn ? 'Cleaning' : 'Nettoyage',
+      done: cleaned,
+      total: pageCount,
+      state: stateOf(cleaned, pageCount),
+    },
     {
       key: 'export',
       label: 'Export',

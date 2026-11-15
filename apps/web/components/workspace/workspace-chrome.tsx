@@ -2,6 +2,7 @@
 
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, XOctagon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useLocale } from '@/i18n/provider'
 import { cn } from '@/lib/utils'
 import type { JobProgress, Notice } from './use-job-polling'
 
@@ -78,6 +79,8 @@ export function ViewModeTabs({
 }
 
 export function JobProgressBar({ progress, onCancel }: { progress: JobProgress; onCancel: () => void }) {
+  const locale = useLocale()
+  const isEn = locale === 'en'
   return (
     <div className="border-b border-seal/30 bg-seal/10 px-4 py-2.5 sm:px-6 flex items-center justify-between gap-4">
       <div className="flex flex-1 flex-col gap-1">
@@ -100,10 +103,10 @@ export function JobProgressBar({ progress, onCancel }: { progress: JobProgress; 
         size="sm"
         onClick={onCancel}
         className="text-xs h-7 text-danger border-danger hover:bg-danger-wash"
-        title="Stop processing"
+        title={isEn ? 'Stop processing' : 'Arrêter le traitement'}
       >
         <XOctagon className="size-3.5" />
-        <span>Stop</span>
+        <span>{isEn ? 'Stop' : 'Arrêter'}</span>
       </Button>
     </div>
   )
@@ -151,6 +154,8 @@ export function EdgeToggle({ side, onToggle, label }: { side: 'left' | 'right'; 
 }
 
 export function CollapsedRail({ side, onExpand, label }: { side: 'left' | 'right'; onExpand: () => void; label: string }) {
+  const locale = useLocale()
+  const isEn = locale === 'en'
   const Icon = side === 'left' ? PanelLeftOpen : PanelRightOpen
   return (
     <div
@@ -172,29 +177,55 @@ export function CollapsedRail({ side, onExpand, label }: { side: 'left' | 'right
         <Icon className="size-4" aria-hidden="true" />
       </button>
       <span aria-hidden="true" className="font-mono text-[11px] text-ink-soft lg:[writing-mode:vertical-rl]">
-        {side === 'left' ? 'Panel' : 'Bubbles'}
+        {side === 'left'
+          ? isEn
+            ? 'Pages'
+            : 'Planches'
+          : isEn
+            ? 'Bubbles'
+            : 'Bulles'}
       </span>
     </div>
   )
 }
 
 export function EmptyStage({ hasFiles }: { hasFiles: boolean }) {
+  const locale = useLocale()
+  const isEn = locale === 'en'
   return (
     <section className="tone flex min-h-[50dvh] flex-col items-center justify-center gap-3 p-10 text-center lg:col-span-2">
       <span className="font-mono text-sm text-seal">{hasFiles ? '02' : '01'}</span>
-      <h2 className="text-2xl font-semibold">{hasFiles ? 'Extract the pages' : 'Import a chapter'}</h2>
+      <h2 className="text-2xl font-semibold">
+        {hasFiles
+          ? isEn
+            ? 'Extract the pages'
+            : 'Extrayez les planches'
+          : isEn
+            ? 'Import a chapter'
+            : 'Importez un chapitre'}
+      </h2>
       <p className="max-w-sm text-ink-soft">
         {hasFiles
-          ? 'Your file is in place. Run extraction in the Sources panel to split the pages.'
-          : 'Drop a PDF or images in the Sources panel. Pages will appear here.'}
+          ? isEn
+            ? 'Your file is in place. Run extraction in the Sources panel to split the pages.'
+            : 'Votre fichier est prêt. Lancez l’extraction dans le panneau Sources pour découper les planches.'
+          : isEn
+            ? 'Drop a PDF or images in the Sources panel. Pages will appear here.'
+            : 'Déposez un PDF ou des images dans le panneau Sources. Les planches apparaîtront ici.'}
       </p>
     </section>
   )
 }
 
 export function WorkspaceSkeleton() {
+  const locale = useLocale()
+  const isEn = locale === 'en'
   return (
-    <div aria-busy="true" aria-label="Loading project" className="grid lg:grid-cols-[15rem_1fr_23rem]">
+    <div
+      aria-busy="true"
+      aria-label={isEn ? 'Loading project' : 'Chargement du projet'}
+      className="grid lg:grid-cols-[15rem_1fr_23rem]"
+    >
       <div className="h-14 border-b-[1.5px] border-ink lg:col-span-3" />
       <div className="hidden h-[70dvh] border-r-[1.5px] border-ink lg:block" />
       <div className="tone h-[70dvh] animate-pulse" />

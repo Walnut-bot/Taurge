@@ -18,6 +18,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
   const router = useRouter()
   const locale = useLocale()
   const t = useTranslations('Auth')
+  const tLegal = useTranslations('Legal')
   const params = useSearchParams()
   const justRegistered = mode === 'login' && params.get('registered') === '1'
   const [email, setEmail] = useState(IS_DEMO && mode === 'login' ? 'demo@taurge.app' : '')
@@ -138,9 +139,9 @@ export function AuthForm({ mode }: { mode: Mode }) {
                   />
                   <span>
                     {t('acceptTerms')}{' '}
-                    <Link href="/legal/terms" className="font-medium underline underline-offset-4 hover:decoration-seal">CGU</Link>
+                    <Link href="/legal/terms" className="font-medium underline underline-offset-4 hover:decoration-seal">{tLegal('terms')}</Link>
                     {' · '}
-                    <Link href="/legal/privacy" className="font-medium underline underline-offset-4 hover:decoration-seal">Confidentialité</Link>
+                    <Link href="/legal/privacy" className="font-medium underline underline-offset-4 hover:decoration-seal">{tLegal('privacy')}</Link>
                   </span>
                 </label>
                 <label htmlFor="consent-age" className="flex cursor-pointer items-start gap-2.5 leading-relaxed">
@@ -189,7 +190,9 @@ export function AuthForm({ mode }: { mode: Mode }) {
             らっしゃい！特製醤油、お待たせしました！
           </p>
           <p className="mt-2 max-w-sm text-2xl leading-snug font-semibold text-balance">
-            “Welcome in! Here comes your house shoyu!”
+            {locale === 'en'
+              ? '“Welcome in! Here comes your house shoyu!”'
+              : '« Bienvenue ! Voici votre ramen shoyu maison ! »'}
           </p>
         </div>
       </aside>

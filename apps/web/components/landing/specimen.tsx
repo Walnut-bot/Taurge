@@ -1,49 +1,75 @@
 'use client'
 
 import { useState } from 'react'
+import { useLocale } from '@/i18n/provider'
 import { cn } from '@/lib/utils'
 import type { OcrBlock } from '@/lib/types'
 
 const IMG_W = 848
 const IMG_H = 1264
 
-const BLOCKS: OcrBlock[] = [
-  {
-    id: 'a',
-    text: '…やっぱり、この街は寂しいな。',
-    bbox_x: 140,
-    bbox_y: 90,
-    bbox_w: 175,
-    bbox_h: 245,
-    confidence: 0.91,
-    provider: 'paddleocr',
-    translation: { id: 'ta', translated_text: '…Honestly, this town is so gloomy.', provider: 'ollama', edited_by_user: true },
-  },
-  {
-    id: 'b',
-    text: 'えっ、きみ…！？',
-    bbox_x: 600,
-    bbox_y: 630,
-    bbox_w: 135,
-    bbox_h: 175,
-    confidence: 0.84,
-    provider: 'paddleocr',
-    translation: { id: 'tb', translated_text: 'Huh, you…!?', provider: 'ollama', edited_by_user: false },
-  },
-  {
-    id: 'c',
-    text: '傘、一緒に入りなよ。',
-    bbox_x: 625,
-    bbox_y: 895,
-    bbox_w: 140,
-    bbox_h: 195,
-    confidence: 0.88,
-    provider: 'paddleocr',
-    translation: { id: 'tc', translated_text: 'Come share my umbrella.', provider: 'ollama', edited_by_user: false },
-  },
-]
+function getBlocks(locale: string): OcrBlock[] {
+  const isEn = locale === 'en'
+  return [
+    {
+      id: 'a',
+      text: '…やっぱり、この街は寂しいな。',
+      bbox_x: 140,
+      bbox_y: 90,
+      bbox_w: 175,
+      bbox_h: 245,
+      confidence: 0.91,
+      provider: 'paddleocr',
+      translation: {
+        id: 'ta',
+        translated_text: isEn
+          ? '…Honestly, this town is so gloomy.'
+          : '…Décidément, cette ville est bien mélancolique.',
+        provider: 'ollama',
+        edited_by_user: true,
+      },
+    },
+    {
+      id: 'b',
+      text: 'えっ、きみ…！？',
+      bbox_x: 600,
+      bbox_y: 630,
+      bbox_w: 135,
+      bbox_h: 175,
+      confidence: 0.84,
+      provider: 'paddleocr',
+      translation: {
+        id: 'tb',
+        translated_text: isEn ? 'Huh, you…!?' : 'Hein, toi… !?',
+        provider: 'ollama',
+        edited_by_user: false,
+      },
+    },
+    {
+      id: 'c',
+      text: '傘、一緒に入りなよ。',
+      bbox_x: 625,
+      bbox_y: 895,
+      bbox_w: 140,
+      bbox_h: 195,
+      confidence: 0.88,
+      provider: 'paddleocr',
+      translation: {
+        id: 'tc',
+        translated_text: isEn
+          ? 'Come share my umbrella.'
+          : 'Viens partager mon parapluie.',
+        provider: 'ollama',
+        edited_by_user: false,
+      },
+    },
+  ]
+}
 
 export function LandingSpecimen() {
+  const locale = useLocale()
+  const isEn = locale === 'en'
+  const blocks = getBlocks(locale)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
 
   return (
@@ -57,12 +83,16 @@ export function LandingSpecimen() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/demo/page-01.png"
-            alt="Japanese manga page, three bubbles detected and numbered"
+            alt={
+              isEn
+                ? 'Japanese manga page, three bubbles detected and numbered'
+                : 'Planche de manga japonais, trois bulles détectées et numérotées'
+            }
             className="absolute inset-0 size-full object-cover pointer-events-none"
             draggable={false}
           />
 
-          {BLOCKS.map((b, i) => {
+          {blocks.map((b, i) => {
             const isHovered = hoveredId === b.id
             return (
               <div
@@ -81,7 +111,7 @@ export function LandingSpecimen() {
                   width: `${(b.bbox_w / IMG_W) * 100}%`,
                   height: `${(b.bbox_h / IMG_H) * 100}%`,
                 }}
-                aria-label={`Bubble ${i + 1}: ${b.text}`}
+                aria-label={`${isEn ? 'Bubble' : 'Bulle'} ${i + 1}: ${b.text}`}
               >
                 <span
                   className={cn(
@@ -98,8 +128,11 @@ export function LandingSpecimen() {
       </div>
 
       {/* Cartes de bulles détectées avec survol synchronisé */}
-      <ol className="flex flex-col gap-3 self-center" aria-label="Detected bubbles">
-        {BLOCKS.map((b, i) => {
+      <ol
+        className="flex flex-col gap-3 self-center"
+        aria-label={isEn ? 'Detected bubbles' : 'Bulles détectées'}
+      >
+        {blocks.map((b, i) => {
           const isHovered = hoveredId === b.id
           return (
             <li
@@ -136,7 +169,9 @@ export function LandingSpecimen() {
         })}
       </ol>
       <figcaption className="sr-only">
-        Example: a manga page with its detected bubbles, the extracted Japanese text and its English translation.
+        {isEn
+          ? 'Example: a manga page with its detected bubbles, the extracted Japanese text and its English translation.'
+          : 'Exemple : une planche de manga avec ses bulles détectées, le texte japonais extrait et sa traduction française.'}
       </figcaption>
     </figure>
   )

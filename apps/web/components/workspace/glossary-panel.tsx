@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { BookOpen, Plus, Trash2, Lock, Tag, User, MapPin, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useLocale } from '@/i18n/provider'
 import { api } from '@/lib/api'
 import type { GlossaryEntry, GlossaryCategory } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -13,14 +14,20 @@ type Props = {
   onRefresh: () => void
 }
 
-const CATEGORIES: { id: GlossaryCategory; label: string; icon: typeof User }[] = [
-  { id: 'character', label: 'Characters', icon: User },
-  { id: 'location', label: 'Places', icon: MapPin },
-  { id: 'term', label: 'Terms / Techniques', icon: Tag },
-  { id: 'sfx', label: 'SFX / Onomatopoeia', icon: Sparkles },
-]
+function getCategories(locale: string): { id: GlossaryCategory; label: string; icon: typeof User }[] {
+  const isEn = locale === 'en'
+  return [
+    { id: 'character', label: isEn ? 'Characters' : 'Personnages', icon: User },
+    { id: 'location', label: isEn ? 'Places' : 'Lieux', icon: MapPin },
+    { id: 'term', label: isEn ? 'Terms / Techniques' : 'Termes / Techniques', icon: Tag },
+    { id: 'sfx', label: isEn ? 'SFX / Onomatopoeia' : 'Onomatopées / Effets', icon: Sparkles },
+  ]
+}
 
 export function GlossaryPanel({ projectId, entries, onRefresh }: Props) {
+  const locale = useLocale()
+  const isEn = locale === 'en'
+  const categories = getCategories(locale)
   const [activeTab, setActiveTab] = useState<GlossaryCategory>('character')
   const [sourceTerm, setSourceTerm] = useState('')
   const [targetTerm, setTargetTerm] = useState('')
@@ -50,19 +57,33 @@ export function GlossaryPanel({ projectId, entries, onRefresh }: Props) {
       setNotes('')
       onRefresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error while adding.')
+      setError(
+        err instanceof Error
+          ? err.message
+          : isEn
+            ? 'Error while adding.'
+            : 'Erreur lors de l’ajout.',
+      )
     } finally {
       setLoading(false)
     }
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm('Delete this term from the glossary?')) return
+    if (
+      !window.confirm(
+        isEn
+          ? 'Delete this term from the glossary?'
+          : 'Supprimer ce terme du glossaire ?',
+      )
+    ) {
+      return
+    }
     try {
       await api.deleteGlossaryEntry(projectId, id)
       onRefresh()
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Error')
+      alert(err instanceof Error ? err.message : isEn ? 'Error' : 'Erreur')
     }
   }
 
@@ -72,22 +93,29 @@ export function GlossaryPanel({ projectId, entries, onRefresh }: Props) {
         <div>
           <h2 className="flex items-center gap-2 text-xl font-bold">
             <BookOpen className="size-5 text-seal" />
-            Translation Memory & Project Glossary
+            {isEn
+              ? 'Translation Memory & Project Glossary'
+              : 'Mémoire de Traduction & Glossaire du Projet'}
           </h2>
           <p className="mt-1 text-sm text-ink-soft">
-            Define specific names and terms. The AI will be required to use these locked translations on your pages.
+            {isEn
+              ? 'Define specific names and terms. The AI will be required to use these locked translations on your pages.'
+              : 'Définissez les noms et termes spécifiques. L’IA utilisera obligatoirement ces traductions verrouillées sur vos planches.'}
           </p>
         </div>
         <div className="flex items-center gap-2 font-mono text-xs text-ink-soft">
           <span className="rounded bg-sheet px-2.5 py-1">
-            {entries.length} saved term{entries.length > 1 ? 's' : ''}
+            {entries.length}{' '}
+            {isEn
+              ? `saved term${entries.length > 1 ? 's' : ''}`
+              : `terme${entries.length > 1 ? 's' : ''} enregistré${entries.length > 1 ? 's' : ''}`}
           </span>
         </div>
       </div>
 
       {/* Category tabs */}
       <div className="flex gap-2 border-b border-hairline pb-2">
-        {CATEGORIES.map((cat) => {
+        {categories.map((cat) => {
           const Icon = cat.icon
           const count = entries.filter((e) => e.category === cat.id).length
           const active = activeTab === cat.id
@@ -113,11 +141,17 @@ export function GlossaryPanel({ projectId, entries, onRefresh }: Props) {
       {/* Quick-add form */}
       <form onSubmit={handleAdd} className="flex flex-wrap items-end gap-3 rounded-lg border border-hairline bg-sheet p-4">
         <div className="flex flex-1 flex-col gap-1 min-w-[12rem]">
-          <label className="text-xs font-medium text-ink-soft">Source term (e.g. Shadow Monarch)</label>
+          <label className="text-xs font-medium text-ink-soft">
+            {isEn ? 'Source term (e.g. Shadow Monarch)' : 'Terme source (ex. 그림자 군주)'}
+          </label>
           <input
             type="text"
             required
-            placeholder="Name or sentence in the bubble..."
+            placeholder={
+              isEn
+                ? 'Name or sentence in the bubble…'
+                : 'Nom ou expression dans la bulle…'
+            }
             value={sourceTerm}
             onChange={(e) => setSourceTerm(e.target.value)}
             className="rounded border border-hairline bg-paper px-3 py-1.5 text-sm"
@@ -125,11 +159,17 @@ export function GlossaryPanel({ projectId, entries, onRefresh }: Props) {
         </div>
 
         <div className="flex flex-1 flex-col gap-1 min-w-[12rem]">
-          <label className="text-xs font-medium text-ink-soft">Enforced translation (e.g. Monarch of Shadows)</label>
+          <label className="text-xs font-medium text-ink-soft">
+            {isEn
+              ? 'Enforced translation (e.g. Monarch of Shadows)'
+              : 'Traduction imposée (ex. Monarque des Ombres)'}
+          </label>
           <input
             type="text"
             required
-            placeholder="Official English translation..."
+            placeholder={
+              isEn ? 'Official translation…' : 'Traduction officielle retenue…'
+            }
             value={targetTerm}
             onChange={(e) => setTargetTerm(e.target.value)}
             className="rounded border border-hairline bg-paper px-3 py-1.5 text-sm font-semibold"
@@ -137,10 +177,12 @@ export function GlossaryPanel({ projectId, entries, onRefresh }: Props) {
         </div>
 
         <div className="flex flex-col gap-1 min-w-[10rem]">
-          <label className="text-xs font-medium text-ink-soft">Notes (optional)</label>
+          <label className="text-xs font-medium text-ink-soft">
+            {isEn ? 'Notes (optional)' : 'Notes (optionnel)'}
+          </label>
           <input
             type="text"
-            placeholder="Register, gender..."
+            placeholder={isEn ? 'Register, gender…' : 'Registre, genre…'}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             className="rounded border border-hairline bg-paper px-3 py-1.5 text-sm"
@@ -156,13 +198,13 @@ export function GlossaryPanel({ projectId, entries, onRefresh }: Props) {
               className="size-4 accent-seal"
             />
             <Lock className="size-3 text-seal" />
-            Lock
+            {isEn ? 'Lock' : 'Verrouiller'}
           </label>
         </div>
 
         <Button type="submit" size="sm" variant="seal" disabled={loading}>
           <Plus className="size-4" />
-          Add
+          {isEn ? 'Add' : 'Ajouter'}
         </Button>
       </form>
 
@@ -172,16 +214,20 @@ export function GlossaryPanel({ projectId, entries, onRefresh }: Props) {
       <div className="flex flex-col rounded-lg border border-hairline bg-paper overflow-hidden">
         {filtered.length === 0 ? (
           <div className="p-8 text-center text-sm text-ink-soft">
-            No terms in this category. Add one above to keep your chapter translations consistent.
+            {isEn
+              ? 'No terms in this category. Add one above to keep your chapter translations consistent.'
+              : 'Aucun terme dans cette catégorie. Ajoutez-en un ci-dessus pour assurer la cohérence de vos chapitres.'}
           </div>
         ) : (
           <table className="w-full text-left text-sm">
             <thead className="border-b border-hairline bg-sheet text-xs font-mono text-ink-soft">
               <tr>
-                <th className="px-4 py-2.5">Original term</th>
-                <th className="px-4 py-2.5">Locked translation</th>
-                <th className="px-4 py-2.5">Notes</th>
-                <th className="px-4 py-2.5 text-right">Actions</th>
+                <th className="px-4 py-2.5">{isEn ? 'Original term' : 'Terme original'}</th>
+                <th className="px-4 py-2.5">
+                  {isEn ? 'Locked translation' : 'Traduction verrouillée'}
+                </th>
+                <th className="px-4 py-2.5">{isEn ? 'Notes' : 'Notes'}</th>
+                <th className="px-4 py-2.5 text-right">{isEn ? 'Actions' : 'Actions'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-hairline">
@@ -198,7 +244,7 @@ export function GlossaryPanel({ projectId, entries, onRefresh }: Props) {
                       type="button"
                       onClick={() => handleDelete(item.id)}
                       className="rounded p-1 text-ink-soft hover:bg-danger-wash hover:text-danger"
-                      title="Delete"
+                      title={isEn ? 'Delete' : 'Supprimer'}
                     >
                       <Trash2 className="size-4" />
                     </button>

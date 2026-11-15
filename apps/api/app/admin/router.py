@@ -18,6 +18,7 @@ from app.auth.dependencies import get_current_user
 from app.billing.credit_service import get_or_create_subscription
 from app.core.config import settings
 from app.core.db import get_session
+from app.core.i18n import locale_dependency, translate_detail
 from app.models.job import Job
 from app.models.page import Page
 from app.models.payment import PaymentTransaction
@@ -208,6 +209,7 @@ def grant_user_credits(
 def list_admin_jobs(
     _admin: User = Depends(require_admin),
     session: Session = Depends(get_session),
+    locale: str = Depends(locale_dependency),
 ):
     jobs = session.exec(select(Job).order_by(Job.created_at.desc()).limit(50)).all()
     return [
@@ -218,8 +220,8 @@ def list_admin_jobs(
             job_type=j.job_type,
             status=j.status,
             progress_percent=j.progress_percent,
-            message=j.message,
-            error_message=j.error_message,
+            message=str(translate_detail(j.message, locale)) if j.message else "",
+            error_message=str(translate_detail(j.error_message, locale)) if j.error_message else None,
             created_at=j.created_at,
         )
         for j in jobs

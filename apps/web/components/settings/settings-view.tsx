@@ -18,6 +18,7 @@ import { BillingTab } from './billing-tab'
 
 export function SettingsView({ initialTab = 'profile' }: { initialTab?: SettingsTab }) {
   const s = useSettings(initialTab)
+  const isEn = s.locale === 'en'
 
   return (
     <AppShell>
@@ -26,12 +27,16 @@ export function SettingsView({ initialTab = 'profile' }: { initialTab?: Settings
         {/* En-tête de la page Paramètres */}
         <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-hairline pb-6">
           <div>
-            <p className="eyebrow">Espace de configuration Taurge</p>
+            <p className="eyebrow">
+              {isEn ? 'Taurge Configuration Space' : 'Espace de configuration Taurge'}
+            </p>
             <h1 className="mt-1 font-display text-2xl sm:text-3xl font-semibold tracking-tight text-ink">
-              Paramètres &amp; Préférences Studio
+              {isEn ? 'Studio Settings & Preferences' : 'Paramètres & Préférences Studio'}
             </h1>
             <p className="mt-1 text-xs sm:text-sm text-ink-soft">
-              Gérez votre identité, l’apparence de l’application, vos moteurs OCR/IA, vos raccourcis clavier et la sécurité RGPD de votre compte.
+              {isEn
+                ? 'Manage your identity, application appearance, OCR/AI engines, keyboard shortcuts and GDPR account security.'
+                : 'Gérez votre identité, l’apparence de l’application, vos moteurs OCR/IA, vos raccourcis clavier et la sécurité RGPD de votre compte.'}
             </p>
           </div>
           <Link
@@ -39,7 +44,7 @@ export function SettingsView({ initialTab = 'profile' }: { initialTab?: Settings
             className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'self-start sm:self-center shrink-0')}
           >
             <ArrowLeft className="size-3.5" />
-            <span>Retour aux projets</span>
+            <span>{isEn ? 'Back to projects' : 'Retour aux projets'}</span>
           </Link>
         </div>
 
@@ -66,7 +71,7 @@ export function SettingsView({ initialTab = 'profile' }: { initialTab?: Settings
               type="button"
               onClick={() => s.setNotice(null)}
               className="rounded p-1 opacity-75 hover:opacity-100"
-              aria-label="Fermer la notification"
+              aria-label={isEn ? 'Dismiss notification' : 'Fermer la notification'}
             >
               <X className="size-4" />
             </button>

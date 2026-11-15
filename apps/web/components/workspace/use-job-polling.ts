@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useLocale } from '@/i18n/provider'
 import { api } from '@/lib/api'
 
 export type JobProgress = { percent: number; message: string; current: number; total: number }
@@ -14,16 +15,14 @@ type Options = {
 
 /** Polling d'un job d'arrière-plan (extraction / batch), extrait de Workspace. */
 export function useJobPolling({ mutate, setBusy, setNotice }: Options) {
+  const locale = useLocale()
+  const isEn = locale === 'en'
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const [jobProgress, setJobProgress] = useState<JobProgress | null>(null)
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     if (!activeJobId) return
-    // Au-delà de 10 échecs d'affilée (~40 s), le serveur est très
-    // probablement mort (crash/redémarrage) : on arrête de boucler
-    // au lieu d'afficher « Retrying… » indéfiniment. Au redémarrage,
-    // le backend marque de toute façon ces jobs comme échoués.
     let consecutiveFailures = 0
 
     async function checkStatus() {
@@ -59,11 +58,18 @@ export function useJobPolling({ mutate, setBusy, setNotice }: Options) {
           setBusy(null)
           setNotice({
             tone: 'error',
-            text: 'Connection lost while tracking. The server may have restarted — check the project, then retry.',
+            text: isEn
+              ? 'Connection lost while tracking. The server may have restarted — check the project, then retry.'
+              : 'Connexion perdue pendant le suivi. Le serveur a peut-être redémarré — vérifiez le projet puis réessayez.',
           })
           return
         }
-        setNotice({ tone: 'error', text: 'Connection lost while tracking. Retrying…' })
+        setNotice({
+          tone: 'error',
+          text: isEn
+            ? 'Connection lost while tracking. Retrying…'
+            : 'Connexion perdue pendant le suivi. Nouvelle tentative…',
+        })
         pollTimerRef.current = setTimeout(checkStatus, 4000)
       }
     }
@@ -73,7 +79,7 @@ export function useJobPolling({ mutate, setBusy, setNotice }: Options) {
       if (pollTimerRef.current) clearTimeout(pollTimerRef.current)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeJobId, mutate])
+  }, [activeJobId, mutate, isEn])
 
   async function handleCancelJob() {
     if (!activeJobId) return
@@ -81,10 +87,21 @@ export function useJobPolling({ mutate, setBusy, setNotice }: Options) {
       await api.cancelJob(activeJobId)
       setActiveJobId(null)
       setJobProgress(null)
-      setNotice({ tone: 'ok', text: 'Job stopped successfully.' })
+      setNotice({
+        tone: 'ok',
+        text: isEn ? 'Job stopped successfully.' : 'Tâche arrêtée avec succès.',
+      })
       await mutate()
     } catch (err) {
-      setNotice({ tone: 'error', text: err instanceof Error ? err.message : 'Error while cancelling.' })
+      setNotice({
+        tone: 'error',
+        text:
+          err instanceof Error
+            ? err.message
+            : isEn
+              ? 'Error while cancelling.'
+              : 'Erreur lors de l’annulation.',
+      })
     }
   }
 

@@ -1,11 +1,11 @@
 'use client'
 
-import Link from 'next/link'
-import { useState, useRef, useEffect, type CSSProperties } from 'react'
+import { useState, useRef, type CSSProperties } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { AppHeader } from '@/components/app-header'
 import { Button, buttonVariants } from '@/components/ui/button'
-import { useTranslations } from '@/i18n/provider'
+import { Link } from '@/i18n/navigation'
+import { useLocale, useTranslations } from '@/i18n/provider'
 import { api } from '@/lib/api'
 import { useProject, useRequireAuth } from '@/lib/hooks'
 import { projectPipeline, safeFilename } from '@/lib/pipeline'
@@ -16,7 +16,7 @@ import { PageStrip } from './page-strip'
 import { SourcesPanel } from './sources-panel'
 import { GlossaryPanel } from './glossary-panel'
 import { TeamPanel } from './team-panel'
-import type { ExportRecord, GlossaryEntry, ProjectMember } from '@/lib/types'
+import type { ExportRecord } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useJobPolling, type Notice } from './use-job-polling'
 import { useWorkspaceData } from './use-workspace-data'
@@ -34,6 +34,8 @@ import {
 export type Runner = (key: string, success: string, fn: () => Promise<unknown>) => Promise<boolean>
 
 export function Workspace({ projectId }: { projectId: string }) {
+  const locale = useLocale()
+  const isEn = locale === 'en'
   const tTabs = useTranslations('EditorTabs')
   const tEditor = useTranslations('Editor')
   const [mobileTab, setMobileTab] = useState<'pages' | 'page' | 'text'>('page')
@@ -45,8 +47,7 @@ export function Workspace({ projectId }: { projectId: string }) {
   const [busy, setBusy] = useState<string | null>(null)
   const [notice, setNotice] = useState<Notice | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('editor')
-  const { glossaryEntries, teamMembers, loadGlossary, loadTeam } = useWorkspaceData(projectId) //
-  
+  const { glossaryEntries, teamMembers, loadGlossary, loadTeam } = useWorkspaceData(projectId)
 
   const [leftOpen, setLeftOpen] = useState(true)
   const [rightOpen, setRightOpen] = useState(true)
@@ -66,7 +67,15 @@ export function Workspace({ projectId }: { projectId: string }) {
       setNotice({ tone: 'ok', text: success })
       return true
     } catch (err) {
-      setNotice({ tone: 'error', text: err instanceof Error ? err.message : 'Something went wrong.' })
+      setNotice({
+        tone: 'error',
+        text:
+          err instanceof Error
+            ? err.message
+            : isEn
+              ? 'Something went wrong.'
+              : 'Une erreur est survenue.',
+      })
       return false
     } finally {
       setBusy(null)
@@ -84,11 +93,22 @@ export function Workspace({ projectId }: { projectId: string }) {
       } else {
         await mutate()
         setBusy(null)
-        setNotice({ tone: 'ok', text: 'Pages extracted.' })
+        setNotice({
+          tone: 'ok',
+          text: isEn ? 'Pages extracted.' : 'Planches extraites.',
+        })
       }
     } catch (err) {
       setBusy(null)
-      setNotice({ tone: 'error', text: err instanceof Error ? err.message : 'Cannot extract this file.' })
+      setNotice({
+        tone: 'error',
+        text:
+          err instanceof Error
+            ? err.message
+            : isEn
+              ? 'Cannot extract this file.'
+              : 'Impossible d’extraire ce fichier.',
+      })
     }
   }
 
@@ -98,8 +118,6 @@ export function Workspace({ projectId }: { projectId: string }) {
   function selectPage(id: string) {
     setSelectedPageId(id)
     setActiveBlockId(null)
-    // Scroll the clicked page back to the top of the screen when the stage is
-    // out of view (stacked columns on small screens): no manual scrolling needed.
     requestAnimationFrame(() => {
       const el = stageRef.current
       if (!el) return
@@ -113,15 +131,26 @@ export function Workspace({ projectId }: { projectId: string }) {
 
   async function handleReorderPages(pageIds: string[]) {
     if (!project) return
-    await run('reorder-pages', 'Page order saved.', () => api.reorderPages(project.id, pageIds))
+    await run(
+      'reorder-pages',
+      isEn ? 'Page order saved.' : 'Ordre des planches enregistré.',
+      () => api.reorderPages(project.id, pageIds),
+    )
   }
 
   async function exportProject(format?: 'zip' | 'cbz' | 'pdf') {
     if (!project) return
     const holder: { record: ExportRecord | null } = { record: null }
-    const ok = await run('export', `Export ${format ? format.toUpperCase() : ''} ready, downloading...`, async () => {
-      holder.record = await api.exportProject(project.id, format)
-    })
+    const fmtLabel = format ? format.toUpperCase() : ''
+    const ok = await run(
+      'export',
+      isEn
+        ? `Export ${fmtLabel} ready, downloading…`
+        : `Export ${fmtLabel} prêt, téléchargement…`,
+      async () => {
+        holder.record = await api.exportProject(project.id, format)
+      },
+    )
     const exportRecord = holder.record
     if (ok && exportRecord) {
       const ext = exportRecord.format || format || 'cbz'
@@ -134,9 +163,21 @@ export function Workspace({ projectId }: { projectId: string }) {
     setNotice(null)
     try {
       const res = await api.startBatchJob(project.id)
-      startJob(res.job_id, 'Starting the job...', project.pages.length)
+      startJob(
+        res.job_id,
+        isEn ? 'Starting the job…' : 'Démarrage du traitement…',
+        project.pages.length,
+      )
     } catch (err) {
-      setNotice({ tone: 'error', text: err instanceof Error ? err.message : 'Cannot start processing.' })
+      setNotice({
+        tone: 'error',
+        text:
+          err instanceof Error
+            ? err.message
+            : isEn
+              ? 'Cannot start processing.'
+              : 'Impossible de lancer le traitement.',
+      })
     }
   }
 
@@ -157,7 +198,7 @@ export function Workspace({ projectId }: { projectId: string }) {
           />
         }
       >
-        <nav aria-label="Fil d'ariane" className="flex min-w-0 items-center gap-1.5 text-sm">
+        <nav aria-label={tEditor('breadcrumb')} className="flex min-w-0 items-center gap-1.5 text-sm">
           <Link href="/dashboard" className="hidden shrink-0 text-ink-soft hover:text-ink transition-colors sm:inline">
             {tEditor('projects')}
           </Link>
@@ -202,7 +243,7 @@ export function Workspace({ projectId }: { projectId: string }) {
         <main id="contenu" className="flex flex-col">
           <h1 className="sr-only">{project.name}</h1>
           <PipelineBar
-            steps={projectPipeline(project)}
+            steps={projectPipeline(project, locale)}
             sourceLang={project.source_lang}
             targetLang={project.target_lang}
             canExport={pages.length > 0}
@@ -241,7 +282,7 @@ export function Workspace({ projectId }: { projectId: string }) {
             </div>
           ) : (
             <>
-            <div role="tablist" aria-label="Editor panels" className="flex border-b border-hairline bg-sheet lg:hidden">
+            <div role="tablist" aria-label={tTabs('ariaLabel')} className="flex border-b border-hairline bg-sheet lg:hidden">
               {(
                 [
                   ['pages', tTabs('pages')],
@@ -279,7 +320,11 @@ export function Workspace({ projectId }: { projectId: string }) {
             >
               {leftOpen ? (
                 <aside className={cn('relative min-w-0 flex-col border-b-[1.5px] border-ink lg:flex lg:border-r-[1.5px] lg:border-b-0', mobileTab === 'pages' ? 'flex' : 'hidden')}>
-                  <EdgeToggle side="left" onToggle={() => setLeftOpen(false)} label="Hide the side panel" />
+                  <EdgeToggle
+                    side="left"
+                    onToggle={() => setLeftOpen(false)}
+                    label={isEn ? 'Hide the side panel' : 'Masquer le panneau latéral'}
+                  />
                   <SourcesPanel
                     project={project}
                     busy={busy ?? (activeJobId ? 'job' : null)}
@@ -295,7 +340,11 @@ export function Workspace({ projectId }: { projectId: string }) {
                   />
                 </aside>
               ) : (
-                <CollapsedRail side="left" onExpand={() => setLeftOpen(true)} label="Show the side panel" />
+                <CollapsedRail
+                  side="left"
+                  onExpand={() => setLeftOpen(true)}
+                  label={isEn ? 'Show the side panel' : 'Afficher le panneau latéral'}
+                />
               )}
 
               {page ? (
@@ -322,7 +371,11 @@ export function Workspace({ projectId }: { projectId: string }) {
                   </div>
                   {rightOpen ? (
                     <div className={cn('relative min-w-0 max-w-full lg:flex lg:flex-col', mobileTab === 'text' ? 'flex flex-col' : 'hidden')}>
-                      <EdgeToggle side="right" onToggle={() => setRightOpen(false)} label="Hide the bubbles panel" />
+                      <EdgeToggle
+                        side="right"
+                        onToggle={() => setRightOpen(false)}
+                        label={isEn ? 'Hide the bubbles panel' : 'Masquer le panneau des bulles'}
+                      />
                       <BlockList
                         projectId={project.id}
                         page={page}
@@ -337,7 +390,11 @@ export function Workspace({ projectId }: { projectId: string }) {
                       />
                     </div>
                   ) : (
-                    <CollapsedRail side="right" onExpand={() => setRightOpen(true)} label="Show the bubbles panel" />
+                    <CollapsedRail
+                      side="right"
+                      onExpand={() => setRightOpen(true)}
+                      label={isEn ? 'Show the bubbles panel' : 'Afficher le panneau des bulles'}
+                    />
                   )}
                 </>
               ) : (

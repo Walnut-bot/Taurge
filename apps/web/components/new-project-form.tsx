@@ -1,14 +1,15 @@
 'use client'
 
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowLeftRight, Loader2 } from 'lucide-react'
 import { AppHeader } from '@/components/app-header'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { FormError, Input, Label, Select } from '@/components/ui/field'
+import { Link, localizeHref } from '@/i18n/navigation'
+import { useLocale } from '@/i18n/provider'
 import { api } from '@/lib/api'
-import { CONTENT_TYPES, LANGUAGES, languageLabel } from '@/lib/catalog'
+import { getContentTypes, getLanguages, languageLabel } from '@/lib/catalog'
 import { useMe, useRequireAuth } from '@/lib/hooks'
 import { cn } from '@/lib/utils'
 
@@ -16,6 +17,10 @@ export function NewProjectForm() {
   const authed = useRequireAuth()
   const { data: me } = useMe(authed)
   const router = useRouter()
+  const locale = useLocale()
+  const isEn = locale === 'en'
+  const contentTypes = getContentTypes(locale)
+  const languages = getLanguages(locale)
   const [name, setName] = useState('')
   const [contentType, setContentType] = useState('manga')
   const [sourceLang, setSourceLang] = useState('ja')
@@ -38,7 +43,7 @@ export function NewProjectForm() {
   function pickType(value: string) {
     setContentType(value)
     if (!sourceTouched) {
-      const lang = CONTENT_TYPES.find((c) => c.value === value)?.defaultLang
+      const lang = contentTypes.find((c) => c.value === value)?.defaultLang
       if (lang && lang !== targetLang) setSourceLang(lang)
     }
   }
@@ -53,8 +58,16 @@ export function NewProjectForm() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!name.trim()) return setError('Give the project a name.')
-    if (sameLang) return setError('Source and target languages must be different.')
+    if (!name.trim()) {
+      return setError(isEn ? 'Give the project a name.' : 'Donnez un nom au projet.')
+    }
+    if (sameLang) {
+      return setError(
+        isEn
+          ? 'Source and target languages must be different.'
+          : 'Les langues source et cible doivent être différentes.',
+      )
+    }
     setError(null)
     setPending(true)
     try {
@@ -64,9 +77,15 @@ export function NewProjectForm() {
         source_lang: sourceLang,
         target_lang: targetLang,
       })
-      router.push(`/projects/${project.id}`)
+      router.push(localizeHref(`/projects/${project.id}`, locale))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Cannot create the project.')
+      setError(
+        err instanceof Error
+          ? err.message
+          : isEn
+            ? 'Cannot create the project.'
+            : 'Impossible de créer le projet.',
+      )
       setPending(false)
     }
   }
@@ -77,19 +96,29 @@ export function NewProjectForm() {
       <main id="contenu" className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
         <Link href="/dashboard" className={cn(buttonVariants({ variant: 'link', size: 'sm' }), 'mb-6')}>
           <ArrowLeft aria-hidden="true" />
-          Projects
+          {isEn ? 'Projects' : 'Projets'}
         </Link>
-        <h1 className="text-4xl font-bold tracking-tight">New project</h1>
-        <p className="mt-2 text-ink-soft">A project is usually one chapter or one-shot.</p>
+        <h1 className="text-4xl font-bold tracking-tight">
+          {isEn ? 'New project' : 'Nouveau projet'}
+        </h1>
+        <p className="mt-2 text-ink-soft">
+          {isEn
+            ? 'A project is usually one chapter or one-shot.'
+            : 'Un projet correspond généralement à un chapitre ou à un one-shot.'}
+        </p>
 
         <form onSubmit={onSubmit} className="mt-10 flex flex-col gap-9" noValidate>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="name">Project name</Label>
+            <Label htmlFor="name">{isEn ? 'Project name' : 'Nom du projet'}</Label>
             <Input
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="E.g. Rain over Kōenji — Chapter 2"
+              placeholder={
+                isEn
+                  ? 'E.g. Rain over Kōenji — Chapter 2'
+                  : 'Ex. Pluie sur Kōenji — Chapitre 2'
+              }
               maxLength={200}
               required
               autoFocus
@@ -97,9 +126,11 @@ export function NewProjectForm() {
           </div>
 
           <fieldset>
-            <legend className="label-mono mb-3 text-ink-soft">Content type</legend>
+            <legend className="label-mono mb-3 text-ink-soft">
+              {isEn ? 'Content type' : 'Type de contenu'}
+            </legend>
             <div className="grid grid-cols-2 border-t-[1.5px] border-l-[1.5px] border-ink sm:grid-cols-3">
-              {CONTENT_TYPES.map((c) => {
+              {contentTypes.map((c) => {
                 const checked = contentType === c.value
                 return (
                   <label
@@ -131,11 +162,13 @@ export function NewProjectForm() {
           </fieldset>
 
           <fieldset>
-            <legend className="label-mono mb-3 text-ink-soft">Language pair</legend>
+            <legend className="label-mono mb-3 text-ink-soft">
+              {isEn ? 'Language pair' : 'Paire de langues'}
+            </legend>
             <div className="flex items-end gap-3">
               <div className="flex flex-1 flex-col gap-2">
                 <Label htmlFor="source" className="normal-case">
-                  From
+                  {isEn ? 'From' : 'De'}
                 </Label>
                 <Select
                   id="source"
@@ -146,19 +179,26 @@ export function NewProjectForm() {
                   }}
                   aria-invalid={sameLang || undefined}
                 >
-                  {LANGUAGES.map((l) => (
+                  {languages.map((l) => (
                     <option key={l.code} value={l.code}>
                       {l.label} — {l.native}
                     </option>
                   ))}
                 </Select>
               </div>
-              <Button type="button" variant="quiet" size="icon" onClick={swap} aria-label="Swap languages" className="mb-0.5 h-11">
+              <Button
+                type="button"
+                variant="quiet"
+                size="icon"
+                onClick={swap}
+                aria-label={isEn ? 'Swap languages' : 'Inverser les langues'}
+                className="mb-0.5 h-11"
+              >
                 <ArrowLeftRight aria-hidden="true" />
               </Button>
               <div className="flex flex-1 flex-col gap-2">
                 <Label htmlFor="target" className="normal-case">
-                  To
+                  {isEn ? 'To' : 'Vers'}
                 </Label>
                 <Select
                   id="target"
@@ -166,7 +206,7 @@ export function NewProjectForm() {
                   onChange={(e) => setTargetLang(e.target.value)}
                   aria-invalid={sameLang || undefined}
                 >
-                  {LANGUAGES.map((l) => (
+                  {languages.map((l) => (
                     <option key={l.code} value={l.code}>
                       {l.label} — {l.native}
                     </option>
@@ -176,8 +216,12 @@ export function NewProjectForm() {
             </div>
             <p className={cn('mt-3 text-sm', sameLang ? 'text-danger' : 'text-ink-soft')} aria-live="polite">
               {sameLang
-                ? 'Choose two different languages.'
-                : `OCR will read ${languageLabel(sourceLang)}, translation will produce ${languageLabel(targetLang)}.`}
+                ? isEn
+                  ? 'Choose two different languages.'
+                  : 'Choisissez deux langues différentes.'
+                : isEn
+                  ? `OCR will read ${languageLabel(sourceLang, locale)}, translation will produce ${languageLabel(targetLang, locale)}.`
+                  : `L’OCR lira le ${languageLabel(sourceLang, locale).toLowerCase()}, la traduction produira du ${languageLabel(targetLang, locale).toLowerCase()}.`}
             </p>
           </fieldset>
 
@@ -186,10 +230,10 @@ export function NewProjectForm() {
           <div className="flex items-center gap-3 border-t-[1.5px] border-ink pt-6">
             <Button type="submit" variant="seal" size="lg" disabled={pending}>
               {pending && <Loader2 className="animate-spin" aria-hidden="true" />}
-              Create and import pages
+              {isEn ? 'Create and import pages' : 'Créer et importer des planches'}
             </Button>
             <Link href="/dashboard" className={buttonVariants({ variant: 'ghost', size: 'lg' })}>
-              Cancel
+              {isEn ? 'Cancel' : 'Annuler'}
             </Link>
           </div>
         </form>

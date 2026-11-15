@@ -78,8 +78,10 @@
         "body": "Professional auto-fit typesetting, interactive QC curtain, instant export to CBZ, PDF, or ZIP."
       }
     ],
+    "whyEyebrow": "Next-generation localization studio",
     "whyTitle": "Built from the ground up for professional scanlation",
     "whySubtitle": "From bubble detection to final typesetting, every essential tool unified in one smooth, modern platform.",
+    "includedInTaurge": "Included in Taurge",
     "advantages": [
       {
         "badge": "Multi-engine AI",
@@ -165,7 +167,7 @@
   },
   "Demo": {
     "badge": "Demo",
-    "body": "Fictional in-memory data, simulated OCR and translation. Set NEXT_PUBLIC_API_URL to plug in your FastAPI backend."
+    "body": "Simulated in-memory data, OCR, and translation. Start the local backend (LANCER_TAURGE_EN_LIGNE_NGROK.bat) or set NEXT_PUBLIC_API_URL to connect your FastAPI server."
   },
   "Shell": {
     "dashboard": "Dashboard",

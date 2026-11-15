@@ -72,7 +72,7 @@ export default async function HomePage({
       <header className="w-full border-b-[1.5px] border-ink bg-sheet">
         <div className="flex h-16 w-full items-center justify-between gap-2 px-4 sm:px-6 lg:px-10">
           <Logo />
-          <nav aria-label="Account" className="flex items-center gap-2 sm:gap-3">
+          <nav aria-label={tNav('accountMenu')} className="flex items-center gap-2 sm:gap-3">
             <ThemeToggle />
             <LanguageSwitcher />
             <Link href="/login" className={`${buttonVariants({ variant: 'ghost', size: 'sm' })} max-sm:hidden`}>
@@ -124,7 +124,7 @@ export default async function HomePage({
             <div className="mb-12 max-w-2xl text-center mx-auto">
               <p className="label-mono mb-3 inline-flex items-center gap-2 text-seal">
                 <span className="inline-block h-px w-6 bg-seal" aria-hidden="true" />
-                Studio de localisation nouvelle génération
+                {t('whyEyebrow')}
                 <span className="inline-block h-px w-6 bg-seal" aria-hidden="true" />
               </p>
               <h2 id="atouts" className="text-3xl sm:text-4xl font-bold tracking-tight text-balance">
@@ -160,7 +160,7 @@ export default async function HomePage({
                       </p>
                     </div>
                     <div className="mt-5 flex items-center gap-1.5 text-xs font-mono text-seal opacity-0 transition-opacity group-hover:opacity-100">
-                      <span>Inclus dans Taurge</span>
+                      <span>{t('includedInTaurge')}</span>
                       <span aria-hidden="true">→</span>
                     </div>
                   </div>

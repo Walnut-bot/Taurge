@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Download, Loader2, Sparkles, ChevronDown, FileText, BookOpen, Archive } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useLocale } from '@/i18n/provider'
 import type { PipelineStep } from '@/lib/pipeline'
 import { cn } from '@/lib/utils'
 
@@ -31,6 +32,8 @@ export function PipelineBar({
   onExport,
   onBatchProcess,
 }: Props) {
+  const locale = useLocale()
+  const isEn = locale === 'en'
   const [selectedFormat, setSelectedFormat] = useState<'zip' | 'cbz' | 'pdf'>('cbz')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -49,13 +52,16 @@ export function PipelineBar({
     <div className="flex flex-wrap items-stretch border-b-[1.5px] border-ink bg-sheet">
       <div className="flex items-center gap-1.5 border-r-[1.5px] border-ink px-4 font-mono text-sm font-semibold sm:px-6">
         {sourceLang.toUpperCase()}
-        <span className="text-seal" aria-label="to">
+        <span className="text-seal" aria-label={isEn ? 'to' : 'vers'}>
           →
         </span>
         {targetLang.toUpperCase()}
       </div>
 
-      <ol aria-label="Project progress" className="flex min-w-0 flex-1 overflow-x-auto">
+      <ol
+        aria-label={isEn ? 'Project progress' : 'Avancement du projet'}
+        className="flex min-w-0 flex-1 overflow-x-auto"
+      >
         {steps.map((s, i) => (
           <li
             key={s.key}
@@ -71,7 +77,17 @@ export function PipelineBar({
               )}
             </span>
             <span className="sr-only">
-              {s.state === 'done' ? 'done' : s.state === 'partial' ? 'in progress' : 'to do'}
+              {s.state === 'done'
+                ? isEn
+                  ? 'done'
+                  : 'terminé'
+                : s.state === 'partial'
+                  ? isEn
+                    ? 'in progress'
+                    : 'en cours'
+                  : isEn
+                    ? 'to do'
+                    : 'à faire'}
             </span>
           </li>
         ))}
@@ -85,10 +101,25 @@ export function PipelineBar({
             onClick={onBatchProcess}
             disabled={!canBatchProcess || disabled}
             className="max-sm:w-full font-semibold border-seal text-seal hover:bg-seal hover:text-white transition-all shadow-sm"
-            title={canBatchProcess ? 'Run OCR, AI translation and cleaning on the whole chapter' : 'No pages available'}
+            title={
+              canBatchProcess
+                ? isEn
+                  ? 'Run OCR, AI translation and cleaning on the whole chapter'
+                  : 'Lancer l’OCR, la traduction IA et le nettoyage sur tout le chapitre'
+                : isEn
+                  ? 'No pages available'
+                  : 'Aucune planche disponible'
+            }
           >
             {batchProcessing ? <Loader2 className="animate-spin size-3.5" aria-hidden="true" /> : <Sparkles className="size-3.5" aria-hidden="true" />}
-            {batchProgressText || (batchProcessing ? 'Processing chapter...' : 'Translate the whole chapter')}
+            {batchProgressText ||
+              (batchProcessing
+                ? isEn
+                  ? 'Processing chapter…'
+                  : 'Traitement du chapitre…'
+                : isEn
+                  ? 'Translate the whole chapter'
+                  : 'Traduire tout le chapitre')}
           </Button>
         )}
 
@@ -100,17 +131,33 @@ export function PipelineBar({
               onClick={() => onExport(selectedFormat)}
               disabled={!canExport || disabled || exporting}
               className="max-sm:flex-1 rounded-r-none border-r border-white/20"
-              title={canExport ? `Export the chapter as ${selectedFormat.toUpperCase()}` : 'Import pages before exporting'}
+              title={
+                canExport
+                  ? isEn
+                    ? `Export the chapter as ${selectedFormat.toUpperCase()}`
+                    : `Exporter le chapitre en ${selectedFormat.toUpperCase()}`
+                  : isEn
+                    ? 'Import pages before exporting'
+                    : 'Importez des planches avant d’exporter'
+              }
             >
               {exporting ? <Loader2 className="animate-spin size-3.5" aria-hidden="true" /> : <Download className="size-3.5" aria-hidden="true" />}
-              <span>Export ({selectedFormat.toUpperCase()})</span>
+              <span>
+                {isEn
+                  ? `Export (${selectedFormat.toUpperCase()})`
+                  : `Exporter (${selectedFormat.toUpperCase()})`}
+              </span>
             </Button>
             <button
               type="button"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               disabled={!canExport || disabled || exporting}
               className="h-8 px-2 text-seal-ink hover:bg-black/10 transition-colors rounded-r-sm flex items-center justify-center disabled:opacity-50 cursor-pointer"
-              title="Choose the export format (CBZ, PDF, ZIP)"
+              title={
+                isEn
+                  ? 'Choose the export format (CBZ, PDF, ZIP)'
+                  : 'Choisir le format d’export (CBZ, PDF, ZIP)'
+              }
             >
               <ChevronDown className="size-3.5" />
             </button>
@@ -119,7 +166,7 @@ export function PipelineBar({
           {isMenuOpen && (
             <div className="absolute right-0 top-full mt-1.5 w-64 rounded border border-hairline bg-paper shadow-2xl z-50 py-1 flex flex-col">
               <div className="px-3 py-1.5 border-b border-hairline text-[10px] font-bold text-ink-soft uppercase tracking-wider">
-                Choose the output format
+                {isEn ? 'Choose the output format' : 'Choisir le format de sortie'}
               </div>
 
               <button
@@ -137,7 +184,11 @@ export function PipelineBar({
                 <BookOpen className="size-4 text-seal shrink-0 mt-0.5" />
                 <div>
                   <div className="font-semibold text-ink">Manga CBZ (.cbz)</div>
-                  <div className="text-[11px] text-ink-soft">Recommended for e-readers & Tachiyomi/Mihon</div>
+                  <div className="text-[11px] text-ink-soft">
+                    {isEn
+                      ? 'Recommended for e-readers & Tachiyomi/Mihon'
+                      : 'Recommandé pour liseuses & Tachiyomi/Mihon'}
+                  </div>
                 </div>
               </button>
 
@@ -155,8 +206,14 @@ export function PipelineBar({
               >
                 <FileText className="size-4 text-seal shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-semibold text-ink">PDF document (.pdf)</div>
-                  <div className="text-[11px] text-ink-soft">All pages bound into a single file</div>
+                  <div className="font-semibold text-ink">
+                    {isEn ? 'PDF document (.pdf)' : 'Document PDF (.pdf)'}
+                  </div>
+                  <div className="text-[11px] text-ink-soft">
+                    {isEn
+                      ? 'All pages bound into a single file'
+                      : 'Toutes les planches reliées en un seul fichier'}
+                  </div>
                 </div>
               </button>
 
@@ -174,8 +231,14 @@ export function PipelineBar({
               >
                 <Archive className="size-4 text-seal shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-semibold text-ink">ZIP archive (.zip)</div>
-                  <div className="text-[11px] text-ink-soft">Folder of high-definition PNG images</div>
+                  <div className="font-semibold text-ink">
+                    {isEn ? 'ZIP archive (.zip)' : 'Archive ZIP (.zip)'}
+                  </div>
+                  <div className="text-[11px] text-ink-soft">
+                    {isEn
+                      ? 'Folder of high-definition PNG images'
+                      : 'Dossier d’images PNG haute définition'}
+                  </div>
                 </div>
               </button>
             </div>

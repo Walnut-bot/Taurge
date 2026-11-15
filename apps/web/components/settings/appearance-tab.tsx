@@ -6,56 +6,71 @@ import { cn } from '@/lib/utils'
 import type { Theme } from '@/lib/theme'
 import type { Settings } from './use-settings'
 
-const THEME_OPTIONS: {
+function getThemeOptions(locale: string): {
   value: Theme
   label: string
   subtitle: string
   Icon: typeof Sun
   previewBg: string
   previewCard: string
-}[] = [
-  {
-    value: 'light',
-    label: 'Clair (Papier Washi)',
-    subtitle: 'Fond ivoire doux conçu pour la lecture prolongée en journée.',
-    Icon: Sun,
-    previewBg: 'bg-[#F8F5EE] border-[#DED6C6]',
-    previewCard: 'bg-white border-[#E5DEC9] text-[#1C1917]',
-  },
-  {
-    value: 'dark',
-    label: 'Sombre (Encre Sumi)',
-    subtitle: 'Contraste élevé pour le nettoyage d’images et le lettrage en studio.',
-    Icon: Moon,
-    previewBg: 'bg-[#121110] border-[#2B2825]',
-    previewCard: 'bg-[#1C1A17] border-[#332F2B] text-[#F5F2EB]',
-  },
-  {
-    value: 'system',
-    label: 'Automatique (Système)',
-    subtitle: 'Suit automatiquement le mode clair ou sombre de votre système Windows / macOS.',
-    Icon: Monitor,
-    previewBg: 'bg-gradient-to-r from-[#F8F5EE] to-[#121110] border-hairline',
-    previewCard: 'bg-sheet border-hairline text-ink',
-  },
-]
+}[] {
+  const isEn = locale === 'en'
+  return [
+    {
+      value: 'light',
+      label: isEn ? 'Light (Washi Paper)' : 'Clair (Papier Washi)',
+      subtitle: isEn
+        ? 'Soft ivory background designed for extended daytime reading.'
+        : 'Fond ivoire doux conçu pour la lecture prolongée en journée.',
+      Icon: Sun,
+      previewBg: 'bg-[#F8F5EE] border-[#DED6C6]',
+      previewCard: 'bg-white border-[#E5DEC9] text-[#1C1917]',
+    },
+    {
+      value: 'dark',
+      label: isEn ? 'Dark (Sumi Ink)' : 'Sombre (Encre Sumi)',
+      subtitle: isEn
+        ? 'High contrast for image cleaning and studio lettering.'
+        : 'Contraste élevé pour le nettoyage d’images et le lettrage en studio.',
+      Icon: Moon,
+      previewBg: 'bg-[#121110] border-[#2B2825]',
+      previewCard: 'bg-[#1C1A17] border-[#332F2B] text-[#F5F2EB]',
+    },
+    {
+      value: 'system',
+      label: isEn ? 'Automatic (System)' : 'Automatique (Système)',
+      subtitle: isEn
+        ? 'Automatically follows the light or dark mode of your Windows / macOS system.'
+        : 'Suit automatiquement le mode clair ou sombre de votre système Windows / macOS.',
+      Icon: Monitor,
+      previewBg: 'bg-gradient-to-r from-[#F8F5EE] to-[#121110] border-hairline',
+      previewCard: 'bg-sheet border-hairline text-ink',
+    },
+  ]
+}
 
 export function AppearanceTab({ s }: { s: Settings }) {
   const { studioSettings } = s
+  const isEn = s.locale === 'en'
+  const themeOptions = getThemeOptions(s.locale)
 
   return (
     <div className="space-y-6">
       {/* Thème visuel */}
       <section className="panel p-6 sm:p-8 rounded-xl space-y-5">
         <div className="border-b border-hairline pb-4">
-          <h2 className="text-lg font-semibold text-ink">Thème de l’interface</h2>
+          <h2 className="text-lg font-semibold text-ink">
+            {isEn ? 'Interface theme' : 'Thème de l’interface'}
+          </h2>
           <p className="mt-1 text-xs text-ink-soft">
-            Personnalisez l’ambiance visuelle de Taurge sur l’ensemble du tableau de bord et de l’atelier.
+            {isEn
+              ? 'Customize the visual look of Taurge across the entire dashboard and studio.'
+              : 'Personnalisez l’ambiance visuelle de Taurge sur l’ensemble du tableau de bord et de l’atelier.'}
           </p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-3">
-          {THEME_OPTIONS.map(({ value, label, subtitle, Icon, previewBg, previewCard }) => {
+          {themeOptions.map(({ value, label, subtitle, Icon, previewBg, previewCard }) => {
             const active = s.themeChoice === value
             return (
               <button
@@ -93,17 +108,31 @@ export function AppearanceTab({ s }: { s: Settings }) {
         <div className="border-b border-hairline pb-4">
           <h2 className="text-lg font-semibold text-ink flex items-center gap-2">
             <Globe className="size-4 text-seal" />
-            <span>Langue d’affichage de l’application</span>
+            <span>
+              {isEn ? 'Application display language' : 'Langue d’affichage de l’application'}
+            </span>
           </h2>
           <p className="mt-1 text-xs text-ink-soft">
-            Choisissez la langue des menus, boutons et messages système de Taurge (indépendante des langues de vos projets).
+            {isEn
+              ? 'Choose the language of Taurge menus, buttons and system messages (independent of your project languages).'
+              : 'Choisissez la langue des menus, boutons et messages système de Taurge (indépendante des langues de vos projets).'}
           </p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
           {[
-            { code: 'fr' as const, name: 'Français', native: 'Interface principale (Recommandé)', region: 'FR' },
-            { code: 'en' as const, name: 'English', native: 'International Studio Interface', region: 'EN' },
+            {
+              code: 'fr' as const,
+              name: 'Français',
+              native: isEn ? 'French interface' : 'Interface principale (Recommandé)',
+              region: 'FR',
+            },
+            {
+              code: 'en' as const,
+              name: 'English',
+              native: isEn ? 'International studio interface' : 'Interface internationale en anglais',
+              region: 'EN',
+            },
           ].map((item) => {
             const active = s.locale === item.code
             return (
@@ -138,14 +167,18 @@ export function AppearanceTab({ s }: { s: Settings }) {
       <section className="panel p-6 sm:p-8 rounded-xl space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-hairline pb-4">
           <div>
-            <h2 className="text-lg font-semibold text-ink">Ergonomie de l’Atelier & du Canvas</h2>
+            <h2 className="text-lg font-semibold text-ink">
+              {isEn ? 'Studio & Canvas Ergonomics' : 'Ergonomie de l’Atelier & du Canevas'}
+            </h2>
             <p className="mt-1 text-xs text-ink-soft">
-              Ajustez le comportement visuel de la planche de travail lors de la détection, du nettoyage et du lettrage.
+              {isEn
+                ? 'Adjust how the working page behaves during detection, cleaning and lettering.'
+                : 'Ajustez le comportement visuel de la planche de travail lors de la détection, du nettoyage et du lettrage.'}
             </p>
           </div>
           <Button type="button" variant="ghost" size="sm" onClick={s.resetStudioSettings} className="self-start sm:self-auto">
             <RotateCcw className="size-3.5" />
-            <span>Réinitialiser</span>
+            <span>{isEn ? 'Reset' : 'Réinitialiser'}</span>
           </Button>
         </div>
 
@@ -153,26 +186,42 @@ export function AppearanceTab({ s }: { s: Settings }) {
           {[
             {
               key: 'showBubbleBadges' as const,
-              title: 'Afficher les numéros de bulles sur la planche',
-              desc: 'Affiche les pastilles numérotées (1, 2, 3…) dans le coin supérieur gauche de chaque cadre détecté.',
+              title: isEn
+                ? 'Show bubble numbers on the page'
+                : 'Afficher les numéros de bulles sur la planche',
+              desc: isEn
+                ? 'Displays numbered badges (1, 2, 3…) in the top-left corner of each detected frame.'
+                : 'Affiche les pastilles numérotées (1, 2, 3…) dans le coin supérieur gauche de chaque cadre détecté.',
               Icon: Eye,
             },
             {
               key: 'canvasGrid' as const,
-              title: 'Grille de repère autour de la page',
-              desc: 'Affiche un fond tramé discret derrière la planche pour mieux distinguer les marges blanches.',
+              title: isEn
+                ? 'Reference grid around the page'
+                : 'Grille de repère autour de la page',
+              desc: isEn
+                ? 'Displays a subtle halftone background behind the page to clearly distinguish white margins.'
+                : 'Affiche un fond tramé discret derrière la planche pour mieux distinguer les marges blanches.',
               Icon: Grid,
             },
             {
               key: 'autoPreviewCleaned' as const,
-              title: 'Basculer automatiquement sur la vue « Cleaned » après l’inpainting',
-              desc: 'Affiche immédiatement la page nettoyée et le texte traduit dès que le nettoyage d’une page se termine.',
+              title: isEn
+                ? 'Automatically switch to “Cleaned” view after inpainting'
+                : 'Basculer automatiquement sur la vue « Nettoyé » après reconstruction du fond',
+              desc: isEn
+                ? 'Immediately displays the cleaned page and translated text as soon as page cleaning finishes.'
+                : 'Affiche immédiatement la page nettoyée et le texte traduit dès que le nettoyage d’une page se termine.',
               Icon: Sparkles,
             },
             {
               key: 'confirmBeforeDeleteBubble' as const,
-              title: 'Demander confirmation avant de supprimer une bulle',
-              desc: 'Empêche la suppression accidentelle d’une boîte OCR lors d’un clic rapide sur l’icône corbeille.',
+              title: isEn
+                ? 'Ask for confirmation before deleting a bubble'
+                : 'Demander confirmation avant de supprimer une bulle',
+              desc: isEn
+                ? 'Prevents accidental deletion of an OCR box when clicking the trash icon.'
+                : 'Empêche la suppression accidentelle d’une boîte OCR lors d’un clic rapide sur l’icône corbeille.',
               Icon: Trash2,
             },
           ].map(({ key, title, desc, Icon }) => {

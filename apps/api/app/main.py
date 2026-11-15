@@ -136,9 +136,12 @@ async def unhandled_exception_handler(
     jamais une erreur 500 comme une coupure réseau (« Cannot reach the Taurge server »).
     """
     logging.getLogger(__name__).exception("Erreur interne sur %s", request.url.path)
+    locale = get_locale(request)
+    inner = translate_detail(str(exc), locale)
+    prefix = "Internal server error" if locale == "en" else "Erreur interne du serveur"
     return JSONResponse(
         status_code=500,
-        content={"detail": f"Internal server error: {exc}"},
+        content={"detail": f"{prefix}: {inner}" if inner else prefix},
     )
 
 

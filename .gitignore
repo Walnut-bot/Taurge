@@ -22,6 +22,12 @@ dist/
 
 # Taurge runtime data (uploads, pages rendues, exports)
 storage_data/
+apps/api/pytest-of-*/
+apps/api/taurge-storage-*/
+apps/api/taurge-tests-*/
+pytest-of-*/
+taurge-storage-*/
+taurge-tests-*/
 
 # Modèle LaMa (198 Mo > limite GitHub de 100 Mo/fichier, jamais activé
 # en production : le code gère son absence proprement)

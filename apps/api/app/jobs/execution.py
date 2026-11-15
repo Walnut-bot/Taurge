@@ -288,7 +288,7 @@ def _run_extraction_in_background(job_id: uuid.UUID, file_id: uuid.UUID) -> None
                         message=f"Extraction de la page {index} depuis l\u2019archive\u2026",
                     )
                 if created == 0:
-                    raise ValueError("Aucune page n\u2019a pu etre extraite de l\u2019archive.")
+                    raise ValueError("Aucune page n\u2019a pu \u00eatre extraite de l\u2019archive.")
                 total = created
             else:
                 content = storage.read(source_file.storage_key)
@@ -304,7 +304,7 @@ def _run_extraction_in_background(job_id: uuid.UUID, file_id: uuid.UUID) -> None
                     slices_iter = iter_pages_from_image(content)
                 _set_extraction_job_progress(
                     session, job, current=0, total=total,
-                    message=f"Preparation de {total} page(s)\u2026",
+                    message=f"Pr\u00e9paration de {total} page(s)\u2026",
                 )
                 created = 0
                 for index, (image_bytes, width, height) in enumerate(slices_iter, start=1):
@@ -331,10 +331,10 @@ def _run_extraction_in_background(job_id: uuid.UUID, file_id: uuid.UUID) -> None
                     created = index
                     _set_extraction_job_progress(
                         session, job, current=index, total=total,
-                        message=f"Preparation de la page {index}/{total}\u2026",
+                        message=f"Pr\u00e9paration de la page {index}/{total}\u2026",
                     )
                 if created == 0:
-                    raise ValueError("Aucune page n\u2019a pu etre extraite de l\u2019image.")
+                    raise ValueError("Aucune page n\u2019a pu \u00eatre extraite de l\u2019image.")
                 total = created
 
             session.refresh(job)
@@ -347,7 +347,7 @@ def _run_extraction_in_background(job_id: uuid.UUID, file_id: uuid.UUID) -> None
                     try:
                         ensure_page_thumbnail(storage, _pg)
                     except Exception:
-                        logger.exception("Miniature non generee pour la page %s", _pid)
+                        logger.exception("Miniature non générée pour la page %s", _pid)
             job.status = "completed"
             job.progress_percent = 100
             job.message = f"Extraction terminée : {total} page(s)."

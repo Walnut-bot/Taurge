@@ -4,14 +4,15 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { ChevronLeft, ChevronRight, Loader2, Columns, Eye, Plus, Layers, RotateCcw, Trash2, FileText, Sparkles, Undo2, Redo2, ShieldCheck, MessageSquare, History, CheckCircle2, Type, Palette, Image as ImageIcon } from 'lucide-react'
 import { PageCanvas, type ManhwaStyle, type StrokeStyle } from '@/components/page-canvas'
 import { Button } from '@/components/ui/button'
+import { useLocale } from '@/i18n/provider'
 import { IS_DEMO, api, ApiError } from '@/lib/api'
 import { usePageImage } from '@/lib/hooks'
 import { pageStage } from '@/lib/pipeline'
 import {
-  FONTS_LIST,
-  COLOR_SWATCHES,
-  FONT_SIZE_SCALES,
-  STROKE_OPTIONS,
+  getFontsList,
+  getColorSwatches,
+  getFontSizeScales,
+  getStrokeOptions,
   STROKE_WIDTHS,
   normalizeFontId,
 } from '@/lib/fonts'
@@ -58,14 +59,25 @@ type Props = {
   onRefresh?: () => Promise<unknown>
 }
 
-const NEXT_ACTION = {
-  extracted: { key: 'ocr', label: 'Read bubbles (OCR)', done: 'Bubbles detected.' },
-  ocr: { key: 'translate', label: 'Translate the page', done: 'Page translated. Proofread each bubble.' },
-  translated: { key: 'clean', label: 'Clean the bubbles', done: 'Bubbles cleaned.' },
-} as const
-
 export function PageStage(props: Props) {
   const { page, pageIndex, pageCount, projectId, busy, run } = props
+  const locale = useLocale()
+  const isEn = locale === 'en'
+  const fontsList = getFontsList(locale)
+  const colorSwatches = getColorSwatches(locale)
+  const fontSizeScales = getFontSizeScales(locale)
+  const strokeOptions = getStrokeOptions(locale)
+  const NEXT_ACTION = isEn
+    ? ({
+        extracted: { key: 'ocr', label: 'Read bubbles (OCR)', done: 'Bubbles detected.' },
+        ocr: { key: 'translate', label: 'Translate the page', done: 'Page translated. Proofread each bubble.' },
+        translated: { key: 'clean', label: 'Clean the bubbles', done: 'Bubbles cleaned.' },
+      } as const)
+    : ({
+        extracted: { key: 'ocr', label: 'Lire les bulles (OCR)', done: 'Bulles détectées.' },
+        ocr: { key: 'translate', label: 'Traduire la page', done: 'Page traduite. Relisez chaque bulle.' },
+        translated: { key: 'clean', label: 'Nettoyer les bulles', done: 'Bulles nettoyées.' },
+      } as const)
   const stage = pageStage(page)
   const [view, setView] = useState<View>(page.cleaned_at ? 'cleaned' : 'original')
 
@@ -436,7 +448,7 @@ export function PageStage(props: Props) {
   }
 
   const handleRestoreVersion = async (versionId: string) => {
-    await run(`restore:${versionId}`, 'Page version restored.', async () => {
+    await run(`restore:${versionId}`, isEn ? 'Page version restored.' : 'Version de la page restaurée.', async () => {
       await api.restorePageVersion(projectId, page.id, versionId)
     })
   }
@@ -452,7 +464,7 @@ export function PageStage(props: Props) {
   }
 
   const handleCreateBlock = async (bbox: { bbox_x: number; bbox_y: number; bbox_w: number; bbox_h: number }) => {
-    await run(`create-block:${page.id}`, 'Bulle détectée et ajoutée.', async () => {
+    await run(`create-block:${page.id}`, isEn ? 'Bubble detected and added.' : 'Bulle détectée et ajoutée.', async () => {
       const newBlock = await api.createBlock({ page_id: page.id, ...bbox })
       page.ocr_blocks.push(newBlock)
       await props.onRefresh?.()
@@ -471,7 +483,11 @@ export function PageStage(props: Props) {
   }
 
   const handleReClean = async () => {
-    const ok = await run(`clean:${page.id}`, 'Cleaning updated with the new bubbles.', () => api.cleanPage(projectId, page.id))
+    const ok = await run(
+      `clean:${page.id}`,
+      isEn ? 'Cleaning updated with the new bubbles.' : 'Nettoyage mis à jour avec les nouvelles bulles.',
+      () => api.cleanPage(projectId, page.id),
+    )
     if (ok) setView('cleaned')
   }
 
@@ -480,8 +496,8 @@ export function PageStage(props: Props) {
     page.ocr_blocks.forEach((b, idx) => {
       const tag = b.bubble_type || 'B'
       script += `[${String(idx + 1).padStart(2, '0')}] (${tag})\n`
-      script += `Original: ${b.text}\n`
-      script += `Translation: ${b.translation?.translated_text || '(Not translated)'}\n\n`
+      script += `${isEn ? 'Original' : 'Original'} : ${b.text}\n`
+      script += `${isEn ? 'Translation' : 'Traduction'} : ${b.translation?.translated_text || (isEn ? '(Not translated)' : '(Non traduit)')}\n\n`
     })
 
     const blob = new Blob([script], { type: 'text/plain;charset=utf-8' })
@@ -506,7 +522,7 @@ export function PageStage(props: Props) {
             size="icon-sm"
             onClick={() => props.onNavigate(-1)}
             disabled={pageIndex === 0}
-            aria-label="Previous page"
+            aria-label={isEn ? 'Previous page' : 'Page précédente'}
           >
             <ChevronLeft aria-hidden="true" />
           </Button>
@@ -519,14 +535,14 @@ export function PageStage(props: Props) {
             size="icon-sm"
             onClick={() => props.onNavigate(1)}
             disabled={pageIndex === pageCount - 1}
-            aria-label="Next page"
+            aria-label={isEn ? 'Next page' : 'Page suivante'}
           >
             <ChevronRight aria-hidden="true" />
           </Button>
         </div>
 
         {page.cleaned_at && (
-          <div role="group" aria-label="View" className="flex items-center ring-1 ring-ink">
+          <div role="group" aria-label={isEn ? 'View' : 'Affichage'} className="flex items-center ring-1 ring-ink">
             {(['original', 'cleaned'] as const).map((v) => (
               <button
                 key={v}
@@ -541,7 +557,7 @@ export function PageStage(props: Props) {
                   !isQcMode && effectiveView === v ? 'bg-ink text-sheet' : 'hover:bg-muted',
                 )}
               >
-                {v === 'original' ? 'Original' : 'Cleaned'}
+                {v === 'original' ? 'Original' : (isEn ? 'Cleaned' : 'Nettoyé')}
               </button>
             ))}
             <button
@@ -552,10 +568,10 @@ export function PageStage(props: Props) {
                 'h-8 px-3 text-xs font-semibold flex items-center gap-1.5 transition-colors border-l border-ink',
                 isQcMode ? 'bg-seal text-seal-ink' : 'hover:bg-muted text-ink'
               )}
-              title="Enable the QC curtain comparator"
+              title={isEn ? 'Enable the QC curtain comparator' : 'Activer le comparateur Rideau QC'}
             >
               <Columns className="size-3.5" />
-              <span>QC curtain</span>
+              <span>{isEn ? 'QC curtain' : 'Rideau QC'}</span>
             </button>
           </div>
         )}
@@ -567,9 +583,9 @@ export function PageStage(props: Props) {
                 'px-2 py-0.5 rounded font-bold',
                 allReviewed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
               )}
-              title="Review progress"
+              title={isEn ? 'Review progress' : 'Avancement de la relecture'}
             >
-              QC: {reviewedBlocks}/{totalBlocks} reviewed
+              QC : {reviewedBlocks}/{totalBlocks} {isEn ? 'reviewed' : 'relues'}
             </span>
           </div>
         )}
@@ -584,10 +600,10 @@ export function PageStage(props: Props) {
                 ? 'bg-seal text-seal-ink ring-2 ring-seal/50 shadow-sm'
                 : 'border border-hairline bg-sheet text-ink hover:bg-muted'
             )}
-            title="Draw a bubble manually"
+            title={isEn ? 'Draw a bubble manually' : 'Dessiner une bulle manuellement'}
           >
             <Plus className="size-3.5" />
-            <span>{isDrawMode ? 'Drawing…' : '+ Bubble'}</span>
+            <span>{isDrawMode ? (isEn ? 'Drawing…' : 'Tracé en cours…') : (isEn ? '+ Bubble' : '+ Bulle')}</span>
           </button>
 
           <button
@@ -598,10 +614,10 @@ export function PageStage(props: Props) {
               'h-8 px-2 text-xs font-semibold flex items-center gap-1 rounded transition-colors border border-hairline',
               showZones ? 'bg-ink text-sheet' : 'bg-sheet text-ink-soft hover:text-ink'
             )}
-            title="Show / hide frames"
+            title={isEn ? 'Show / hide frames' : 'Afficher / masquer les cadres'}
           >
             <Layers className="size-3.5" />
-            <span className="hidden sm:inline">Frames</span>
+            <span className="hidden sm:inline">{isEn ? 'Frames' : 'Cadres'}</span>
           </button>
 
           <button
@@ -613,10 +629,18 @@ export function PageStage(props: Props) {
                 ? 'bg-seal/15 text-seal border-seal/50 font-bold shadow-2xs'
                 : 'bg-sheet text-ink hover:bg-muted'
             )}
-            title="Apposer le logo ou filigrane de votre équipe de scanlation sur cette page ou tout le chapitre"
+            title={
+              isEn
+                ? 'Apply your scanlation team logo or watermark to this page or the entire chapter'
+                : 'Apposer le logo ou filigrane de votre équipe de scanlation sur cette page ou tout le chapitre'
+            }
           >
             <ImageIcon className="size-3.5 text-seal" />
-            <span className="hidden sm:inline">{currentWatermark ? 'Logo actif' : 'Logo / Filigrane'}</span>
+            <span className="hidden sm:inline">
+              {currentWatermark
+                ? (isEn ? 'Active logo' : 'Logo actif')
+                : (isEn ? 'Logo / Watermark' : 'Logo / Filigrane')}
+            </span>
           </button>
 
           {totalBlocks > 0 && (
@@ -626,8 +650,8 @@ export function PageStage(props: Props) {
                 onClick={handleUndo}
                 disabled={undoStack.length === 0 || busy !== null}
                 className="h-8 px-2 text-xs font-medium flex items-center gap-1 rounded border border-hairline bg-sheet text-ink hover:bg-muted disabled:opacity-40 transition-colors"
-                title="Undo (Ctrl+Z)"
-                aria-label="Undo"
+                title={isEn ? 'Undo (Ctrl+Z)' : 'Annuler (Ctrl+Z)'}
+                aria-label={isEn ? 'Undo' : 'Annuler'}
               >
                 <Undo2 className="size-3.5" />
               </button>
@@ -636,8 +660,8 @@ export function PageStage(props: Props) {
                 onClick={handleRedo}
                 disabled={redoStack.length === 0 || busy !== null}
                 className="h-8 px-2 text-xs font-medium flex items-center gap-1 rounded border border-hairline bg-sheet text-ink hover:bg-muted disabled:opacity-40 transition-colors"
-                title="Redo (Ctrl+Shift+Z)"
-                aria-label="Redo"
+                title={isEn ? 'Redo (Ctrl+Shift+Z)' : 'Rétablir (Ctrl+Shift+Z)'}
+                aria-label={isEn ? 'Redo' : 'Rétablir'}
               >
                 <Redo2 className="size-3.5" />
               </button>
@@ -649,10 +673,10 @@ export function PageStage(props: Props) {
                   'h-8 px-2.5 text-xs font-medium flex items-center gap-1 rounded border border-hairline transition-colors',
                   qcOpen ? 'bg-ink text-sheet' : 'bg-sheet text-ink hover:bg-muted',
                 )}
-                title="Run AI Quality Control on this page"
+                title={isEn ? 'Run AI Quality Control on this page' : 'Lancer le contrôle qualité IA sur cette page'}
               >
                 <ShieldCheck className="size-3.5 text-seal" />
-                <span className="hidden sm:inline">AI QC</span>
+                <span className="hidden sm:inline">{isEn ? 'AI QC' : 'QC IA'}</span>
               </button>
               <button
                 type="button"
@@ -662,7 +686,7 @@ export function PageStage(props: Props) {
                   'h-8 px-2.5 text-xs font-medium flex items-center gap-1 rounded border border-hairline transition-colors',
                   commentsOpen ? 'bg-ink text-sheet' : 'bg-sheet text-ink hover:bg-muted',
                 )}
-                title="Page comments & review notes"
+                title={isEn ? 'Page comments & review notes' : 'Commentaires et notes de relecture de la page'}
               >
                 <MessageSquare className="size-3.5 text-seal" />
                 <span className="hidden sm:inline">Notes</span>
@@ -675,7 +699,7 @@ export function PageStage(props: Props) {
                   'h-8 px-2.5 text-xs font-medium flex items-center gap-1 rounded border border-hairline transition-colors',
                   versionsOpen ? 'bg-ink text-sheet' : 'bg-sheet text-ink hover:bg-muted',
                 )}
-                title="Page snapshots & version history"
+                title={isEn ? 'Page snapshots & version history' : 'Instantanés et historique de versions de la page'}
               >
                 <History className="size-3.5 text-seal" />
                 <span className="hidden sm:inline">Versions</span>
@@ -683,21 +707,21 @@ export function PageStage(props: Props) {
               <select
                 value={workflowStatus}
                 onChange={(e) => handleWorkflowStatusChange(e.target.value)}
-                aria-label="Page workflow status"
+                aria-label={isEn ? 'Page workflow status' : 'Statut du workflow de la page'}
                 className="h-8 rounded border border-hairline bg-sheet px-2 text-xs font-mono font-semibold text-ink"
-                title="Scanlation workflow stage"
+                title={isEn ? 'Scanlation workflow stage' : 'Étape du workflow de scanlation'}
               >
                 <option value="raw">RAW</option>
-                <option value="cleaned">CLEANED</option>
-                <option value="translated">TRANSLATED</option>
-                <option value="typeset">TYPESET</option>
-                <option value="ready">READY</option>
+                <option value="cleaned">{isEn ? 'CLEANED' : 'NETTOYÉE'}</option>
+                <option value="translated">{isEn ? 'TRANSLATED' : 'TRADUITE'}</option>
+                <option value="typeset">{isEn ? 'TYPESET' : 'LETTRÉE'}</option>
+                <option value="ready">{isEn ? 'READY' : 'PRÊTE'}</option>
               </select>
               <button
                 type="button"
                 onClick={handleExportScript}
                 className="h-8 px-2.5 text-xs font-medium flex items-center gap-1 rounded border border-hairline bg-sheet text-ink hover:bg-muted transition-colors"
-                title="Download the Photoshop-formatted script (.txt)"
+                title={isEn ? 'Download the Photoshop-formatted script (.txt)' : 'Télécharger le script formaté pour Photoshop (.txt)'}
               >
                 <FileText className="size-3.5 text-seal" />
                 <span className="hidden sm:inline">Script (.txt)</span>
@@ -711,10 +735,10 @@ export function PageStage(props: Props) {
               onClick={handleReClean}
               disabled={busy !== null}
               className="h-8 px-2.5 text-xs font-medium flex items-center gap-1 rounded border border-hairline bg-sheet text-ink hover:bg-muted transition-colors"
-              title="Regenerate the cleaning"
+              title={isEn ? 'Regenerate the cleaning' : 'Régénérer le nettoyage'}
             >
               <RotateCcw className="size-3.5" />
-              <span className="hidden sm:inline">Re-clean</span>
+              <span className="hidden sm:inline">{isEn ? 'Re-clean' : 'Renettoyer'}</span>
             </button>
           )}
 
@@ -724,12 +748,12 @@ export function PageStage(props: Props) {
           {next ? (
             <Button variant="default" size="sm" onClick={runNext} disabled={busy !== null}>
               {working && <Loader2 className="animate-spin" aria-hidden="true" />}
-              {working ? 'Working…' : next.label}
+              {working ? (isEn ? 'Working…' : 'Traitement…') : next.label}
             </Button>
           ) : (
             <span className="label-mono flex items-center gap-2 text-ok">
               <span className="size-1.5 rounded-full bg-ok" aria-hidden="true" />
-              Page ready
+              {isEn ? 'Page ready' : 'Page prête'}
             </span>
           )}
         </div>
@@ -740,24 +764,30 @@ export function PageStage(props: Props) {
         <div className="border-b border-hairline bg-sheet px-4 py-2.5 text-xs">
           <div className="flex items-center justify-between gap-2 mb-1.5">
             <span className="font-mono font-semibold uppercase tracking-wider text-ink-soft">
-              AI Quality Control — Page {page.page_number}
+              {isEn ? `AI Quality Control — Page ${page.page_number}` : `Contrôle qualité IA — Page ${page.page_number}`}
             </span>
             <button
               type="button"
               onClick={() => setQcOpen(false)}
               className="text-ink-soft hover:text-ink font-mono text-[11px]"
             >
-              Close
+              {isEn ? 'Close' : 'Fermer'}
             </button>
           </div>
           {qcLoading ? (
             <div className="flex items-center gap-2 py-1 text-ink-soft">
               <Loader2 className="size-3.5 animate-spin text-seal" />
-              <span>Analyzing bubbles, glossary & overflow risks…</span>
+              <span>
+                {isEn
+                  ? 'Analyzing bubbles, glossary & overflow risks…'
+                  : 'Analyse des bulles, du glossaire et des risques de débordement…'}
+              </span>
             </div>
           ) : qcIssues.length === 0 ? (
             <p className="text-emerald-700 font-medium py-0.5">
-              ✓ No issues detected on this page (translations, locked glossary terms & bubble sizes look good).
+              {isEn
+                ? '✓ No issues detected on this page (translations, locked glossary terms & bubble sizes look good).'
+                : '✓ Aucun problème détecté sur cette page (traductions, termes verrouillés du glossaire et tailles de bulles conformes).'}
             </p>
           ) : (
             <ul className="flex flex-col gap-1.5 max-h-36 overflow-y-auto py-1">
@@ -777,7 +807,13 @@ export function PageStage(props: Props) {
                             : 'bg-blue-100 text-blue-800',
                       )}
                     >
-                      {issue.severity}
+                      {isEn
+                        ? issue.severity
+                        : issue.severity === 'error'
+                          ? 'erreur'
+                          : issue.severity === 'warning'
+                            ? 'alerte'
+                            : 'info'}
                     </span>
                     <div className="min-w-0">
                       <p className="font-medium text-ink">{issue.message}</p>
@@ -792,7 +828,7 @@ export function PageStage(props: Props) {
                       onClick={() => props.onSelectBlock(issue.ocr_block_id ?? null)}
                       className="shrink-0 rounded border border-hairline bg-sheet px-2 py-0.5 font-mono text-[10px] font-semibold hover:bg-muted"
                     >
-                      Inspect
+                      {isEn ? 'Inspect' : 'Inspecter'}
                     </button>
                   )}
                 </li>
@@ -807,14 +843,14 @@ export function PageStage(props: Props) {
         <div className="border-b border-hairline bg-sheet px-4 py-2.5 text-xs">
           <div className="flex items-center justify-between gap-2 mb-2">
             <span className="font-mono font-semibold uppercase tracking-wider text-ink-soft">
-              Review Notes & Comments ({comments.length})
+              {isEn ? `Review Notes & Comments (${comments.length})` : `Notes de relecture et commentaires (${comments.length})`}
             </span>
             <button
               type="button"
               onClick={() => setCommentsOpen(false)}
               className="text-ink-soft hover:text-ink font-mono text-[11px]"
             >
-              Close
+              {isEn ? 'Close' : 'Fermer'}
             </button>
           </div>
           <form onSubmit={handleAddComment} className="flex items-center gap-2 mb-2">
@@ -822,11 +858,15 @@ export function PageStage(props: Props) {
               type="text"
               value={commentInput}
               onChange={(e) => setCommentInput(e.target.value)}
-              placeholder={props.activeBlockId ? 'Comment on selected bubble…' : 'Add a review note on this page…'}
+              placeholder={
+                props.activeBlockId
+                  ? (isEn ? 'Comment on selected bubble…' : 'Commenter la bulle sélectionnée…')
+                  : (isEn ? 'Add a review note on this page…' : 'Ajouter une note de relecture sur cette page…')
+              }
               className="h-8 flex-1 rounded border border-hairline bg-paper px-2.5 text-xs"
             />
             <Button type="submit" size="sm" variant="default">
-              Post
+              {isEn ? 'Post' : 'Publier'}
             </Button>
           </form>
           {comments.length > 0 && (
@@ -850,7 +890,7 @@ export function PageStage(props: Props) {
                         onClick={() => props.onSelectBlock(c.ocr_block_id ?? null)}
                         className="rounded border border-hairline bg-sheet px-1.5 py-0.5 font-mono text-[10px] hover:bg-muted"
                       >
-                        Bubble
+                        {isEn ? 'Bubble' : 'Bulle'}
                       </button>
                     )}
                     <button
@@ -862,7 +902,7 @@ export function PageStage(props: Props) {
                       className="text-emerald-700 hover:underline font-mono text-[10px] flex items-center gap-0.5"
                     >
                       <CheckCircle2 className="size-3" />
-                      {c.is_resolved ? 'Reopen' : 'Resolve'}
+                      {c.is_resolved ? (isEn ? 'Reopen' : 'Rouvrir') : (isEn ? 'Resolve' : 'Résoudre')}
                     </button>
                   </div>
                 </li>
@@ -877,14 +917,14 @@ export function PageStage(props: Props) {
         <div className="border-b border-hairline bg-sheet px-4 py-2.5 text-xs">
           <div className="flex items-center justify-between gap-2 mb-2">
             <span className="font-mono font-semibold uppercase tracking-wider text-ink-soft">
-              Page Version History ({versions.length})
+              {isEn ? `Page Version History (${versions.length})` : `Historique des versions de la page (${versions.length})`}
             </span>
             <button
               type="button"
               onClick={() => setVersionsOpen(false)}
               className="text-ink-soft hover:text-ink font-mono text-[11px]"
             >
-              Close
+              {isEn ? 'Close' : 'Fermer'}
             </button>
           </div>
           <form onSubmit={handleCreateVersion} className="flex items-center gap-2 mb-2">
@@ -892,11 +932,11 @@ export function PageStage(props: Props) {
               type="text"
               value={versionLabel}
               onChange={(e) => setVersionLabel(e.target.value)}
-              placeholder="Snapshot label (e.g. Before QC proofread)…"
+              placeholder={isEn ? 'Snapshot label (e.g. Before QC proofread)…' : 'Nom de l’instantané (ex. Avant relecture QC)…'}
               className="h-8 flex-1 rounded border border-hairline bg-paper px-2.5 text-xs"
             />
             <Button type="submit" size="sm" variant="default">
-              Save Snapshot
+              {isEn ? 'Save Snapshot' : 'Créer un instantané'}
             </Button>
           </form>
           {versions.length > 0 && (
@@ -909,7 +949,7 @@ export function PageStage(props: Props) {
                   <div className="min-w-0">
                     <span className="font-mono font-bold text-ink">v{v.version_number} — {v.label}</span>
                     <span className="ml-2 font-mono text-[10px] text-ink-soft">
-                      ({v.blocks_count} bubbles · by {v.created_by_email})
+                      ({v.blocks_count} {isEn ? 'bubbles · by' : 'bulles · par'} {v.created_by_email})
                     </span>
                   </div>
                   <button
@@ -917,7 +957,7 @@ export function PageStage(props: Props) {
                     onClick={() => handleRestoreVersion(v.id)}
                     className="shrink-0 rounded border border-hairline bg-sheet px-2 py-0.5 font-mono text-[10px] font-semibold hover:bg-muted"
                   >
-                    Restore
+                    {isEn ? 'Restore' : 'Restaurer'}
                   </button>
                 </li>
               ))}
@@ -933,7 +973,7 @@ export function PageStage(props: Props) {
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 font-semibold text-ink">
               <Type className="size-4 text-seal" />
-              <span>Police :</span>
+              <span>{isEn ? 'Font:' : 'Police :'}</span>
             </div>
             <select
               value={normalizeFontId(manhwaStyle)}
@@ -943,11 +983,9 @@ export function PageStage(props: Props) {
                 let nextColor = textColor
                 let nextStroke = strokeStyle
                 if (selectedId === 'cinzel') {
-                  // Norme scanlation pour récitatifs / boîtes noires : texte blanc
                   if (nextColor === '#0d0d0d') nextColor = '#ffffff'
                   if (nextStroke === 'white') nextStroke = 'black'
                 } else if (selectedId === 'comic-neue' || selectedId === 'sans') {
-                  // Norme dialogue standard : texte noir
                   if (nextColor === '#ffffff') nextColor = '#0d0d0d'
                   if (nextStroke === 'black') nextStroke = 'white'
                 }
@@ -960,9 +998,9 @@ export function PageStage(props: Props) {
                 })
               }}
               className="rounded border border-hairline bg-paper px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-seal"
-              title="Choisir la police pour cette bulle"
+              title={isEn ? 'Choose the font for this bubble' : 'Choisir la police pour cette bulle'}
             >
-              {FONTS_LIST.map((f) => (
+              {fontsList.map((f) => (
                 <option key={f.id} value={f.id}>
                   {f.name}
                 </option>
@@ -972,10 +1010,10 @@ export function PageStage(props: Props) {
             {/* Raccourcis rapides 1-clic pour styles courants */}
             <div className="hidden sm:flex items-center gap-1 rounded bg-paper/80 p-0.5 border border-hairline">
               {[
-                { id: 'cinzel', label: 'Carré noir', icon: '🏛️' },
+                { id: 'cinzel', label: isEn ? 'Black box' : 'Carré noir', icon: '🏛️' },
                 { id: 'comic-neue', label: 'Dialogue', icon: '💬' },
-                { id: 'bangers', label: 'Cris', icon: '💥' },
-                { id: 'cormorant', label: 'Pensée', icon: '💭' },
+                { id: 'bangers', label: isEn ? 'Shout' : 'Cris', icon: '💥' },
+                { id: 'cormorant', label: isEn ? 'Thought' : 'Pensée', icon: '💭' },
                 { id: 'permanent-marker', label: 'SFX', icon: '⚡' },
               ].map((p) => {
                 const isCur = normalizeFontId(manhwaStyle) === p.id
@@ -1020,11 +1058,11 @@ export function PageStage(props: Props) {
           <div className="flex min-w-0 flex-wrap items-center gap-3">
             {/* Taille du texte avec A- et A+ */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-ink-soft">Taille :</span>
+              <span className="text-[11px] font-semibold text-ink-soft">{isEn ? 'Size:' : 'Taille :'}</span>
               <div className="flex items-center gap-0.5">
                 <button
                   type="button"
-                  title="Réduire la taille (-15%)"
+                  title={isEn ? 'Decrease size (-15%)' : 'Réduire la taille (-15%)'}
                   onClick={() => {
                     const next = Math.max(0.5, Math.round((fontSizeScale - 0.15) * 100) / 100)
                     setFontSizeScale(next)
@@ -1042,20 +1080,22 @@ export function PageStage(props: Props) {
                     persistBlockStyle({ font_size_scale: val })
                   }}
                   className="rounded border border-hairline bg-paper px-1.5 py-0.5 text-xs font-semibold"
-                  title="Échelle de taille"
+                  title={isEn ? 'Font size scale' : 'Échelle de taille'}
                 >
-                  {FONT_SIZE_SCALES.map((s) => (
+                  {fontSizeScales.map((s) => (
                     <option key={s.value} value={s.value}>
                       {s.label}
                     </option>
                   ))}
-                  {!FONT_SIZE_SCALES.some((s) => s.value === fontSizeScale) && (
-                    <option value={fontSizeScale}>{Math.round(fontSizeScale * 100)}% (Personnalisé)</option>
+                  {!fontSizeScales.some((s) => s.value === fontSizeScale) && (
+                    <option value={fontSizeScale}>
+                      {Math.round(fontSizeScale * 100)}% ({isEn ? 'Custom' : 'Personnalisé'})
+                    </option>
                   )}
                 </select>
                 <button
                   type="button"
-                  title="Agrandir la taille (+15%)"
+                  title={isEn ? 'Increase size (+15%)' : 'Agrandir la taille (+15%)'}
                   onClick={() => {
                     const next = Math.min(2.5, Math.round((fontSizeScale + 0.15) * 100) / 100)
                     setFontSizeScale(next)
@@ -1070,9 +1110,9 @@ export function PageStage(props: Props) {
 
             {/* Nuancier de couleurs + Sélecteur personnalisé */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-ink-soft">Couleur :</span>
+              <span className="text-[11px] font-semibold text-ink-soft">{isEn ? 'Color:' : 'Couleur :'}</span>
               <div className="flex items-center gap-1">
-                {COLOR_SWATCHES.map((swatch) => (
+                {colorSwatches.map((swatch) => (
                   <button
                     key={swatch.value}
                     type="button"
@@ -1097,7 +1137,7 @@ export function PageStage(props: Props) {
                     style={{ backgroundColor: swatch.value }}
                   />
                 ))}
-                <label className="flex items-center cursor-pointer ml-0.5" title="Couleur personnalisée (Palette)">
+                <label className="flex items-center cursor-pointer ml-0.5" title={isEn ? 'Custom color (Palette)' : 'Couleur personnalisée (Palette)'}>
                   <input
                     type="color"
                     value={textColor}
@@ -1114,7 +1154,7 @@ export function PageStage(props: Props) {
 
             {/* Contour (Outline) */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-ink-soft">Contour :</span>
+              <span className="text-[11px] font-semibold text-ink-soft">{isEn ? 'Outline:' : 'Contour :'}</span>
               <select
                 value={strokeStyle}
                 onChange={(e) => {
@@ -1125,9 +1165,9 @@ export function PageStage(props: Props) {
                   })
                 }}
                 className="rounded border border-hairline bg-paper px-1.5 py-0.5 text-xs font-semibold"
-                title="Style de contour"
+                title={isEn ? 'Outline style' : 'Style de contour'}
               >
-                {STROKE_OPTIONS.map((opt) => (
+                {strokeOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
                   </option>
@@ -1142,7 +1182,7 @@ export function PageStage(props: Props) {
                     persistBlockStyle({ stroke_width: val })
                   }}
                   className="rounded border border-hairline bg-paper px-1 py-0.5 text-xs font-semibold"
-                  title="Épaisseur du contour"
+                  title={isEn ? 'Outline thickness' : 'Épaisseur du contour'}
                 >
                   {STROKE_WIDTHS.map((w) => (
                     <option key={w.value} value={w.value}>
@@ -1154,7 +1194,7 @@ export function PageStage(props: Props) {
             </div>
 
             {/* Contrôles de rotation (-180° à +180°) */}
-            <div className="flex items-center gap-1.5" title="Angle de rotation du texte (-180° à +180°)">
+            <div className="flex items-center gap-1.5" title={isEn ? 'Text rotation angle (-180° to +180°)' : 'Angle de rotation du texte (-180° à +180°)'}>
               <span className="text-[11px] font-semibold text-ink-soft">Rotation :</span>
               <div className="flex items-center gap-1">
                 {[
@@ -1217,9 +1257,9 @@ export function PageStage(props: Props) {
                   })
                 }}
                 className="rounded border border-hairline bg-paper px-1.5 py-0.5 font-mono text-[10px] font-semibold text-ink hover:bg-muted transition-colors"
-                title="Pivoter les dimensions du cadre (Largeur ↔ Hauteur)"
+                title={isEn ? 'Swap frame dimensions (Width ↔ Height)' : 'Pivoter les dimensions du cadre (Largeur ↔ Hauteur)'}
               >
-                ⇄ L/H
+                {isEn ? '⇄ W/H' : '⇄ L/H'}
               </button>
             </div>
 
@@ -1228,10 +1268,10 @@ export function PageStage(props: Props) {
               type="button"
               className="h-6 px-2 rounded bg-red-600 hover:bg-red-700 text-white font-medium flex items-center gap-1 text-[11px] transition-colors ml-auto"
               onClick={() => handleDeleteBlock(activeBlock.id)}
-              title="Supprimer cette bulle"
+              title={isEn ? 'Delete this bubble' : 'Supprimer cette bulle'}
             >
               <Trash2 className="size-3" />
-              <span>Supprimer</span>
+              <span>{isEn ? 'Delete' : 'Supprimer'}</span>
             </button>
           </div>
         </div>
@@ -1241,13 +1281,13 @@ export function PageStage(props: Props) {
       <div className="flex flex-1 relative overflow-hidden">
         {error ? (
           <div className="tone grid place-items-center w-full p-6 text-center text-sm text-danger">
-            Image unavailable for this page.
+            {isEn ? 'Image unavailable for this page.' : 'Image indisponible pour cette page.'}
           </div>
         ) : (
           <PageCanvas
             src={isQcMode ? (cleanedUrl || displayUrl) : displayUrl}
             qcOriginalSrc={isQcMode ? originalUrl : null}
-            alt={`Page ${page.page_number}${effectiveView === 'cleaned' ? ', cleaned' : ''}`}
+            alt={`Page ${page.page_number}${effectiveView === 'cleaned' ? (isEn ? ', cleaned' : ', nettoyée') : ''}`}
             width={page.width ?? 1000}
             height={page.height ?? 1414}
             blocks={effectiveBlocks}
@@ -1292,7 +1332,7 @@ export function PageStage(props: Props) {
         {isPeekingOriginal && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-black/90 text-white font-mono text-xs px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 pointer-events-none z-50">
             <Eye className="size-3.5 text-seal" />
-            <span>Showing RAW original (C key)</span>
+            <span>{isEn ? 'Showing RAW original (C key)' : 'Affichage de l’original RAW (touche C)'}</span>
           </div>
         )}
       </div>

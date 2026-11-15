@@ -3,60 +3,81 @@
 import { Loader2, Save, Cpu, CheckCircle2, AlertCircle, Sparkles, Type } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label, Select } from '@/components/ui/field'
-import { LANGUAGES } from '@/lib/catalog'
+import { getLanguages } from '@/lib/catalog'
 import { cn } from '@/lib/utils'
 import type { ContentType } from '@/lib/types'
 import type { Settings } from './use-settings'
 
-const FORMAT_CARDS: {
+function getFormatCards(locale: string): {
   id: ContentType
   title: string
   sub: string
   badge: string
-}[] = [
-  {
-    id: 'manga',
-    title: 'Manga Japonais',
-    sub: 'Lecture de droite à gauche (RTL) · Vertical JA',
-    badge: 'Droite → Gauche',
-  },
-  {
-    id: 'manhwa',
-    title: 'Manhwa / Webtoon',
-    sub: 'Lecture verticale en continu · Coréen / Anglais',
-    badge: 'Scroll Vertical',
-  },
-  {
-    id: 'manhua',
-    title: 'Manhua Chinois',
-    sub: 'Planches couleur & webtoon chinois (ZH)',
-    badge: 'Gauche → Droite',
-  },
-  {
-    id: 'comic',
-    title: 'Comics / BD Européenne',
-    sub: 'Lecture occidentale classique de gauche à droite',
-    badge: 'Gauche → Droite',
-  },
-]
+}[] {
+  const isEn = locale === 'en'
+  return [
+    {
+      id: 'manga',
+      title: isEn ? 'Japanese Manga' : 'Manga Japonais',
+      sub: isEn
+        ? 'Right-to-left reading (RTL) · Vertical JA'
+        : 'Lecture de droite à gauche · Vertical JA',
+      badge: isEn ? 'Right → Left' : 'Droite → Gauche',
+    },
+    {
+      id: 'manhwa',
+      title: isEn ? 'Manhwa / Webtoon' : 'Manhwa / Webtoon',
+      sub: isEn
+        ? 'Continuous vertical reading · Korean / English'
+        : 'Lecture verticale en continu · Coréen / Anglais',
+      badge: isEn ? 'Vertical Scroll' : 'Défilement vertical',
+    },
+    {
+      id: 'manhua',
+      title: isEn ? 'Chinese Manhua' : 'Manhua Chinois',
+      sub: isEn
+        ? 'Color pages & Chinese webtoon (ZH)'
+        : 'Planches couleur & webtoon chinois (ZH)',
+      badge: isEn ? 'Left → Right' : 'Gauche → Droite',
+    },
+    {
+      id: 'comic',
+      title: isEn ? 'Comics / European BD' : 'BD Européenne / Bande dessinée',
+      sub: isEn
+        ? 'Classic western left-to-right reading'
+        : 'Lecture occidentale classique de gauche à droite',
+      badge: isEn ? 'Left → Right' : 'Gauche → Droite',
+    },
+  ]
+}
 
 export function PreferencesTab({ s }: { s: Settings }) {
+  const isEn = s.locale === 'en'
+  const formatCards = getFormatCards(s.locale)
+  const languages = getLanguages(s.locale)
+
   return (
     <div className="space-y-6">
       {/* 1. Paramètres par défaut des nouveaux projets */}
       <section className="panel p-6 sm:p-8 rounded-xl space-y-6">
         <div className="border-b border-hairline pb-4">
-          <h2 className="text-lg font-semibold text-ink">Paramètres des nouveaux projets</h2>
+          <h2 className="text-lg font-semibold text-ink">
+            {isEn ? 'Default settings for new projects' : 'Paramètres des nouveaux projets'}
+          </h2>
           <p className="mt-1 text-xs text-ink-soft">
-            Ces valeurs pré-remplissent automatiquement la fenêtre de création de projet pour accélérer votre flux de travail.
+            {isEn
+              ? 'These values pre-fill the project creation form automatically to speed up your workflow.'
+              : 'Ces valeurs pré-remplissent automatiquement la fenêtre de création de projet pour accélérer votre flux de travail.'}
           </p>
         </div>
 
         <form onSubmit={s.handleSavePreferences} className="space-y-6">
           <div>
-            <Label className="mb-2.5 block">Format de lecture habituel</Label>
+            <Label className="mb-2.5 block">
+              {isEn ? 'Usual reading format' : 'Format de lecture habituel'}
+            </Label>
             <div className="grid gap-3 sm:grid-cols-2">
-              {FORMAT_CARDS.map((fmt) => {
+              {formatCards.map((fmt) => {
                 const active = s.preferences.default_content_type === fmt.id
                 return (
                   <button
@@ -88,7 +109,9 @@ export function PreferencesTab({ s }: { s: Settings }) {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <Label htmlFor="pref-source-lang">Langue source par défaut (OCR)</Label>
+              <Label htmlFor="pref-source-lang">
+                {isEn ? 'Default source language (OCR)' : 'Langue source par défaut (OCR)'}
+              </Label>
               <Select
                 id="pref-source-lang"
                 value={s.preferences.default_source_lang}
@@ -97,7 +120,7 @@ export function PreferencesTab({ s }: { s: Settings }) {
                 }
                 className="mt-1.5"
               >
-                {LANGUAGES.map((l) => (
+                {languages.map((l) => (
                   <option key={l.code} value={l.code}>
                     {l.label} — {l.native} ({l.code.toUpperCase()})
                   </option>
@@ -106,7 +129,9 @@ export function PreferencesTab({ s }: { s: Settings }) {
             </div>
 
             <div>
-              <Label htmlFor="pref-target-lang">Langue cible par défaut (Traduction)</Label>
+              <Label htmlFor="pref-target-lang">
+                {isEn ? 'Default target language (Translation)' : 'Langue cible par défaut (Traduction)'}
+              </Label>
               <Select
                 id="pref-target-lang"
                 value={s.preferences.default_target_lang}
@@ -115,7 +140,7 @@ export function PreferencesTab({ s }: { s: Settings }) {
                 }
                 className="mt-1.5"
               >
-                {LANGUAGES.map((l) => (
+                {languages.map((l) => (
                   <option key={l.code} value={l.code}>
                     {l.label} — {l.native} ({l.code.toUpperCase()})
                   </option>
@@ -126,7 +151,9 @@ export function PreferencesTab({ s }: { s: Settings }) {
 
           {s.sameLanguage && (
             <p className="text-xs text-danger">
-              La langue source et la langue cible par défaut doivent être différentes.
+              {isEn
+                ? 'Default source and target languages must be different.'
+                : 'La langue source et la langue cible par défaut doivent être différentes.'}
             </p>
           )}
 
@@ -137,7 +164,7 @@ export function PreferencesTab({ s }: { s: Settings }) {
               ) : (
                 <Save className="size-3.5" />
               )}
-              <span>Enregistrer les valeurs par défaut</span>
+              <span>{isEn ? 'Save defaults' : 'Enregistrer les valeurs par défaut'}</span>
             </Button>
           </div>
         </form>
@@ -148,16 +175,22 @@ export function PreferencesTab({ s }: { s: Settings }) {
         <div className="border-b border-hairline pb-4">
           <h2 className="text-lg font-semibold text-ink flex items-center gap-2">
             <Type className="size-4 text-seal" />
-            <span>Lettrage (Typesetting) &amp; Assistants IA</span>
+            <span>
+              {isEn ? 'Lettering (Typesetting) & AI Assistants' : 'Lettrage & Assistants IA'}
+            </span>
           </h2>
           <p className="mt-1 text-xs text-ink-soft">
-            Définissez le style typographique appliqué par défaut sur les bulles nettoyées et les automatisations du Studio.
+            {isEn
+              ? 'Define the default typographic style applied to cleaned bubbles and Studio automations.'
+              : 'Définissez le style typographique appliqué par défaut sur les bulles nettoyées et les automatisations du Studio.'}
           </p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <Label htmlFor="studio-font-scale">Échelle de police par défaut</Label>
+            <Label htmlFor="studio-font-scale">
+              {isEn ? 'Default font scale' : 'Échelle de police par défaut'}
+            </Label>
             <Select
               id="studio-font-scale"
               value={s.studioSettings.defaultFontScale}
@@ -169,15 +202,29 @@ export function PreferencesTab({ s }: { s: Settings }) {
               }
               className="mt-1.5"
             >
-              <option value="85">85% — Compact (Bulles étroites)</option>
-              <option value="100">100% — Standard (Recommandé)</option>
-              <option value="115">115% — Confort (Lecture mobile / Webtoon)</option>
-              <option value="130">130% — Grand (Effets &amp; dialogues expressifs)</option>
+              <option value="85">
+                {isEn ? '85% — Compact (Narrow bubbles)' : '85 % — Compact (Bulles étroites)'}
+              </option>
+              <option value="100">
+                {isEn ? '100% — Standard (Recommended)' : '100 % — Standard (Recommandé)'}
+              </option>
+              <option value="115">
+                {isEn
+                  ? '115% — Comfort (Mobile reading / Webtoon)'
+                  : '115 % — Confort (Lecture mobile / Webtoon)'}
+              </option>
+              <option value="130">
+                {isEn
+                  ? '130% — Large (Expressive effects & dialogue)'
+                  : '130 % — Grand (Effets & dialogues expressifs)'}
+              </option>
             </Select>
           </div>
 
           <div>
-            <Label htmlFor="studio-stroke-color">Contour du texte (Outline) par défaut</Label>
+            <Label htmlFor="studio-stroke-color">
+              {isEn ? 'Default text outline' : 'Contour du texte par défaut'}
+            </Label>
             <Select
               id="studio-stroke-color"
               value={s.studioSettings.defaultStrokeColor}
@@ -189,9 +236,21 @@ export function PreferencesTab({ s }: { s: Settings }) {
               }
               className="mt-1.5"
             >
-              <option value="white">Halo Blanc (Idéal sur fonds tramés)</option>
-              <option value="black">Contour Noir (Idéal sur textes clairs)</option>
-              <option value="none">Aucun contour (Texte plat sur bulle blanche)</option>
+              <option value="white">
+                {isEn
+                  ? 'White Halo (Ideal over screentones)'
+                  : 'Halo blanc (Idéal sur fonds tramés)'}
+              </option>
+              <option value="black">
+                {isEn
+                  ? 'Black Outline (Ideal for light text)'
+                  : 'Contour noir (Idéal sur textes clairs)'}
+              </option>
+              <option value="none">
+                {isEn
+                  ? 'No outline (Flat text on white bubble)'
+                  : 'Aucun contour (Texte plat sur bulle blanche)'}
+              </option>
             </Select>
           </div>
         </div>
@@ -204,10 +263,14 @@ export function PreferencesTab({ s }: { s: Settings }) {
               </div>
               <div>
                 <p className="text-sm font-medium text-ink">
-                  Suggestions automatiques de la Mémoire de Traduction (TM)
+                  {isEn
+                    ? 'Automatic Translation Memory (TM) suggestions'
+                    : 'Suggestions automatiques de la Mémoire de Traduction (MT)'}
                 </p>
                 <p className="mt-0.5 text-xs text-ink-soft">
-                  Propose automatiquement les traductions déjà validées dans vos chapitres précédents lorsqu’une réplique similaire est détectée.
+                  {isEn
+                    ? 'Automatically suggests translations validated in previous chapters when a similar line is detected.'
+                    : 'Propose automatiquement les traductions déjà validées dans vos chapitres précédents lorsqu’une réplique similaire est détectée.'}
                 </p>
               </div>
             </div>
@@ -226,10 +289,14 @@ export function PreferencesTab({ s }: { s: Settings }) {
               </div>
               <div>
                 <p className="text-sm font-medium text-ink">
-                  Contrôle Qualité IA (AI QC) automatique
+                  {isEn
+                    ? 'Automatic AI Quality Check (AI QC)'
+                    : 'Contrôle Qualité IA automatique'}
                 </p>
                 <p className="mt-0.5 text-xs text-ink-soft">
-                  Signale automatiquement les termes du glossaire non respectés et les textes trop longs pour leur bulle.
+                  {isEn
+                    ? 'Automatically flags missed glossary terms and text that is too long for its bubble.'
+                    : 'Signale automatiquement les termes du glossaire non respectés et les textes trop longs pour leur bulle.'}
                 </p>
               </div>
             </div>
@@ -249,15 +316,19 @@ export function PreferencesTab({ s }: { s: Settings }) {
           <div>
             <h2 className="text-lg font-semibold text-ink flex items-center gap-2">
               <Cpu className="size-4 text-seal" />
-              <span>État des moteurs OCR &amp; IA du serveur</span>
+              <span>
+                {isEn ? 'Server OCR & AI Engine Status' : 'État des moteurs OCR & IA du serveur'}
+              </span>
             </h2>
             <p className="mt-1 text-xs text-ink-soft">
-              Vérification en temps réel des bibliothèques de vision par ordinateur et de traduction installées sur votre machine.
+              {isEn
+                ? 'Real-time check of computer vision and translation libraries installed on the server.'
+                : 'Vérification en temps réel des bibliothèques de vision par ordinateur et de traduction installées sur le serveur.'}
             </p>
           </div>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-moss/30 bg-moss/10 px-2.5 py-1 font-mono text-[11px] font-medium text-moss">
             <span className="size-1.5 rounded-full bg-moss" />
-            Pipeline Hybride Actif
+            {isEn ? 'Hybrid Pipeline Active' : 'Chaîne hybride active'}
           </span>
         </div>
 
@@ -266,13 +337,15 @@ export function PreferencesTab({ s }: { s: Settings }) {
           <div className="flex items-start justify-between gap-3 rounded-xl border border-hairline bg-sheet p-4">
             <div>
               <div className="flex items-center gap-2">
-                <p className="text-sm font-semibold text-ink">MangaOCR (Vision-Transformer)</p>
+                <p className="text-sm font-semibold text-ink">MangaOCR</p>
                 <span className="rounded border border-hairline bg-paper px-1.5 py-0.5 font-mono text-[10px] text-ink-soft">
                   JA Vertical
                 </span>
               </div>
               <p className="mt-1 text-xs text-ink-soft">
-                Reconnaissance haute précision des mangas japonais verticaux, polices manuscrites et kanjis stylisés.
+                {isEn
+                  ? 'High-accuracy recognition of vertical Japanese manga, handwritten fonts and stylized kanji.'
+                  : 'Reconnaissance haute précision des mangas japonais verticaux, polices manuscrites et kanjis stylisés.'}
               </p>
             </div>
             <span
@@ -285,11 +358,11 @@ export function PreferencesTab({ s }: { s: Settings }) {
             >
               {s.systemStatus?.manga_ocr_installed ? (
                 <>
-                  <CheckCircle2 className="size-3" /> Installé
+                  <CheckCircle2 className="size-3" /> {isEn ? 'Installed' : 'Installé'}
                 </>
               ) : (
                 <>
-                  <AlertCircle className="size-3" /> Absent
+                  <AlertCircle className="size-3" /> {isEn ? 'Missing' : 'Absent'}
                 </>
               )}
             </span>
@@ -305,7 +378,9 @@ export function PreferencesTab({ s }: { s: Settings }) {
                 </span>
               </div>
               <p className="mt-1 text-xs text-ink-soft">
-                Moteur neuronal spécialisé pour les Webtoons coréens (Hangul), Manhuas chinois et Comics anglais.
+                {isEn
+                  ? 'Neural engine specialized for Korean Webtoons (Hangul), Chinese Manhua and English Comics.'
+                  : 'Moteur neuronal spécialisé pour les Webtoons coréens (Hangul), Manhuas chinois et bandes dessinées en anglais.'}
               </p>
             </div>
             <span
@@ -318,11 +393,11 @@ export function PreferencesTab({ s }: { s: Settings }) {
             >
               {s.systemStatus?.paddle_ocr_installed ? (
                 <>
-                  <CheckCircle2 className="size-3" /> Installé
+                  <CheckCircle2 className="size-3" /> {isEn ? 'Installed' : 'Installé'}
                 </>
               ) : (
                 <>
-                  <AlertCircle className="size-3" /> Absent
+                  <AlertCircle className="size-3" /> {isEn ? 'Missing' : 'Absent'}
                 </>
               )}
             </span>
@@ -333,12 +408,14 @@ export function PreferencesTab({ s }: { s: Settings }) {
             <div className="min-w-0">
               <p className="text-sm font-semibold text-ink">Tesseract OCR 5 + Tessdata</p>
               <p className="mt-1 text-xs text-ink-soft">
-                Packs de langues détectés :{' '}
+                {isEn ? 'Detected language packs:' : 'Packs de langues détectés :'}{' '}
                 <span className="font-mono text-ink">
                   {s.systemStatus?.tesseract_langs?.length
                     ? s.systemStatus.tesseract_langs.join(', ')
                     : s.loadingStatus
-                    ? 'Vérification...'
+                    ? isEn
+                      ? 'Checking…'
+                      : 'Vérification…'
                     : 'Standard'}
                 </span>
               </p>
@@ -353,11 +430,11 @@ export function PreferencesTab({ s }: { s: Settings }) {
             >
               {s.systemStatus?.tesseract_installed ? (
                 <>
-                  <CheckCircle2 className="size-3" /> Installé
+                  <CheckCircle2 className="size-3" /> {isEn ? 'Installed' : 'Installé'}
                 </>
               ) : (
                 <>
-                  <AlertCircle className="size-3" /> Absent
+                  <AlertCircle className="size-3" /> {isEn ? 'Missing' : 'Absent'}
                 </>
               )}
             </span>
@@ -366,17 +443,25 @@ export function PreferencesTab({ s }: { s: Settings }) {
           {/* Inpainting & Traduction */}
           <div className="flex items-start justify-between gap-3 rounded-xl border border-hairline bg-sheet p-4">
             <div>
-              <p className="text-sm font-semibold text-ink">Inpainting &amp; Traduction IA</p>
+              <p className="text-sm font-semibold text-ink">
+                {isEn
+                  ? 'Inpainting & AI Translation'
+                  : 'Reconstruction de fond & Traduction IA'}
+              </p>
               <p className="mt-1 text-xs text-ink-soft">
-                Reconstruction de fond OpenCV Telea/NS sans trace ·{' '}
+                {isEn
+                  ? 'Seamless OpenCV Telea/NS background reconstruction · '
+                  : 'Reconstruction de fond OpenCV Telea/NS sans trace · '}
                 {s.systemStatus?.ollama_configured
-                  ? `LLM Local (${s.systemStatus.ollama_model})`
-                  : 'Traducteur neuronal'}
+                  ? `${isEn ? 'Local LLM' : 'Modèle local'} (${s.systemStatus.ollama_model})`
+                  : isEn
+                    ? 'Neural translator'
+                    : 'Traducteur neuronal'}
                 {s.systemStatus?.deepl_configured ? ' + DeepL Pro' : ''}
               </p>
             </div>
             <span className="shrink-0 inline-flex items-center gap-1 rounded-full border border-moss/30 bg-moss/10 px-2.5 py-0.5 text-[11px] font-medium text-moss">
-              <CheckCircle2 className="size-3" /> Actif
+              <CheckCircle2 className="size-3" /> {isEn ? 'Active' : 'Actif'}
             </span>
           </div>
         </div>

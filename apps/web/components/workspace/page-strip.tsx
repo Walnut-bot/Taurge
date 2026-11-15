@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import { ChevronDown, ChevronUp, GripVertical } from 'lucide-react'
+import { useLocale } from '@/i18n/provider'
 import { usePageImage } from '@/lib/hooks'
-import { PAGE_STAGE_LABEL, pageStage, type PageStage } from '@/lib/pipeline'
+import { getPageStageLabel, pageStage, type PageStage } from '@/lib/pipeline'
 import type { Page } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -27,6 +28,8 @@ export function PageStrip({
   onReorder: (pageIds: string[]) => void
   reorderDisabled?: boolean
 }) {
+  const locale = useLocale()
+  const isEn = locale === 'en'
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
 
@@ -48,9 +51,9 @@ export function PageStrip({
   const dragging = dragIndex !== null
 
   return (
-    <nav aria-label="Pages" className="p-4">
+    <nav aria-label={isEn ? 'Pages' : 'Planches'} className="p-4">
       <h2 className="label-mono mb-3 text-ink-soft">
-        Pages <span className="text-ink">{pages.length}</span>
+        {isEn ? 'Pages' : 'Planches'} <span className="text-ink">{pages.length}</span>
       </h2>
       <ol className="flex gap-3 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible">
         {pages.map((p, i) => (
@@ -82,6 +85,7 @@ export function PageStrip({
           >
             <Thumb
               page={p}
+              locale={locale}
               selected={p.id === selectedId}
               onSelect={() => onSelect(p.id)}
               onMoveUp={i > 0 ? () => move(i, i - 1) : null}
@@ -97,6 +101,7 @@ export function PageStrip({
 
 function Thumb({
   page,
+  locale,
   selected,
   onSelect,
   onMoveUp,
@@ -104,12 +109,14 @@ function Thumb({
   moveDisabled,
 }: {
   page: Page
+  locale: string
   selected: boolean
   onSelect: () => void
   onMoveUp: (() => void) | null
   onMoveDown: (() => void) | null
   moveDisabled?: boolean
 }) {
+  const isEn = locale === 'en'
   const { url } = usePageImage(page.id, 'original', 'thumb')
   const stage = pageStage(page)
   return (
@@ -123,7 +130,7 @@ function Thumb({
         type="button"
         onClick={onSelect}
         aria-current={selected ? 'page' : undefined}
-        title="Show this page"
+        title={isEn ? 'Show this page' : 'Afficher cette planche'}
         className="flex min-w-0 flex-1 cursor-grab items-center gap-3 p-1.5 text-left active:cursor-grabbing"
       >
         <span className="relative block w-12 shrink-0 overflow-hidden bg-white ring-1 ring-hairline" style={{ aspectRatio: `${page.width ?? 1000} / ${page.height ?? 1414}` }}>
@@ -136,18 +143,22 @@ function Thumb({
           <span className="font-mono text-sm font-semibold">p.{String(page.page_number).padStart(2, '0')}</span>
           <span className={cn('flex items-center gap-1.5 text-[11px]', selected ? 'text-sheet/75' : 'text-ink-soft')}>
             <span className={cn('size-1.5 rounded-full', STAGE_DOT[stage])} aria-hidden="true" />
-            {PAGE_STAGE_LABEL[stage]}
+            {getPageStageLabel(stage, locale)}
           </span>
         </span>
       </button>
       {selected ? (
-        <span className="flex flex-col justify-center gap-0.5 py-1 pr-1" role="group" aria-label="Move the page">
+        <span
+          className="flex flex-col justify-center gap-0.5 py-1 pr-1"
+          role="group"
+          aria-label={isEn ? 'Move the page' : 'Déplacer la planche'}
+        >
           <button
             type="button"
             onClick={onMoveUp ?? undefined}
             disabled={!onMoveUp || moveDisabled}
-            aria-label="Move the page up"
-            title="Move the page up"
+            aria-label={isEn ? 'Move the page up' : 'Monter la planche'}
+            title={isEn ? 'Move the page up' : 'Monter la planche'}
             className="rounded p-0.5 transition-colors hover:bg-sheet/20 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent"
           >
             <ChevronUp className="size-4" aria-hidden="true" />
@@ -156,8 +167,8 @@ function Thumb({
             type="button"
             onClick={onMoveDown ?? undefined}
             disabled={!onMoveDown || moveDisabled}
-            aria-label="Move the page down"
-            title="Move the page down"
+            aria-label={isEn ? 'Move the page down' : 'Descendre la planche'}
+            title={isEn ? 'Move the page down' : 'Descendre la planche'}
             className="rounded p-0.5 transition-colors hover:bg-sheet/20 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent"
           >
             <ChevronDown className="size-4" aria-hidden="true" />

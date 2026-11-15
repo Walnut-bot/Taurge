@@ -10,16 +10,27 @@ import { getMessages, parseLocale } from '@/i18n/server'
 import { themeScript } from '@/lib/theme'
 import '../globals.css'
 
-export const metadata: Metadata = {
-  title: {
-    default: 'Taurge — Manga, manhwa and webtoon localization studio',
-    template: '%s · Taurge',
-  },
-  description:
-    'AI localization and lettering studio for manga, manhwa and webtoons.',
-  icons: {
-    icon: '/icon.svg',
-  },
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>
+}): Promise<Metadata> {
+  const locale = parseLocale((await params).locale) ?? 'fr'
+  const isEn = locale === 'en'
+  return {
+    title: {
+      default: isEn
+        ? 'Taurge — Manga, manhwa and webtoon localization studio'
+        : 'Taurge — Studio de localisation manga, manhwa et webtoon',
+      template: '%s · Taurge',
+    },
+    description: isEn
+      ? 'AI localization and lettering studio for manga, manhwa and webtoons.'
+      : 'Studio IA de localisation et de lettrage pour mangas, manhwas et webtoons.',
+    icons: {
+      icon: '/icon.svg',
+    },
+  }
 }
 
 export const viewport: Viewport = {

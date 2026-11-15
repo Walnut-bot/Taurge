@@ -22,6 +22,7 @@ from app.auth.schemas import (
 from app.billing.credit_service import SIGNUP_FREE_CREDITS, get_or_create_subscription
 from app.core.config import settings
 from app.core.db import get_session
+from app.core.i18n import locale_dependency, translate_detail
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.cleaned_page import CleanedPage
 from app.models.export import Export
@@ -430,6 +431,7 @@ def change_password(
     payload: PasswordChangeRequest,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
+    locale: str = Depends(locale_dependency),
 ):
     if not verify_password(payload.current_password, current_user.password_hash):
         raise HTTPException(
@@ -444,13 +446,17 @@ def change_password(
     current_user.password_hash = hash_password(payload.new_password)
     session.add(current_user)
     session.commit()
-    return {"status": "ok", "message": "Votre mot de passe a été modifié avec succès."}
+    return {
+        "status": "ok",
+        "message": str(translate_detail("Votre mot de passe a été modifié avec succès.", locale)),
+    }
 
 
 @router.get("/me/export-data")
 def export_personal_data(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
+    locale: str = Depends(locale_dependency),
 ):
     """Portabilité RGPD (Art. 20) : export JSON complet des données personnelles."""
     sub = get_or_create_subscription(session, current_user.id)
@@ -499,7 +505,7 @@ def export_personal_data(
                 "id": str(entry.id),
                 "action_type": entry.action_type,
                 "amount": entry.amount,
-                "description": entry.description,
+                "description": str(translate_detail(entry.description, locale)) if entry.description else None,
                 "created_at": entry.created_at.isoformat() if getattr(entry, "created_at", None) else None,
             }
             for entry in ledgers

@@ -12,6 +12,7 @@ from app.billing.credit_service import (
     get_or_create_subscription,
 )
 from app.core.db import get_session
+from app.core.i18n import locale_dependency, translate_detail
 from app.models.subscription import UsageLedger
 from app.models.user import User
 
@@ -39,6 +40,7 @@ def get_balance(current_user: User = Depends(get_current_user), session: Session
 def get_billing_history(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
+    locale: str = Depends(locale_dependency),
 ):
     """Historique réel de consommation (ledger) + total du mois en cours."""
     entries = session.exec(
@@ -62,7 +64,7 @@ def get_billing_history(
                 "id": str(entry.id),
                 "action_type": entry.action_type,
                 "amount": entry.amount,
-                "description": entry.description,
+                "description": str(translate_detail(entry.description, locale)) if entry.description else None,
                 "project_id": str(entry.project_id) if entry.project_id else None,
                 "created_at": entry.created_at.isoformat(),
             }
@@ -72,7 +74,7 @@ def get_billing_history(
 
 
 @router.post("/refill")
-def refill_credits(payload: RefillRequest, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+def refill_credits(payload: RefillRequest, current_user: User = Depends(get_current_user), session: Session = Depends(get_session), locale: str = Depends(locale_dependency)):
     """Recharge de test (aucun paiement réel). Conservée pour les tests
     et le développement local ; les recharges achetées passent par les
     webhooks signés de `payments_router`, jamais par cet endpoint."""
@@ -93,5 +95,5 @@ def refill_credits(payload: RefillRequest, current_user: User = Depends(get_curr
     return {
         "status": "success",
         "credits_remaining": sub.credits_remaining,
-        "message": f"{payload.amount} crédits ajoutés avec succès !",
+        "message": str(translate_detail(f"{payload.amount} crédits ajoutés avec succès !", locale)),
     }

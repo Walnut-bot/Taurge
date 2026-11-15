@@ -76,8 +76,8 @@ function authHeaders(): Record<string, string> {
 
 /**
  * Langue d'interface courante, transmise au backend FastAPI via
- * `Accept-Language` pour localiser ses messages d'erreur (Ã‰tape 4).
- * Source de vÃ©ritÃ© : le cookie `NEXT_LOCALE`, repli sur l'URL `/fr|en/â€¦`.
+ * `Accept-Language` pour localiser ses messages d'erreur (Étape 4).
+ * Source de vérité : le cookie `NEXT_LOCALE`, repli sur l'URL `/fr|en/…`.
  */
 export function getClientLocale(): string {
   if (typeof window === 'undefined') return 'fr'
@@ -103,15 +103,28 @@ async function parseError(res: Response) {
     ? body.detail.map((d: { msg?: string }) => d.msg).join(' ')
     : body.detail
   if (res.status === 401) clearToken()
-  return new ApiError(detail || `Error ${res.status}`, res.status)
+  const fallback = getClientLocale() === 'en' ? `Error ${res.status}` : `Erreur ${res.status}`
+  return new ApiError(detail || fallback, res.status)
 }
 
 function unreachableError(err: unknown, timeoutMs: number): ApiError {
   const currentUrl = getApiUrl()
+  const isEn = getClientLocale() === 'en'
   if ((err as { name?: string })?.name === 'AbortError') {
-    return new ApiError(`The server is taking too long to respond (${Math.round(timeoutMs / 1000)}s timeout exceeded).`, 408)
+    const secs = Math.round(timeoutMs / 1000)
+    return new ApiError(
+      isEn
+        ? `The server is taking too long to respond (${secs}s timeout exceeded).`
+        : `Le serveur met trop de temps à répondre (délai de ${secs} s dépassé).`,
+      408,
+    )
   }
-  return new ApiError(`Cannot reach the Taurge server at ${currentUrl}. Start the local backend on this PC (LANCER_TAURGE_TUNNEL.bat), then try again.`, 0)
+  return new ApiError(
+    isEn
+      ? `Cannot reach the Taurge server at ${currentUrl}. Start the local backend on this PC (LANCER_TAURGE_EN_LIGNE_NGROK.bat), then try again.`
+      : `Impossible de joindre le serveur Taurge (${currentUrl}). Lancez le backend local sur ce PC (LANCER_TAURGE_EN_LIGNE_NGROK.bat), puis réessayez.`,
+    0,
+  )
 }
 
 async function request<T>(path: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
@@ -216,7 +229,15 @@ export const api = {
     return IS_DEMO ? demo.updateProfile(payload) : patch('/auth/me/profile', payload)
   },
   changePassword(current_password: string, new_password: string): Promise<{ status: string; message: string }> {
-    if (IS_DEMO) return Promise.resolve({ status: 'ok', message: 'Mot de passe mis à jour (mode démo).' })
+    if (IS_DEMO) {
+      return Promise.resolve({
+        status: 'ok',
+        message:
+          getClientLocale() === 'en'
+            ? 'Password updated (demo mode).'
+            : 'Mot de passe mis à jour (mode démo).',
+      })
+    }
     return post('/auth/me/password', { current_password, new_password })
   },
   async exportPersonalData(): Promise<void> {
@@ -326,16 +347,30 @@ export const api = {
         job = await api.getJobStatus(started.job_id)
       } catch {
         if (Date.now() > deadline) {
-          throw new ApiError('OCR status check timed out. The job may still be running — refresh the page.', 408)
+          throw new ApiError(
+            getClientLocale() === 'en'
+              ? 'OCR status check timed out. The job may still be running — refresh the page.'
+              : 'Le suivi de l’OCR a expiré. Le traitement est peut-être encore en cours — rafraîchissez la page.',
+            408,
+          )
         }
         continue
       }
       if (job.status === 'completed') return
       if (job.status === 'failed' || job.status === 'cancelled') {
-        throw new ApiError(job.message || 'OCR failed on the server.', 500)
+        const defaultMsg =
+          getClientLocale() === 'en'
+            ? 'OCR failed on the server.'
+            : 'La lecture OCR a échoué sur le serveur.'
+        throw new ApiError(job.message || defaultMsg, 500)
       }
       if (Date.now() > deadline) {
-        throw new ApiError('OCR is taking unusually long. It may still finish — refresh the page, or retry.', 408)
+        throw new ApiError(
+          getClientLocale() === 'en'
+            ? 'OCR is taking unusually long. It may still finish — refresh the page, or retry.'
+            : 'L’OCR prend plus de temps que prévu. Il peut encore aboutir — rafraîchissez la page ou réessayez.',
+          408,
+        )
       }
     }
   },

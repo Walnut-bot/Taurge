@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Maximize2, Trash2, RotateCw } from 'lucide-react'
+import { useLocale } from '@/i18n/provider'
 import { cn } from '@/lib/utils'
 import type { OcrBlock, WatermarkConfig } from '@/lib/types'
 import { TextOverlay } from '@/components/workspace/text-overlay'
@@ -85,6 +86,8 @@ export function PageCanvas({
   qcOriginalSrc = null,
   className,
 }: Props) {
+  const locale = useLocale()
+  const isEn = locale === 'en'
   const imageContainerRef = useRef<HTMLDivElement>(null)
 
   const zp = useZoomPan(isDrawMode)
@@ -349,7 +352,11 @@ export function PageCanvas({
             {qcOriginalSrc && <QcCurtain src={src} originalSrc={qcOriginalSrc} containerRef={imageContainerRef} />}
             </>
           ) : (
-            <div className="absolute inset-0 overflow-hidden" aria-label="Loading page" role="img">
+            <div
+              className="absolute inset-0 overflow-hidden"
+              aria-label={isEn ? 'Loading page' : 'Chargement de la planche'}
+              role="img"
+            >
               <div className="animate-scan h-1/3 w-full bg-gradient-to-b from-transparent via-seal/15 to-transparent" />
             </div>
           )}
@@ -366,7 +373,7 @@ export function PageCanvas({
               }}
             >
               <span className="font-mono text-[11px] font-bold bg-seal text-seal-ink px-2 py-0.5 rounded shadow">
-                {liveDrawnBox.w} Ã— {liveDrawnBox.h} px
+                {liveDrawnBox.w} × {liveDrawnBox.h} px
               </span>
             </div>
           )}
@@ -491,7 +498,11 @@ export function PageCanvas({
                           color: curColor,
                           WebkitTextStroke: hasStroke ? `${curStrokeWidth}px ${curStrokeColorValue}` : undefined,
                         }}
-                        title="Cliquer pour sélectionner · Double-clic pour modifier directement le texte"
+                        title={
+                          isEn
+                            ? 'Click to select · Double-click to edit text directly'
+                            : 'Cliquer pour sélectionner · Double-clic pour modifier directement le texte'
+                        }
                         metricsKey={`${blockStyle}|${isBold}|${isItalic}|${isUppercase}|${curScale}|${curRotation}`}
                       />
                     ) : null}
@@ -512,7 +523,7 @@ export function PageCanvas({
                     }}
                     onMouseEnter={() => onHover?.(b.id)}
                     onMouseLeave={() => onHover?.(null)}
-                    aria-label={`Bubble ${i + 1}: ${b.text}`}
+                    aria-label={`${isEn ? 'Bubble' : 'Bulle'} ${i + 1}: ${b.text}`}
                     className={cn(
                       'absolute inset-0 transition-colors duration-150',
                       active
@@ -557,7 +568,11 @@ export function PageCanvas({
                                 setLiveRotation({ id: b.id, angle: curRotation })
                               }}
                               className="size-6 rounded-full bg-seal text-white shadow-xl border-2 border-white flex items-center justify-center hover:scale-115 active:scale-95 transition-transform cursor-grab active:cursor-grabbing"
-                              title="Glisser pour tourner le texte (-180° à +180°)"
+                              title={
+                                isEn
+                                  ? 'Drag to rotate text (-180° to +180°)'
+                                  : 'Glisser pour tourner le texte (-180° à +180°)'
+                              }
                             >
                               <RotateCw className="size-3" />
                             </button>
@@ -578,7 +593,11 @@ export function PageCanvas({
                               onDeleteBlock(b.id)
                             }}
                             className="absolute -top-3.5 -right-3.5 size-7 rounded-full bg-red-600 text-white shadow-xl border-2 border-white flex items-center justify-center hover:bg-red-700 hover:scale-110 active:scale-95 transition-all z-40 cursor-pointer"
-                            title="Delete this bubble (Del key)"
+                            title={
+                              isEn
+                                ? 'Delete this bubble (Del key)'
+                                : 'Supprimer cette bulle (touche Suppr)'
+                            }
                           >
                             <Trash2 className="size-3.5" />
                           </button>
@@ -639,12 +658,12 @@ export function PageCanvas({
                 transform: `translate(-50%, -50%) rotate(${watermark.rotation || 0}deg)`,
                 opacity: watermark.opacity,
               }}
-              title="Logo d'équipe de scanlation"
+              title={isEn ? 'Team watermark logo' : "Logo d'équipe"}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={watermark.image_url}
-                alt="Filigrane d'équipe"
+                alt={isEn ? 'Team watermark' : "Filigrane d'équipe"}
                 className="w-full h-auto drop-shadow-md object-contain"
               />
             </div>

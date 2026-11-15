@@ -15,6 +15,7 @@ from sqlmodel import Session, select
 
 from app.auth.dependencies import get_current_user
 from app.core.db import engine, get_session
+from app.core.i18n import locale_dependency, translate_detail
 from app.jobs.execution import (
     _claim_job, _run_batch_in_background, _run_extraction_in_background,
     _run_page_ocr, _run_page_ocr_in_thread, _set_extraction_job_progress,
@@ -41,7 +42,7 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
 @router.post("/projects/{project_id}/start-batch", status_code=status.HTTP_202_ACCEPTED)
-def start_batch_job(project_id: uuid.UUID, background_tasks: BackgroundTasks, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+def start_batch_job(project_id: uuid.UUID, background_tasks: BackgroundTasks, current_user: User = Depends(get_current_user), session: Session = Depends(get_session), locale: str = Depends(locale_dependency)):
     """Démarre le traitement global du chapitre en tâche d'arrière-plan sans timeout."""
     project = session.get(Project, project_id)
     if not user_has_project_access(session, project, current_user.id):
@@ -53,11 +54,11 @@ def start_batch_job(project_id: uuid.UUID, background_tasks: BackgroundTasks, cu
     from app.jobs.dispatch import dispatch_job_via_celery
     if not dispatch_job_via_celery("batch_process", job.id):
         background_tasks.add_task(_run_batch_in_background, job.id)
-    return {"job_id": str(job.id), "status": job.status, "message": "Traitement du chapitre lancé en arrière-plan."}
+    return {"job_id": str(job.id), "status": job.status, "message": str(translate_detail("Traitement du chapitre lancé en arrière-plan.", locale))}
 
 
 @router.post("/projects/{project_id}/files/{file_id}/start-extraction", status_code=status.HTTP_202_ACCEPTED)
-def start_extraction_job(project_id: uuid.UUID, file_id: uuid.UUID, background_tasks: BackgroundTasks, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+def start_extraction_job(project_id: uuid.UUID, file_id: uuid.UUID, background_tasks: BackgroundTasks, current_user: User = Depends(get_current_user), session: Session = Depends(get_session), locale: str = Depends(locale_dependency)):
     project = session.get(Project, project_id)
     if not user_has_project_access(session, project, current_user.id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Projet introuvable.")
@@ -76,11 +77,11 @@ def start_extraction_job(project_id: uuid.UUID, file_id: uuid.UUID, background_t
     from app.jobs.dispatch import dispatch_job_via_celery
     if not dispatch_job_via_celery("extract_pages", job.id, source_file_id=file_id):
         background_tasks.add_task(_run_extraction_in_background, job.id, file_id)
-    return {"job_id": str(job.id), "status": job.status, "message": "Extraction lancée en arrière-plan."}
+    return {"job_id": str(job.id), "status": job.status, "message": str(translate_detail("Extraction lancée en arrière-plan.", locale))}
 
 
 @router.post("/projects/{project_id}/pages/{page_id}/start-ocr", status_code=status.HTTP_202_ACCEPTED)
-def start_page_ocr_job(project_id: uuid.UUID, page_id: uuid.UUID, background_tasks: BackgroundTasks, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+def start_page_ocr_job(project_id: uuid.UUID, page_id: uuid.UUID, background_tasks: BackgroundTasks, current_user: User = Depends(get_current_user), session: Session = Depends(get_session), locale: str = Depends(locale_dependency)):
     """Lance l'OCR d'une page en arrière-plan et renvoie le job à suivre."""
     project = session.get(Project, project_id)
     if not user_has_project_access(session, project, current_user.id):
@@ -90,7 +91,7 @@ def start_page_ocr_job(project_id: uuid.UUID, page_id: uuid.UUID, background_tas
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Page introuvable.")
     active = session.exec(select(Job).where(Job.project_id == project_id, Job.page_id == page_id, Job.job_type == "ocr_page", Job.status.in_(["pending", "running"]))).first()
     if active:
-        return {"job_id": str(active.id), "status": active.status, "message": "OCR déjà en cours pour cette page."}
+        return {"job_id": str(active.id), "status": active.status, "message": str(translate_detail("OCR déjà en cours pour cette page.", locale))}
     job = Job(project_id=project_id, user_id=current_user.id, page_id=page_id, job_type="ocr_page", status="pending", message="OCR en attente…", total_pages=1)
     session.add(job)
     session.commit()
@@ -98,7 +99,7 @@ def start_page_ocr_job(project_id: uuid.UUID, page_id: uuid.UUID, background_tas
     from app.jobs.dispatch import dispatch_job_via_celery
     if not dispatch_job_via_celery("ocr_page", job.id, page_id=page_id):
         background_tasks.add_task(_run_page_ocr_in_thread, job.id, page_id)
-    return {"job_id": str(job.id), "status": job.status, "message": "OCR lancé en arrière-plan."}
+    return {"job_id": str(job.id), "status": job.status, "message": str(translate_detail("OCR lancé en arrière-plan.", locale))}
 
 
 def _get_job_for_user(job_id: uuid.UUID, current_user: User, session: Session) -> Job:
@@ -109,25 +110,35 @@ def _get_job_for_user(job_id: uuid.UUID, current_user: User, session: Session) -
 
 
 @router.get("/{job_id}")
-def get_job_status(job_id: uuid.UUID, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+def get_job_status(job_id: uuid.UUID, current_user: User = Depends(get_current_user), session: Session = Depends(get_session), locale: str = Depends(locale_dependency)):
     """Retourne l'état courant et l'avancement d'une tâche."""
     job = _get_job_for_user(job_id, current_user, session)
-    return {"id": str(job.id), "project_id": str(job.project_id), "status": job.status, "current_page": job.current_page, "total_pages": job.total_pages, "progress_percent": job.progress_percent, "message": job.message, "error_message": job.error_message, "completed_at": job.completed_at}
+    return {
+        "id": str(job.id),
+        "project_id": str(job.project_id),
+        "status": job.status,
+        "current_page": job.current_page,
+        "total_pages": job.total_pages,
+        "progress_percent": job.progress_percent,
+        "message": str(translate_detail(job.message, locale)) if job.message else "",
+        "error_message": str(translate_detail(job.error_message, locale)) if job.error_message else None,
+        "completed_at": job.completed_at,
+    }
 
 
 @router.post("/{job_id}/cancel")
-def cancel_job(job_id: uuid.UUID, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+def cancel_job(job_id: uuid.UUID, current_user: User = Depends(get_current_user), session: Session = Depends(get_session), locale: str = Depends(locale_dependency)):
     """Arrête immédiatement l'exécution d'une tâche en cours."""
     job = _get_job_for_user(job_id, current_user, session)
     job.status = "cancelled"
     job.message = "Tâche interrompue par l'utilisateur."
     session.add(job)
     session.commit()
-    return {"status": "cancelled", "message": "Traitement arrêté."}
+    return {"status": "cancelled", "message": str(translate_detail("Traitement arrêté.", locale))}
 
 
 @router.get("/{job_id}/stream")
-async def stream_job_progress(job_id: uuid.UUID, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+async def stream_job_progress(job_id: uuid.UUID, current_user: User = Depends(get_current_user), session: Session = Depends(get_session), locale: str = Depends(locale_dependency)):
     """Flux Server-Sent Events (SSE) diffusant en direct l'avancement de la tâche."""
     _get_job_for_user(job_id, current_user, session)
 
@@ -136,9 +147,16 @@ async def stream_job_progress(job_id: uuid.UUID, current_user: User = Depends(ge
             with Session(engine) as fresh_session:
                 job = fresh_session.get(Job, job_id)
                 if not job:
-                    yield f"data: {json.dumps({'error': 'Tâche introuvable'})}\n\n"
+                    yield f"data: {json.dumps({'error': str(translate_detail('Tâche introuvable', locale))})}\n\n"
                     break
-                payload = {"id": str(job.id), "status": job.status, "current_page": job.current_page, "total_pages": job.total_pages, "progress_percent": job.progress_percent, "message": job.message}
+                payload = {
+                    "id": str(job.id),
+                    "status": job.status,
+                    "current_page": job.current_page,
+                    "total_pages": job.total_pages,
+                    "progress_percent": job.progress_percent,
+                    "message": str(translate_detail(job.message, locale)) if job.message else "",
+                }
                 yield f"data: {json.dumps(payload)}\n\n"
                 if job.status in ("completed", "failed", "cancelled"):
                     break

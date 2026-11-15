@@ -9,6 +9,7 @@ from sqlmodel import Session, select
 
 from app.auth.dependencies import get_current_user
 from app.core.db import get_session
+from app.core.i18n import locale_dependency
 from app.models.cleaned_page import CleanedPage
 from app.models.page import Page
 from app.models.project import Project
@@ -35,7 +36,12 @@ def _guess_media_type(storage_key: str) -> str:
     return MEDIA_TYPES.get(ext, "application/octet-stream")
 
 
-def _generate_fallback_page_image(page_number: int, width: int | None = 800, height: int | None = 1200) -> bytes:
+def _generate_fallback_page_image(
+    page_number: int,
+    width: int | None = 800,
+    height: int | None = 1200,
+    locale: str = "fr",
+) -> bytes:
     """Génère une image de repli lisible si le fichier physique est manquant sur le disque."""
     w = max(width or 800, 400)
     h = max(height or 1200, 600)
@@ -46,21 +52,34 @@ def _generate_fallback_page_image(page_number: int, width: int | None = 800, hei
     # Cadre élégant
     draw.rectangle([(20, 20), (w - 20, h - 20)], outline=(215, 208, 198), width=2)
 
-    lines = [
-        f"PAGE {page_number}",
-        "",
-        "Fichier image introuvable sur le disque.",
-        "Le fichier physique a été déplacé ou purgé.",
-        "",
-        "Vous pouvez réimporter le fichier source",
-        "ou supprimer cette page du projet.",
-    ]
+    lines = (
+        [
+            f"PAGE {page_number}",
+            "",
+            "Image file not found on disk.",
+            "The physical file was moved or purged.",
+            "",
+            "You can re-import the source file",
+            "or delete this page from the project.",
+        ]
+        if locale == "en"
+        else [
+            f"PAGE {page_number}",
+            "",
+            "Fichier image introuvable sur le disque.",
+            "Le fichier physique a été déplacé ou purgé.",
+            "",
+            "Vous pouvez réimporter le fichier source",
+            "ou supprimer cette page du projet.",
+        ]
+    )
     text = "\n".join(lines)
 
     try:
         draw.multiline_text((w // 2, h // 2), text, fill=(130, 115, 100), anchor="mm", align="center")
     except Exception:
-        draw.text((w // 4, h // 3), f"PAGE {page_number} - Image introuvable", fill=(130, 115, 100))
+        fallback_line = f"PAGE {page_number} - Image not found" if locale == "en" else f"PAGE {page_number} - Image introuvable"
+        draw.text((w // 4, h // 3), fallback_line, fill=(130, 115, 100))
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -73,6 +92,7 @@ def get_page_image(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
     storage: StorageProvider = Depends(get_storage_provider),
+    locale: str = Depends(locale_dependency),
 ):
     page = session.get(Page, page_id)
     if not page:
@@ -96,7 +116,7 @@ def get_page_image(
             page_id,
             page.storage_key,
         )
-        fallback = _generate_fallback_page_image(page.page_number, page.width, page.height)
+        fallback = _generate_fallback_page_image(page.page_number, page.width, page.height, locale=locale)
         return Response(content=fallback, media_type="image/png")
 
 
@@ -106,6 +126,7 @@ def get_page_thumbnail(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
     storage: StorageProvider = Depends(get_storage_provider),
+    locale: str = Depends(locale_dependency),
 ):
     """Miniature de la page (générée à la demande puis mise en cache stockage)."""
     page = session.get(Page, page_id)
@@ -123,7 +144,7 @@ def get_page_thumbnail(
     try:
         content = storage.read(page.storage_key)
     except FileNotFoundError:
-        fallback = _generate_fallback_page_image(page.page_number, page.width, page.height)
+        fallback = _generate_fallback_page_image(page.page_number, page.width, page.height, locale=locale)
         return Response(content=make_thumbnail_bytes(fallback), media_type="image/png")
     try:
         thumb = make_thumbnail_bytes(content)
@@ -140,6 +161,7 @@ def get_cleaned_page_image(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
     storage: StorageProvider = Depends(get_storage_provider),
+    locale: str = Depends(locale_dependency),
 ):
     page = session.get(Page, page_id)
     if not page:
@@ -174,5 +196,5 @@ def get_cleaned_page_image(
             content = storage.read(page.storage_key)
             return Response(content=content, media_type=_guess_media_type(page.storage_key))
         except FileNotFoundError:
-            fallback = _generate_fallback_page_image(page.page_number, page.width, page.height)
+            fallback = _generate_fallback_page_image(page.page_number, page.width, page.height, locale=locale)
             return Response(content=fallback, media_type="image/png")

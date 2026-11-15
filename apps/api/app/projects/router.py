@@ -11,6 +11,7 @@ from sqlmodel import Session
 
 from app.auth.dependencies import get_current_user
 from app.core.db import get_session
+from app.core.i18n import locale_dependency
 from app.models.user import User
 from app.ocr.dependencies import get_ocr_provider
 from app.ocr.provider import OCRProvider
@@ -133,8 +134,9 @@ def get_project_qc(
     project_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
+    locale: str = Depends(locale_dependency),
 ):
-    return qc_service.run_project_qc(project_id, current_user, session)
+    return qc_service.run_project_qc(project_id, current_user, session, locale=locale)
 
 
 @router.get("/{project_id}/pages/{page_id}/qc", response_model=QCReportResponse)
@@ -143,8 +145,9 @@ def get_page_qc(
     page_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
+    locale: str = Depends(locale_dependency),
 ):
-    return qc_service.run_page_qc(project_id, page_id, current_user, session)
+    return qc_service.run_page_qc(project_id, page_id, current_user, session, locale=locale)
 
 
 @router.get("/{project_id}/translation-memory", response_model=list[TranslationMemoryMatchResponse])

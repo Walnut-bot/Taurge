@@ -40,9 +40,11 @@ def _audit_page_blocks(
     blocks: list[OCRBlock],
     translations_by_block: dict[uuid.UUID, Translation],
     glossary_entries: list[GlossaryEntry],
+    locale: str = "fr",
 ) -> list[QCIssueResponse]:
     issues: list[QCIssueResponse] = []
     locked_glossary = [g for g in glossary_entries if g.is_locked and g.source_term.strip()]
+    is_en = locale == "en"
 
     for block in blocks:
         source_text = (block.text or "").strip()
@@ -58,8 +60,16 @@ def _audit_page_blocks(
                     page_id=str(page.id),
                     page_number=page.page_number,
                     ocr_block_id=str(block.id),
-                    message=f"Bulle non traduite : « {source_text[:60]} »",
-                    suggestion="Lancez la traduction IA ou saisissez une traduction manuellement.",
+                    message=(
+                        f'Untranslated bubble: "{source_text[:60]}"'
+                        if is_en
+                        else f"Bulle non traduite : « {source_text[:60]} »"
+                    ),
+                    suggestion=(
+                        "Run AI translation or enter a translation manually."
+                        if is_en
+                        else "Lancez la traduction IA ou saisissez une traduction manuellement."
+                    ),
                 )
             )
             continue
@@ -78,8 +88,16 @@ def _audit_page_blocks(
                     page_id=str(page.id),
                     page_number=page.page_number,
                     ocr_block_id=str(block.id),
-                    message=f"Le texte semble non traduit (identique à l'original) : « {source_text[:50]} »",
-                    suggestion="Vérifiez et traduisez ce segment dans la langue cible.",
+                    message=(
+                        f'Text appears untranslated (identical to source): "{source_text[:50]}"'
+                        if is_en
+                        else f"Le texte semble non traduit (identique à l'original) : « {source_text[:50]} »"
+                    ),
+                    suggestion=(
+                        "Check and translate this segment into the target language."
+                        if is_en
+                        else "Vérifiez et traduisez ce segment dans la langue cible."
+                    ),
                 )
             )
 
@@ -95,10 +113,18 @@ def _audit_page_blocks(
                             page_number=page.page_number,
                             ocr_block_id=str(block.id),
                             message=(
-                                f"Terme verrouillé du glossaire non respecté : "
-                                f"« {g.source_term} » doit être traduit par « {g.target_term} »."
+                                f'Locked glossary term not respected: "{g.source_term}" must be translated as "{g.target_term}".'
+                                if is_en
+                                else (
+                                    f"Terme verrouillé du glossaire non respecté : "
+                                    f"« {g.source_term} » doit être traduit par « {g.target_term} »."
+                                )
                             ),
-                            suggestion=f"Utilisez « {g.target_term} » dans la traduction.",
+                            suggestion=(
+                                f'Use "{g.target_term}" in the translation.'
+                                if is_en
+                                else f"Utilisez « {g.target_term} » dans la traduction."
+                            ),
                         )
                     )
 
@@ -116,10 +142,18 @@ def _audit_page_blocks(
                     page_number=page.page_number,
                     ocr_block_id=str(block.id),
                     message=(
-                        f"Le texte traduit ({len(translated_text)} car.) risque de dépasser "
-                        f"de la bulle ({block.bbox_w}×{block.bbox_h}px)."
+                        f"Translated text ({len(translated_text)} chars) may overflow the bubble ({block.bbox_w}×{block.bbox_h}px)."
+                        if is_en
+                        else (
+                            f"Le texte traduit ({len(translated_text)} car.) risque de dépasser "
+                            f"de la bulle ({block.bbox_w}×{block.bbox_h}px)."
+                        )
                     ),
-                    suggestion="Raccourcissez la formulation, réduisez l'échelle de police ou agrandissez le cadre.",
+                    suggestion=(
+                        "Shorten the phrasing, reduce the font scale, or enlarge the box."
+                        if is_en
+                        else "Raccourcissez la formulation, réduisez l'échelle de police ou agrandissez le cadre."
+                    ),
                 )
             )
 
@@ -132,8 +166,16 @@ def _audit_page_blocks(
                     page_id=str(page.id),
                     page_number=page.page_number,
                     ocr_block_id=str(block.id),
-                    message=f"Confiance OCR faible ({int(block.confidence * 100)}%) sur « {source_text[:45]} ».",
-                    suggestion="Vérifiez le texte source sur l'image originale (maintenez C).",
+                    message=(
+                        f'Low OCR confidence ({int(block.confidence * 100)}%) on "{source_text[:45]}".'
+                        if is_en
+                        else f"Confiance OCR faible ({int(block.confidence * 100)}%) sur « {source_text[:45]} »."
+                    ),
+                    suggestion=(
+                        "Verify the source text against the original image (hold C)."
+                        if is_en
+                        else "Vérifiez le texte source sur l'image originale (maintenez C)."
+                    ),
                 )
             )
 
@@ -146,8 +188,16 @@ def _audit_page_blocks(
                     page_id=str(page.id),
                     page_number=page.page_number,
                     ocr_block_id=str(block.id),
-                    message="Ce bloc est marqué comme SFX (onomatopée) mais utilise le style Dialogue standard.",
-                    suggestion="Appliquez le style « SFX » ou « Cri » dans l'inspecteur typographique.",
+                    message=(
+                        "This block is marked as SFX (onomatopoeia) but uses the standard Dialogue style."
+                        if is_en
+                        else "Ce bloc est marqué comme SFX (onomatopée) mais utilise le style Dialogue standard."
+                    ),
+                    suggestion=(
+                        'Apply the "SFX" or "Scream" style in the typography inspector.'
+                        if is_en
+                        else "Appliquez le style « SFX » ou « Cri » dans l'inspecteur typographique."
+                    ),
                 )
             )
 
@@ -161,7 +211,11 @@ def _audit_page_blocks(
                     page_id=str(page.id),
                     page_number=page.page_number,
                     ocr_block_id=str(block.id),
-                    message="Espaces multiples détectés dans la traduction française.",
+                    message=(
+                        "Multiple consecutive spaces detected in the French translation."
+                        if is_en
+                        else "Espaces multiples détectés dans la traduction française."
+                    ),
                     suggestion=cleaned_suggestion,
                 )
             )
@@ -174,6 +228,7 @@ def run_page_qc(
     page_id: uuid.UUID,
     current_user: User,
     session: Session,
+    locale: str = "fr",
 ) -> QCReportResponse:
     project = get_owned_project(session, project_id, current_user.id)
     page = get_owned_page(session, project_id, page_id, current_user.id)
@@ -192,7 +247,7 @@ def run_page_qc(
     ).all()
 
     issues = _audit_page_blocks(
-        project, page, blocks, translations_by_block, glossary_entries
+        project, page, blocks, translations_by_block, glossary_entries, locale=locale
     )
     return _build_qc_report(project.id, issues)
 
@@ -201,6 +256,7 @@ def run_project_qc(
     project_id: uuid.UUID,
     current_user: User,
     session: Session,
+    locale: str = "fr",
 ) -> QCReportResponse:
     project = get_owned_project(session, project_id, current_user.id)
     pages = session.exec(
@@ -236,6 +292,7 @@ def run_project_qc(
                 blocks_by_page.get(page.id, []),
                 translations_by_block,
                 glossary_entries,
+                locale=locale,
             )
         )
     return _build_qc_report(project.id, all_issues)

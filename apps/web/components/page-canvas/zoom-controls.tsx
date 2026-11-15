@@ -1,10 +1,12 @@
 'use client'
 
 import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { useLocale } from '@/i18n/provider'
 import type { ZoomPan } from './use-zoom-pan'
 
 export function ZoomControls({ zp, show }: { zp: ZoomPan; show: boolean }) {
+  const locale = useLocale()
+  const isEn = locale === 'en'
   if (!show) return null
 
   return (
@@ -13,7 +15,7 @@ export function ZoomControls({ zp, show }: { zp: ZoomPan; show: boolean }) {
         type="button"
         onClick={() => zp.setZoom((z) => Math.max(0.4, Number((z - 0.2).toFixed(2))))}
         className="p-1 hover:text-seal transition-colors"
-        title="Zoom out"
+        title={isEn ? 'Zoom out' : 'Dézoomer'}
       >
         <ZoomOut className="size-3.5" />
       </button>
@@ -22,7 +24,7 @@ export function ZoomControls({ zp, show }: { zp: ZoomPan; show: boolean }) {
         type="button"
         onClick={() => zp.setZoom((z) => Math.min(3.0, Number((z + 0.2).toFixed(2))))}
         className="p-1 hover:text-seal transition-colors"
-        title="Zoom in"
+        title={isEn ? 'Zoom in' : 'Zoomer'}
       >
         <ZoomIn className="size-3.5" />
       </button>
@@ -31,7 +33,7 @@ export function ZoomControls({ zp, show }: { zp: ZoomPan; show: boolean }) {
         type="button"
         onClick={zp.reset}
         className="p-1 hover:text-seal transition-colors text-[11px] font-mono flex items-center gap-1"
-        title="Reset to 100%"
+        title={isEn ? 'Reset to 100%' : 'Réinitialiser à 100 %'}
       >
         <RotateCcw className="size-3" />
         <span>100%</span>

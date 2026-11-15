@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import { Camera, ImagePlus, Loader2, Trash2 } from 'lucide-react'
 import { ProfileAvatar } from '@/components/profile-avatar'
 import { Button } from '@/components/ui/button'
+import { useLocale, useTranslations } from '@/i18n/provider'
 import type { User } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -28,8 +29,17 @@ export function ProfileHeader({
   busy,
   className,
 }: ProfileHeaderProps) {
+  const locale = useLocale()
+  const isEn = locale === 'en'
+  const tBilling = useTranslations('Billing')
   const bannerInputRef = useRef<HTMLInputElement>(null)
   const avatarInputRef = useRef<HTMLInputElement>(null)
+
+  const rawPlan = (user.plan || 'free').toLowerCase()
+  const planName =
+    rawPlan === 'free' || rawPlan === 'creator' || rawPlan === 'team' || rawPlan === 'studio'
+      ? tBilling(rawPlan)
+      : user.plan || tBilling('free')
 
   return (
     <div className={cn('panel rounded-xl overflow-visible shadow-xs', className)}>
@@ -39,13 +49,13 @@ export function ProfileHeader({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={bannerUrl}
-            alt="Bannière de profil"
+            alt={isEn ? 'Profile banner' : 'Bannière de profil'}
             className="size-full object-cover"
           />
         ) : (
           <div className="size-full bg-gradient-to-r from-seal-wash/30 via-sheet to-hairline/20 flex items-center justify-center">
             <span className="text-xs font-mono text-ink-soft/60 uppercase tracking-widest">
-              Atelier Taurge
+              {isEn ? 'Taurge Studio' : 'Atelier Taurge'}
             </span>
           </div>
         )}
@@ -78,7 +88,13 @@ export function ProfileHeader({
               <ImagePlus className="size-3.5" />
             )}
             <span className="hidden sm:inline">
-              {bannerUrl ? 'Changer la bannière' : 'Ajouter une bannière'}
+              {bannerUrl
+                ? isEn
+                  ? 'Change banner'
+                  : 'Changer la bannière'
+                : isEn
+                  ? 'Add banner'
+                  : 'Ajouter une bannière'}
             </span>
           </button>
 
@@ -87,8 +103,8 @@ export function ProfileHeader({
               type="button"
               onClick={() => void onDeleteBanner()}
               disabled={busy !== null}
-              aria-label="Supprimer la bannière"
-              title="Supprimer la bannière"
+              aria-label={isEn ? 'Remove banner' : 'Supprimer la bannière'}
+              title={isEn ? 'Remove banner' : 'Supprimer la bannière'}
               className="flex size-7 items-center justify-center rounded-lg bg-black/60 hover:bg-danger/90 text-white backdrop-blur-md transition-all shadow-xs disabled:opacity-50 border border-white/20 active:scale-95"
             >
               {busy === 'delete-banner' ? (
@@ -134,7 +150,15 @@ export function ProfileHeader({
               ) : (
                 <Camera className="size-3.5" />
               )}
-              <span>{user.avatar_content_type ? "Changer l'avatar" : 'Ajouter un avatar'}</span>
+              <span>
+                {user.avatar_content_type
+                  ? isEn
+                    ? 'Change avatar'
+                    : "Changer l'avatar"
+                  : isEn
+                    ? 'Add avatar'
+                    : 'Ajouter un avatar'}
+              </span>
             </Button>
 
             {user.avatar_content_type && (
@@ -143,8 +167,8 @@ export function ProfileHeader({
                 size="icon-sm"
                 onClick={() => void onDeleteAvatar()}
                 disabled={busy !== null}
-                aria-label="Supprimer l'avatar"
-                title="Supprimer l'avatar"
+                aria-label={isEn ? 'Remove avatar' : "Supprimer l'avatar"}
+                title={isEn ? 'Remove avatar' : "Supprimer l'avatar"}
                 className="size-8 text-ink-soft hover:text-danger hover:bg-danger-wash"
               >
                 {busy === 'delete-avatar' ? (
@@ -164,7 +188,7 @@ export function ProfileHeader({
               {user.display_name || user.email.split('@')[0]}
             </h2>
             <span className="rounded-full bg-seal-wash px-2.5 py-0.5 text-xs font-medium text-seal capitalize">
-              Plan {user.plan || 'Free'}
+              {isEn ? `${planName} Plan` : `Formule ${planName}`}
             </span>
           </div>
           <p className="font-mono text-xs text-ink-soft mt-1">{user.email}</p>

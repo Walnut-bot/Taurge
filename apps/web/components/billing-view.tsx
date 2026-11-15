@@ -14,17 +14,18 @@ import { cn } from '@/lib/utils'
 
 type PlanDef = {
   key: 'free' | 'creator' | 'team' | 'studio'
-  price: string
+  priceFr: string
+  priceEn: string
   purchasable: boolean
   earlyAccess?: boolean
   onQuote?: boolean
 }
 
 const PLANS: readonly PlanDef[] = [
-  { key: 'free', price: '0 €', purchasable: false },
-  { key: 'creator', price: '8,99 €', purchasable: false },
-  { key: 'team', price: '24,99 €', purchasable: false, earlyAccess: true },
-  { key: 'studio', price: '79 €', purchasable: false, onQuote: true },
+  { key: 'free', priceFr: '0 €', priceEn: '€0', purchasable: false },
+  { key: 'creator', priceFr: '8,99 €', priceEn: '€8.99', purchasable: false },
+  { key: 'team', priceFr: '24,99 €', priceEn: '€24.99', purchasable: false, earlyAccess: true },
+  { key: 'studio', priceFr: '79 €', priceEn: '€79', purchasable: false, onQuote: true },
 ]
 
 const QUOTA_ROWS = {
@@ -107,10 +108,10 @@ export function BillingView() {
                       {plan.key === 'studio' ? (
                         <>
                           <span className="text-base font-medium text-ink-soft">{t('fromPrice')}</span>
-                          {plan.price}
+                          {locale === 'en' ? plan.priceEn : plan.priceFr}
                         </>
                       ) : (
-                        plan.price
+                        locale === 'en' ? plan.priceEn : plan.priceFr
                       )}
                       <span className="text-sm font-normal text-ink-soft">{t('perMonth')}</span>
                     </p>

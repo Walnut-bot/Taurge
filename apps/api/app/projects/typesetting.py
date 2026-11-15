@@ -4,8 +4,8 @@ Gère l'intégration typographique du texte traduit dans les bulles :
 1. Recherche itérative de la taille de police optimale (auto-fit) pour occuper harmonieusement l'espace sans déborder.
 2. Découpage équilibré des lignes (balanced word-wrap).
 3. Centrage vertical et horizontal parfait dans la bulle.
-4. Rendu avec contour protecteur (stroke) pour assumer une lisiblité absolue.
-5. Utilisation de polices orientées bandes déssinée  comics.
+4. Rendu avec contour protecteur (stroke) pour assurer une lisibilité absolue.
+5. Utilisation de polices orientées bandes dessinées et comics.
 """
 
 
