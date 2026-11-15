@@ -647,8 +647,17 @@ async def _run_page_ocr(job_id: uuid.UUID, page_id: uuid.UUID) -> None:
             failed = session.get(Job, job_id)
             if failed and failed.status != "cancelled":
                 failed.status = "failed"
-                failed.error_message = str(exc)
-                failed.message = f"Échec de l'OCR : {exc}"
+                msg = str(exc)
+                if isinstance(exc, FileNotFoundError) or "No such file or directory" in msg or "introuvable sur le serveur" in msg:
+                    friendly_msg = (
+                        "Fichier image introuvable sur le serveur. Comme le stockage de Render est temporaire (ou après un redémarrage), "
+                        "réimportez simplement le fichier source (PDF/CBZ) du chapitre pour continuer."
+                    )
+                    failed.error_message = friendly_msg
+                    failed.message = f"Échec de l'OCR : {friendly_msg}"
+                else:
+                    failed.error_message = msg
+                    failed.message = f"Échec de l'OCR : {exc}"
                 failed.completed_at = datetime.now(timezone.utc)
                 session.add(failed)
                 session.commit()

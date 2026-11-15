@@ -247,6 +247,67 @@ def grant_user_credits(
     )
 
 
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def admin_delete_user(
+    user_id: uuid.UUID,
+    admin_user: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """Supprime définitivement un utilisateur et l'ensemble de ses données (Partie Admin)."""
+    target_user = session.get(User, user_id)
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Utilisateur introuvable.",
+        )
+    if target_user.id == admin_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Vous ne pouvez pas supprimer votre propre compte administrateur.",
+        )
+
+    from app.storage.dependencies import storage_provider
+    from app.models.collaboration import PageComment, PageVersion
+    from app.models.subscription import ProjectMember
+    from app.projects.project_service import delete_project_cascade as _delete_project_cascade
+
+    projects = session.exec(select(Project).where(Project.owner_id == target_user.id)).all()
+    for project in projects:
+        _delete_project_cascade(project, session, storage_provider)
+        session.delete(project)
+
+    for member in session.exec(select(ProjectMember).where(ProjectMember.user_id == target_user.id)).all():
+        session.delete(member)
+
+    for comment in session.exec(select(PageComment).where(PageComment.author_id == target_user.id)).all():
+        session.delete(comment)
+
+    for version in session.exec(select(PageVersion).where(PageVersion.created_by_id == target_user.id)).all():
+        session.delete(version)
+
+    for job in session.exec(select(Job).where(Job.user_id == target_user.id)).all():
+        session.delete(job)
+
+    for ledger in session.exec(select(UsageLedger).where(UsageLedger.user_id == target_user.id)).all():
+        session.delete(ledger)
+
+    for payment in session.exec(select(PaymentTransaction).where(PaymentTransaction.user_id == target_user.id)).all():
+        session.delete(payment)
+
+    sub = session.exec(select(Subscription).where(Subscription.user_id == target_user.id)).first()
+    if sub:
+        session.delete(sub)
+
+    for kind in ("avatar", "banner"):
+        content_type = getattr(target_user, f"{kind}_content_type", None)
+        if content_type:
+            storage_provider.delete(f"users/{target_user.id}/{kind}.{content_type}")
+
+    session.delete(target_user)
+    session.commit()
+    return None
+
+
 @router.get("/deepl-quota")
 def admin_get_deepl_quota(
     _admin: User = Depends(require_admin),

@@ -637,6 +637,9 @@ export const api = {
   adminGrantCredits(userId: string, delta: number, reason: string): Promise<import('./types').AdminUser> {
     return post(`/admin/users/${userId}/credits`, { delta, reason })
   },
+  adminDeleteUser(userId: string): Promise<void> {
+    return request(`/admin/users/${userId}`, { method: 'DELETE' })
+  },
   adminJobs(): Promise<import('./types').AdminJob[]> {
     return request('/admin/jobs')
   },

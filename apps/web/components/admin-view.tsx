@@ -17,6 +17,7 @@ import {
   BarChart3,
   Layers,
   Sparkles,
+  Trash2,
 } from 'lucide-react'
 import { AppHeader } from '@/components/app-header'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -99,6 +100,8 @@ export function AdminView() {
 
   if (!authed) return null
 
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
   const handleGrant = async (userId: string) => {
     try {
       const updated = await api.adminGrantCredits(userId, grantDelta, grantReason)
@@ -112,6 +115,30 @@ export function AdminView() {
             ? 'Failed to grant credits.'
             : 'Impossible d’attribuer les crédits.',
       )
+    }
+  }
+
+  const handleDeleteUser = async (user: AdminUser) => {
+    const confirmPrompt = isEn
+      ? `Are you sure you want to permanently delete user "${user.email}" and all their projects, files and data? This action cannot be undone.`
+      : `Êtes-vous sûr de vouloir supprimer définitivement l’utilisateur "${user.email}" ainsi que tous ses projets, fichiers et données associées ? Cette action est irréversible.`
+    if (!window.confirm(confirmPrompt)) return
+
+    try {
+      setDeletingId(user.id)
+      await api.adminDeleteUser(user.id)
+      setUsers((prev) => prev.filter((u) => u.id !== user.id))
+      setStats((prev) => (prev ? { ...prev, users_count: Math.max(0, prev.users_count - 1) } : prev))
+    } catch (err) {
+      alert(
+        err instanceof Error
+          ? err.message
+          : isEn
+            ? 'Failed to delete user account.'
+            : 'Impossible de supprimer le compte utilisateur.',
+      )
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -472,14 +499,32 @@ export function AdminView() {
                               </Button>
                             </div>
                           ) : (
-                            <button
-                              type="button"
-                              onClick={() => setGrantingId(u.id)}
-                              className="inline-flex items-center gap-1 rounded border border-hairline bg-paper px-2.5 py-1 font-mono text-xs font-semibold hover:bg-muted"
-                            >
-                              <PlusCircle className="size-3.5 text-seal" />
-                              {isEn ? 'Grant Credits' : 'Attribuer des crédits'}
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setGrantingId(u.id)}
+                                className="inline-flex items-center gap-1 rounded border border-hairline bg-paper px-2.5 py-1 font-mono text-xs font-semibold hover:bg-muted transition-colors"
+                              >
+                                <PlusCircle className="size-3.5 text-seal" />
+                                {isEn ? 'Grant Credits' : 'Attribuer des crédits'}
+                              </button>
+                              {!u.is_admin && (
+                                <button
+                                  type="button"
+                                  disabled={deletingId === u.id}
+                                  onClick={() => handleDeleteUser(u)}
+                                  className="inline-flex items-center gap-1 rounded border border-danger/30 bg-danger/5 px-2.5 py-1 font-mono text-xs font-semibold text-danger hover:bg-danger/10 transition-colors disabled:opacity-50"
+                                  title={isEn ? 'Delete account' : 'Supprimer le compte'}
+                                >
+                                  {deletingId === u.id ? (
+                                    <Loader2 className="size-3.5 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="size-3.5" />
+                                  )}
+                                  {isEn ? 'Delete' : 'Supprimer'}
+                                </button>
+                              )}
+                            </div>
                           )}
                         </td>
                       </tr>

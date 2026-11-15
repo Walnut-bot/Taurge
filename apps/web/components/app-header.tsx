@@ -10,6 +10,7 @@ import {
   Sun,
   Moon,
   ChevronDown,
+  ShieldCheck,
 } from 'lucide-react'
 import { Logo } from '@/components/brand/logo'
 import { CreditsModal } from '@/components/credits-modal'
@@ -229,6 +230,17 @@ export function AppHeader({ children, center }: AppHeaderProps) {
                       <Settings aria-hidden="true" className="size-4 text-ink-soft" />
                       <span>{t('settings')}</span>
                     </LocaleLink>
+                    {me.is_admin && (
+                      <LocaleLink
+                        href="/admin"
+                        role="menuitem"
+                        onClick={() => setProfileMenuOpen(false)}
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-seal font-semibold hover:bg-seal/10 transition-colors"
+                      >
+                        <ShieldCheck aria-hidden="true" className="size-4 text-seal" />
+                        <span>{locale === 'en' ? 'Administration' : 'Administration'}</span>
+                      </LocaleLink>
+                    )}
                   </div>
 
                   <div className="my-1 h-px bg-hairline" />

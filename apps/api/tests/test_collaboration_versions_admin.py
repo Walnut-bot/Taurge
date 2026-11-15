@@ -216,3 +216,23 @@ def test_admin_endpoints_rbac_and_audited_credit_grant(client: TestClient):
         assert len(ledgers) == 1
         assert ledgers[0].amount == 50
         assert "Pack test studio" in (ledgers[0].description or "")
+
+    # Test suppression d'un utilisateur par l'admin
+    user_to_delete = _register_and_login(client, "to-delete-user")
+    
+    # Non-admin ne peut pas supprimer (403)
+    non_admin_del = client.delete(f"/admin/users/{user_to_delete['id']}", headers=normal_user["headers"])
+    assert non_admin_del.status_code == 403
+
+    # Admin ne peut pas se supprimer lui-même (400)
+    self_del = client.delete(f"/admin/users/{admin_user['id']}", headers=admin_user["headers"])
+    assert self_del.status_code == 400
+
+    # Admin supprime l'utilisateur avec succès (204)
+    del_resp = client.delete(f"/admin/users/{user_to_delete['id']}", headers=admin_user["headers"])
+    assert del_resp.status_code == 204
+
+    # Vérification que l'utilisateur est bien supprimé de la base
+    with Session(engine) as session:
+        assert session.get(User, uuid.UUID(user_to_delete["id"])) is None
+

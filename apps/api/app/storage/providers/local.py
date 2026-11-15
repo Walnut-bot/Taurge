@@ -38,7 +38,14 @@ class LocalStorageProvider:
             f.write(content)
 
     def read(self, key: str) -> bytes:
-        with open(self._full_path(key), "rb") as f:
+        full_path = self._full_path(key)
+        if not full_path.is_file():
+            raise FileNotFoundError(
+                f"L'image de la planche est introuvable sur le serveur ({full_path.name}). "
+                "Comme le conteneur cloud a redémarré avec un disque temporaire réinitialisé, "
+                "veuillez réimporter le fichier source du chapitre pour restaurer les images."
+            )
+        with open(full_path, "rb") as f:
             return f.read()
 
     def exists(self, key: str) -> bool:
