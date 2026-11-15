@@ -42,6 +42,8 @@ from app.translations.router import router as translations_router
 from app.core.config import settings
 from app.core.db import init_db
 from app.core.i18n import get_locale, parse_accept_language, translate_detail
+from app.core.rate_limiter import RateLimitMiddleware
+from app.core.security_headers import SecurityHeadersMiddleware
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -161,6 +163,8 @@ app.include_router(ocr_blocks_router)
 app.include_router(jobs_router)
 
 app.add_middleware(LocaleMiddleware)
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 _cors_origins = ["http://localhost:3000", "http://127.0.0.1:3000", "https://taurge.vercel.app"] + [
     origin.strip()

@@ -7,6 +7,7 @@ from sqlmodel import Session
 
 from app.auth.dependencies import get_current_user
 from app.core.db import get_session
+from app.core.sanitization import sanitize_text
 from app.models.ocr_block import OCRBlock
 from app.models.page import Page
 from app.models.project import Project
@@ -43,7 +44,7 @@ def update_translation(
             status_code=status.HTTP_404_NOT_FOUND, detail="Traduction introuvable."
         )
 
-    translation.translated_text = payload.translated_text
+    translation.translated_text = sanitize_text(payload.translated_text)
     translation.edited_by_user = True
     translation.updated_at = datetime.now(timezone.utc)
     session.add(translation)

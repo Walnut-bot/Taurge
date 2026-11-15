@@ -16,6 +16,7 @@ from sqlmodel import Session, delete, select
 
 from app.billing.router import CREDIT_COSTS, deduct_credits, ensure_credits
 from app.core.config import settings
+from app.core.sanitization import sanitize_project_name
 from app.models.cleaned_page import CleanedPage
 from app.models.collaboration import PageComment, PageVersion
 from app.models.export import Export
@@ -69,7 +70,9 @@ def create_project(
     current_user: User,
     session: Session,
 ):
-    project = Project(owner_id=current_user.id, **payload.model_dump())
+    data = payload.model_dump()
+    data["name"] = sanitize_project_name(data.get("name"))
+    project = Project(owner_id=current_user.id, **data)
     session.add(project)
     session.commit()
     session.refresh(project)

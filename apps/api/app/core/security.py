@@ -32,3 +32,27 @@ def decode_access_token(token: str) -> str | None:
         return payload.get("sub")
     except JWTError:
         return None
+
+
+def create_password_reset_token(email: str, expires_minutes: int = 15) -> str:
+    """Génère un jeton signé temporaire à usage unique pour la réinitialisation de mot de passe."""
+    expire = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
+    to_encode = {
+        "sub": email.lower().strip(),
+        "scope": "password_reset",
+        "exp": expire,
+    }
+    return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
+
+
+def verify_password_reset_token(token: str) -> str | None:
+    """Vérifie le jeton de réinitialisation : signature, expiration et portée (scope)."""
+    try:
+        payload = jwt.decode(
+            token, settings.secret_key, algorithms=[settings.algorithm]
+        )
+        if payload.get("scope") != "password_reset":
+            return None
+        return payload.get("sub")
+    except JWTError:
+        return None

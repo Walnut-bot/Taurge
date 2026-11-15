@@ -2,12 +2,14 @@ from datetime import datetime, timedelta, timezone
 from io import BytesIO
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import Response
 from PIL import Image, UnidentifiedImageError
 from sqlmodel import Session, select
 
 from app.auth.dependencies import get_current_user
+from app.core.audit_logger import log_auth_failure, log_auth_success, log_registration
+from app.core.rate_limiter import get_client_ip
 from app.auth.schemas import (
     DeleteAccountRequest,
     LoginRequest,
@@ -156,7 +158,7 @@ def _get_user_response(user: User, session: Session) -> UserResponse:
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def register(payload: RegisterRequest, session: Session = Depends(get_session)):
+def register(payload: RegisterRequest, request: Request, session: Session = Depends(get_session)):
     if not payload.accepted_terms or not payload.age_confirmed:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -192,13 +194,18 @@ def register(payload: RegisterRequest, session: Session = Depends(get_session)):
     session.add(sub)
     session.commit()
 
+    ip = get_client_ip(request) if request else "unknown"
+    log_registration(user.email, str(user.id), ip)
+
     return _get_user_response(user, session)
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, session: Session = Depends(get_session)):
+def login(payload: LoginRequest, request: Request, session: Session = Depends(get_session)):
     email = payload.email.lower()
+    ip = get_client_ip(request) if request else "unknown"
     if _recent_failed_logins(session, email) >= settings.login_max_failed_attempts:
+        log_auth_failure(email, ip, "account_temporarily_locked")
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Trop de tentatives de connexion. Réessayez dans quelques minutes.",
@@ -206,12 +213,14 @@ def login(payload: LoginRequest, session: Session = Depends(get_session)):
     user = session.exec(select(User).where(User.email == payload.email)).first()
     if not user or not verify_password(payload.password, user.password_hash):
         _record_failed_login(session, email)
+        log_auth_failure(email, ip, "invalid_credentials")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email ou mot de passe incorrect.",
         )
     _clear_failed_logins(session, email)
     token = create_access_token(subject=str(user.id))
+    log_auth_success(user.email, str(user.id), ip)
     return TokenResponse(access_token=token)
 
 
