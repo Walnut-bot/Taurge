@@ -30,11 +30,16 @@ class FedaPayProvider(PaymentProvider):
         return bool(settings.fedapay_secret_key)
 
     def _amount_xof(self, pack_key: str) -> int | None:
+        key = pack_key.lower()
         return {
-            "discovery": settings.fedapay_amount_xof_discovery,
-            "regular": settings.fedapay_amount_xof_regular,
-            "studio": settings.fedapay_amount_xof_studio,
-        }.get(pack_key)
+            "starter": settings.fedapay_amount_xof_discovery or 3250,
+            "mini": settings.fedapay_amount_xof_discovery or 3250,
+            "standard": settings.fedapay_amount_xof_regular or 9800,
+            "pro": settings.fedapay_amount_xof_regular or 9800,
+            "discovery": settings.fedapay_amount_xof_discovery or 3250,
+            "regular": settings.fedapay_amount_xof_regular or 9800,
+            "studio": settings.fedapay_amount_xof_studio or 26200,
+        }.get(key)
 
     async def create_checkout(
         self, *, pack_key: str, user_id: str, user_email: str

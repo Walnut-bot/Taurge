@@ -16,6 +16,7 @@ import { PageStrip } from './page-strip'
 import { SourcesPanel } from './sources-panel'
 import { GlossaryPanel } from './glossary-panel'
 import { TeamPanel } from './team-panel'
+import { CostPreviewDialog } from './cost-preview-dialog'
 import type { ExportRecord } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useJobPolling, type Notice } from './use-job-polling'
@@ -158,7 +159,15 @@ export function Workspace({ projectId }: { projectId: string }) {
     }
   }
 
-  async function handleStartBatchJob() {
+  const [isBatchCostOpen, setIsBatchCostOpen] = useState(false)
+
+  function requestBatchJob() {
+    if (!project || project.pages.length === 0) return
+    setIsBatchCostOpen(true)
+  }
+
+  async function handleConfirmBatchJob(selectedEngine: string) {
+    setIsBatchCostOpen(false)
     if (!project || project.pages.length === 0) return
     setNotice(null)
     try {
@@ -179,6 +188,10 @@ export function Workspace({ projectId }: { projectId: string }) {
               : 'Impossible de lancer le traitement.',
       })
     }
+  }
+
+  async function handleStartBatchJob() {
+    requestBatchJob()
   }
 
   return (
@@ -404,6 +417,23 @@ export function Workspace({ projectId }: { projectId: string }) {
             </>
           )}
         </main>
+      )}
+
+      {project && (
+        <CostPreviewDialog
+          isOpen={isBatchCostOpen}
+          onClose={() => setIsBatchCostOpen(false)}
+          onConfirm={handleConfirmBatchJob}
+          actionType="batch"
+          title={isEn ? 'Translate the whole chapter' : 'Traduire tout le chapitre'}
+          description={
+            isEn
+              ? `Run complete OCR, contextual AI translation and background inpainting across all ${project.pages.length} pages.`
+              : `Lancer l'analyse OCR, la traduction IA et le nettoyage complet sur l'ensemble des ${project.pages.length} planches du chapitre.`
+          }
+          pageCount={project.pages.length}
+          isLoading={Boolean(activeJobId)}
+        />
       )}
     </>
   )

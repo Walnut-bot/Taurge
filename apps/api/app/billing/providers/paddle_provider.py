@@ -29,11 +29,16 @@ class PaddleProvider(PaymentProvider):
         return bool(settings.paddle_api_key)
 
     def _price_id(self, pack_key: str) -> str | None:
+        key = pack_key.lower()
         return {
+            "starter": settings.paddle_price_id_discovery,
+            "mini": settings.paddle_price_id_discovery,
+            "standard": settings.paddle_price_id_regular,
+            "pro": settings.paddle_price_id_regular,
             "discovery": settings.paddle_price_id_discovery,
             "regular": settings.paddle_price_id_regular,
             "studio": settings.paddle_price_id_studio,
-        }.get(pack_key)
+        }.get(key)
 
     async def create_checkout(
         self, *, pack_key: str, user_id: str, user_email: str

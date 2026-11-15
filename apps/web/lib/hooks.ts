@@ -30,6 +30,12 @@ export function useMe(enabled: boolean) {
   return useSWR(enabled ? 'me' : null, () => api.me())
 }
 
+export function useDetailedBalance(enabled: boolean) {
+  return useSWR(enabled ? 'detailed-balance' : null, () => api.getDetailedBalance(), {
+    revalidateOnFocus: true,
+  })
+}
+
 export function useProjects(enabled: boolean) {
   const router = useRouter()
   return useSWR(enabled ? 'projects' : null, () => api.listProjects(), {

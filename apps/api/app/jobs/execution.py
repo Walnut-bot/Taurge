@@ -9,7 +9,14 @@ from fastapi import HTTPException, status
 from sqlalchemy import update as sa_update
 from sqlmodel import Session, delete, select
 
-from app.billing.router import CREDIT_COSTS, deduct_credits, ensure_credits
+from app.billing.router import (
+    TariffConfig,
+    deduct_credits,
+    ensure_credits,
+    release_reservation,
+    reserve_credits,
+    settle_reservation,
+)
 from app.core.db import engine
 from app.models.cleaned_page import CleanedPage
 from app.models.glossary import GlossaryEntry
@@ -431,22 +438,36 @@ async def _run_batch_in_background(job_id: uuid.UUID):
                 # 1. OCR si absent
                 blocks = session.exec(select(OCRBlock).where(OCRBlock.page_id == page.id)).all()
                 if not blocks:
-                    ensure_credits(job.user_id, CREDIT_COSTS["ocr"], session)
-                    image_bytes = storage.read(page.storage_key)
-                    detected = await ocr.detect_text(image_bytes, project.source_lang)
-                    for d in detected:
-                        session.add(OCRBlock(
+                    cost_ocr = TariffConfig.OCR_STANDARD
+                    res_ocr = reserve_credits(job.user_id, cost_ocr, "ocr", session)
+                    try:
+                        image_bytes = storage.read(page.storage_key)
+                        detected = await ocr.detect_text(image_bytes, project.source_lang)
+                        engine_ocr = getattr(ocr, "provider_name", "ocr")
+                        for d in detected:
+                            if d.provider:
+                                engine_ocr = d.provider
+                            session.add(OCRBlock(
+                                page_id=page.id,
+                                text=d.text,
+                                bbox_x=d.bbox_x,
+                                bbox_y=d.bbox_y,
+                                bbox_w=d.bbox_w,
+                                bbox_h=d.bbox_h,
+                                confidence=d.confidence,
+                                provider=d.provider,
+                            ))
+                        session.commit()
+                        settle_reservation(
+                            res_ocr,
+                            session,
+                            project_id=project.id,
                             page_id=page.id,
-                            text=d.text,
-                            bbox_x=d.bbox_x,
-                            bbox_y=d.bbox_y,
-                            bbox_w=d.bbox_w,
-                            bbox_h=d.bbox_h,
-                            confidence=d.confidence,
-                            provider=d.provider,
-                        ))
-                    session.commit()
-                    deduct_credits(job.user_id, CREDIT_COSTS["ocr"], "ocr", session, project_id=project.id)
+                            engine_used=engine_ocr,
+                        )
+                    except Exception:
+                        release_reservation(res_ocr, session)
+                        raise
                     blocks = session.exec(select(OCRBlock).where(OCRBlock.page_id == page.id)).all()
 
                 # 2. Traduction
@@ -461,33 +482,60 @@ async def _run_batch_in_background(job_id: uuid.UUID):
                     }
                     to_trans = [b for b in blocks if b.id not in already_trans]
                     if to_trans:
-                        ensure_credits(job.user_id, CREDIT_COSTS["translate"], session)
                         texts = [b.text for b in to_trans]
-                        translated = await translator.translate_batch(
-                            texts, project.source_lang, project.target_lang, glossary=glossary_map
-                        )
-                        for block, trans_text in zip(to_trans, translated):
-                            session.add(Translation(
-                                ocr_block_id=block.id,
-                                translated_text=trans_text,
-                                provider=getattr(translator, "last_provider", None) or "ollama",
-                            ))
-                        session.commit()
+                        total_chars = sum(len(t) for t in texts)
+                        cost_trans = TariffConfig.get_translation_cost("ollama", total_chars)
+                        res_trans = reserve_credits(job.user_id, cost_trans, "translate", session)
+                        try:
+                            translated = await translator.translate_batch(
+                                texts, project.source_lang, project.target_lang, glossary=glossary_map
+                            )
+                            used_provider = getattr(translator, "last_provider", None) or "ollama"
+                            for block, trans_text in zip(to_trans, translated):
+                                session.add(Translation(
+                                    ocr_block_id=block.id,
+                                    translated_text=trans_text,
+                                    provider=used_provider,
+                                ))
+                            session.commit()
+                            actual_chars = getattr(translator, "last_chars_count", total_chars)
+                            prov_cost = TariffConfig.get_provider_cost(used_provider, actual_chars)
+                            settle_reservation(
+                                res_trans,
+                                session,
+                                project_id=project.id,
+                                page_id=page.id,
+                                engine_used=used_provider,
+                                source_chars_count=actual_chars,
+                                cost_provider_actual=prov_cost,
+                            )
+                        except Exception:
+                            release_reservation(res_trans, session)
+                            raise
 
-                        deduct_credits(job.user_id, CREDIT_COSTS["translate"], "translate", session, project_id=project.id)
                 # 3. Nettoyage inpainting
                 cleaned = session.exec(select(CleanedPage).where(CleanedPage.page_id == page.id)).first()
                 if not cleaned and blocks:
-                    ensure_credits(job.user_id, CREDIT_COSTS["clean"], session)
-                    orig_bytes = storage.read(page.storage_key)
                     bboxes = [(b.bbox_x, b.bbox_y, b.bbox_w, b.bbox_h) for b in blocks]
-                    cleaned_bytes = clean_image(orig_bytes, bboxes)
-                    storage_key = f"cleaned/{project.id}/{page.id}.png"
-                    storage.save(storage_key, cleaned_bytes)
-                    session.add(CleanedPage(page_id=page.id, storage_key=storage_key))
-                    # Note : deduct_credits() committe aussi l'insert ci-dessus.
-                    deduct_credits(job.user_id, CREDIT_COSTS["clean"], "clean", session, project_id=project.id)
-                    session.commit()
+                    cost_clean = TariffConfig.get_cleaning_cost("opencv", len(bboxes))
+                    res_clean = reserve_credits(job.user_id, cost_clean, "clean", session)
+                    try:
+                        orig_bytes = storage.read(page.storage_key)
+                        cleaned_bytes = clean_image(orig_bytes, bboxes)
+                        storage_key = f"cleaned/{project.id}/{page.id}.png"
+                        storage.save(storage_key, cleaned_bytes)
+                        session.add(CleanedPage(page_id=page.id, storage_key=storage_key))
+                        session.commit()
+                        settle_reservation(
+                            res_clean,
+                            session,
+                            project_id=project.id,
+                            page_id=page.id,
+                            engine_used="opencv",
+                        )
+                    except Exception:
+                        release_reservation(res_clean, session)
+                        raise
 
             except Exception as exc:
                 if isinstance(exc, HTTPException) and exc.status_code == status.HTTP_402_PAYMENT_REQUIRED:
@@ -550,11 +598,17 @@ async def _run_page_ocr(job_id: uuid.UUID, page_id: uuid.UUID) -> None:
             page = session.get(Page, page_id)
             if not project or not page or page.project_id != project.id:
                 raise ValueError("Page ou projet introuvable.")
-            ensure_credits(job.user_id, CREDIT_COSTS["ocr"], session)
-            image_bytes = storage.read(page.storage_key)
-            detected = await ocr.detect_text(image_bytes, project.source_lang)
+            cost_ocr = TariffConfig.OCR_STANDARD
+            res_ocr = reserve_credits(job.user_id, cost_ocr, "ocr", session)
+            try:
+                image_bytes = storage.read(page.storage_key)
+                detected = await ocr.detect_text(image_bytes, project.source_lang)
+            except Exception:
+                release_reservation(res_ocr, session)
+                raise
             session.refresh(job)
             if job.status == "cancelled":
+                release_reservation(res_ocr, session)
                 return
             for block in session.exec(
                 select(OCRBlock).where(OCRBlock.page_id == page.id)
@@ -563,14 +617,23 @@ async def _run_page_ocr(job_id: uuid.UUID, page_id: uuid.UUID) -> None:
                     delete(Translation).where(Translation.ocr_block_id == block.id)
                 )
                 session.delete(block)
+            engine_ocr = getattr(ocr, "provider_name", "ocr")
             for data in detected:
+                if data.provider:
+                    engine_ocr = data.provider
                 session.add(OCRBlock(
                     page_id=page.id, text=data.text, bbox_x=data.bbox_x,
                     bbox_y=data.bbox_y, bbox_w=data.bbox_w, bbox_h=data.bbox_h,
                     confidence=data.confidence, provider=data.provider,
                 ))
             session.commit()
-            deduct_credits(job.user_id, CREDIT_COSTS["ocr"], "ocr", session, project_id=project.id)
+            settle_reservation(
+                res_ocr,
+                session,
+                project_id=project.id,
+                page_id=page.id,
+                engine_used=engine_ocr,
+            )
             job.status = "completed"
             job.current_page = 1
             job.progress_percent = 100

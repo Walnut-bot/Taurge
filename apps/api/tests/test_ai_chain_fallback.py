@@ -149,32 +149,43 @@ def test_translation_prefers_ollama_and_records_provider():
     assert deepl.calls == 0
 
 
-def test_translation_falls_back_to_deepl_and_records_provider():
+def test_translation_no_silent_fallback_on_ollama_failure():
+    """Règle 2 : Aucun fallback silencieux vers DeepL. En cas d'échec d'Ollama, lever une exception."""
+    deepl = _FakeDeepL(result=["BONJOUR"])
     service = TranslationService(
         ollama=_FakeOllama(exc=RuntimeError("Ollama injoignable")),
-        deepl=_FakeDeepL(result=["BONJOUR"]),
+        deepl=deepl,
     )
-    assert asyncio.run(service.translate_batch(["HELLO"], "en", "fr")) == ["BONJOUR"]
-    assert service.last_provider == "deepl"
+    with pytest.raises(RuntimeError) as exc_info:
+        asyncio.run(service.translate_batch(["HELLO"], "en", "fr", engine="ollama"))
+    assert "Ollama" in str(exc_info.value)
+    # DeepL ne doit JAMAIS avoir été appelé en cachette
+    assert deepl.calls == 0
 
 
-def test_translation_slow_ollama_is_bounded_by_budget_when_deepl_exists():
+def test_translation_explicit_deepl_uses_deepl():
+    """L'utilisateur choisit explicitement DeepL Premium."""
+    deepl = _FakeDeepL(result=["BONJOUR"])
     service = TranslationService(
-        ollama=_FakeOllama(result=["TROP TARD"], delay=5),
-        deepl=_FakeDeepL(result=["BONJOUR"]),
-        ollama_budget_seconds=0.2,
+        ollama=_FakeOllama(result=["OLLAMA"]),
+        deepl=deepl,
     )
-    assert asyncio.run(service.translate_batch(["HELLO"], "en", "fr")) == ["BONJOUR"]
+    res = asyncio.run(service.translate_batch(["HELLO"], "en", "fr", engine="deepl"))
+    assert res == ["BONJOUR"]
     assert service.last_provider == "deepl"
+    assert deepl.calls == 1
 
 
-def test_translation_empty_ollama_batch_falls_back_to_deepl():
+def test_translation_empty_ollama_batch_raises_explicit_error():
+    """Un lot incomplet d'Ollama lève une erreur explicite sans bascule silencieuse."""
+    deepl = _FakeDeepL(result=["BONJOUR"])
     service = TranslationService(
         ollama=_FakeOllama(result=[]),
-        deepl=_FakeDeepL(result=["BONJOUR"]),
+        deepl=deepl,
     )
-    assert asyncio.run(service.translate_batch(["HELLO"], "en", "fr")) == ["BONJOUR"]
-    assert service.last_provider == "deepl"
+    with pytest.raises(RuntimeError):
+        asyncio.run(service.translate_batch(["HELLO"], "en", "fr"))
+    assert deepl.calls == 0
 
 
 def test_translation_total_failure_never_returns_source_text():
@@ -182,7 +193,7 @@ def test_translation_total_failure_never_returns_source_text():
         ollama=_FakeOllama(exc=RuntimeError("Ollama KO")),
         deepl=_FakeDeepL(exc=RuntimeError("DeepL KO")),
     )
-    with pytest.raises(RuntimeError, match="Ollama et DeepL ont échoué"):
-        asyncio.run(service.translate_batch(["HELLO"], "en", "fr"))
     with pytest.raises(RuntimeError):
-        asyncio.run(service.translate("HELLO", "en", "fr"))
+        asyncio.run(service.translate_batch(["HELLO"], "en", "fr", engine="ollama"))
+    with pytest.raises(RuntimeError):
+        asyncio.run(service.translate("HELLO", "en", "fr", engine="ollama"))

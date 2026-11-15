@@ -17,6 +17,7 @@ import {
   normalizeFontId,
 } from '@/lib/fonts'
 import { WatermarkDialog } from './watermark-dialog'
+import { CostPreviewDialog } from './cost-preview-dialog'
 import type { Page, QCIssue, PageComment, PageVersion, WatermarkConfig } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import type { Runner } from './workspace'
@@ -348,16 +349,71 @@ export function PageStage(props: Props) {
   const next = stage === 'cleaned' ? null : NEXT_ACTION[stage]
   const working = busy === `${next?.key}:${page.id}`
 
-  async function runNext() {
+  const [costPreview, setCostPreview] = useState<{
+    isOpen: boolean
+    actionType: 'ocr' | 'translate' | 'clean'
+    title: string
+    description?: string
+    sourceChars?: number
+    zonesCount?: number
+  } | null>(null)
+
+  function handleRequestRunNext() {
     if (!next) return
-    const fn =
-      next.key === 'ocr'
-        ? () => api.runOcr(projectId, page.id)
-        : next.key === 'translate'
-          ? () => api.translatePage(projectId, page.id)
-          : () => api.cleanPage(projectId, page.id)
-    const ok = await run(`${next.key}:${page.id}`, next.done, fn)
-    if (ok && next.key === 'clean') setView('cleaned')
+    if (next.key === 'ocr') {
+      setCostPreview({
+        isOpen: true,
+        actionType: 'ocr',
+        title: isEn ? `OCR Analysis — Page ${page.page_number}` : `Analyse OCR — Planche ${page.page_number}`,
+        description: isEn
+          ? 'Automatic bubble detection and text recognition.'
+          : 'Détection automatique des bulles et reconnaissance du texte source.',
+        sourceChars: 0,
+        zonesCount: 1,
+      })
+    } else if (next.key === 'translate') {
+      const chars = page.ocr_blocks.reduce((acc, b) => acc + (b.text?.length || 0), 0)
+      setCostPreview({
+        isOpen: true,
+        actionType: 'translate',
+        title: isEn ? `AI Translation — Page ${page.page_number}` : `Traduction IA — Planche ${page.page_number}`,
+        description: isEn
+          ? `Translate ${page.ocr_blocks.length} detected bubbles (${chars} characters).`
+          : `Traduire les ${page.ocr_blocks.length} bulles détectées (${chars} caractères).`,
+        sourceChars: chars,
+        zonesCount: 1,
+      })
+    } else if (next.key === 'clean') {
+      setCostPreview({
+        isOpen: true,
+        actionType: 'clean',
+        title: isEn ? `Bubble Inpainting — Page ${page.page_number}` : `Nettoyage des bulles — Planche ${page.page_number}`,
+        description: isEn
+          ? `Reconstruct art and remove text from ${page.ocr_blocks.length} bubbles.`
+          : `Effacement du texte et reconstruction du décor sous les ${page.ocr_blocks.length} bulles.`,
+        sourceChars: 0,
+        zonesCount: page.ocr_blocks.length || 1,
+      })
+    }
+  }
+
+  async function handleConfirmCost(selectedEngine: string) {
+    if (!costPreview) return
+    const action = costPreview.actionType
+    setCostPreview(null)
+
+    if (action === 'ocr') {
+      await run(`ocr:${page.id}`, isEn ? 'OCR completed' : 'OCR terminé', () => api.runOcr(projectId, page.id))
+    } else if (action === 'translate') {
+      await run(`translate:${page.id}`, isEn ? 'Translation completed' : 'Traduction terminée', () => api.translatePage(projectId, page.id, selectedEngine))
+    } else if (action === 'clean') {
+      const ok = await run(`clean:${page.id}`, isEn ? 'Cleaning completed' : 'Nettoyage terminé', () => api.cleanPage(projectId, page.id, selectedEngine))
+      if (ok) setView('cleaned')
+    }
+  }
+
+  async function runNext() {
+    handleRequestRunNext()
   }
 
   const handleUpdateBbox = async (blockId: string, bbox: { bbox_x: number; bbox_y: number; bbox_w: number; bbox_h: number }) => {
@@ -482,13 +538,17 @@ export function PageStage(props: Props) {
     }
   }
 
-  const handleReClean = async () => {
-    const ok = await run(
-      `clean:${page.id}`,
-      isEn ? 'Cleaning updated with the new bubbles.' : 'Nettoyage mis à jour avec les nouvelles bulles.',
-      () => api.cleanPage(projectId, page.id),
-    )
-    if (ok) setView('cleaned')
+  const handleReClean = () => {
+    setCostPreview({
+      isOpen: true,
+      actionType: 'clean',
+      title: isEn ? `Regenerate Cleaning — Page ${page.page_number}` : `Régénérer le nettoyage — Planche ${page.page_number}`,
+      description: isEn
+        ? `Re-run inpainting for ${page.ocr_blocks.length} bubbles.`
+        : `Relancer le nettoyage sur les ${page.ocr_blocks.length} bulles.`,
+      sourceChars: 0,
+      zonesCount: page.ocr_blocks.length || 1,
+    })
   }
 
   const handleExportScript = () => {
@@ -1328,6 +1388,21 @@ export function PageStage(props: Props) {
           pageCount={props.pageCount}
           onApply={handleApplyWatermark}
         />
+
+        {costPreview && (
+          <CostPreviewDialog
+            isOpen={costPreview.isOpen}
+            onClose={() => setCostPreview(null)}
+            onConfirm={handleConfirmCost}
+            actionType={costPreview.actionType}
+            title={costPreview.title}
+            description={costPreview.description}
+            sourceChars={costPreview.sourceChars}
+            zonesCount={costPreview.zonesCount}
+            pageCount={1}
+            isLoading={busy !== null}
+          />
+        )}
 
         {isPeekingOriginal && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-black/90 text-white font-mono text-xs px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 pointer-events-none z-50">

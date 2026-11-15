@@ -225,3 +225,90 @@ export type AdminJob = {
   created_at: string
 }
 
+export type CreditBalanceDetailed = {
+  plan: string
+  status: string
+  available_credits: number
+  monthly_credits_remaining: number
+  monthly_credits_limit: number
+  purchased_credits_remaining: number
+  reserved_credits: number
+  current_period_end: string | null
+  credits_remaining: number
+  credits_limit: number
+}
+
+export type CostEstimate = {
+  action_type: string
+  engine: string
+  engine_label: string
+  unit_cost: number
+  total_cost: number
+  page_count: number
+}
+
+export type BillingPlan = {
+  id: string
+  name_fr: string
+  name_en: string
+  price_eur: number
+  monthly_credits: number
+  max_active_projects: number
+  max_storage_mb: number
+  max_team_members?: number
+  features_fr: string[]
+  features_en: string[]
+  recommended?: boolean
+  on_quote?: boolean
+}
+
+export type CreditPack = {
+  key: string
+  name_fr: string
+  name_en: string
+  credits: number
+  price_eur: number
+  price_eur_cents: number
+  recommended: boolean
+  unit_price_cents: number
+}
+
+export type DeepLQuotaStatus = {
+  period_month: string
+  chars_used: number
+  chars_limit: number
+  chars_remaining: number
+  percent_used?: number
+  usage_percent?: number
+  alert_level?: 'normal' | 'notice' | 'warning' | 'critical' | 'exhausted'
+  is_blocked?: boolean
+  requests_count?: number
+  top_users?: { user_id: string; email: string; chars: number }[]
+}
+
+export type UsageLedgerItem = {
+  id: string
+  action_type: string
+  amount: number
+  origin?: string
+  engine_used?: string | null
+  source_chars_count?: number | null
+  cost_provider_actual?: number | null
+  status: string
+  description: string
+  created_at: string
+}
+
+export type ProfitabilityMetrics = {
+  total_revenue_eur: number
+  total_provider_cost_eur: number
+  gross_margin_eur: number
+  gross_margin_percent: number
+  engine_stats?: Record<string, { count: number; credits: number; provider_cost: number }>
+  period_month?: string
+  estimated_gross_margin_eur?: number
+  deepl_chars_billed?: number
+  deepl_cost_eur?: number
+  active_subscribers_by_plan?: Record<string, number>
+}
+

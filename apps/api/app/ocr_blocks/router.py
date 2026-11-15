@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select, delete as sql_delete
 
 from app.auth.dependencies import get_current_user
-from app.billing.router import CREDIT_COSTS, deduct_credits, ensure_credits
+from app.billing.router import TariffConfig, deduct_credits, ensure_credits
 from app.core.db import get_session
 from app.models.ocr_block import OCRBlock
 from app.models.page import Page
@@ -261,25 +261,38 @@ async def retranslate_block(
     translator: TranslationProvider = Depends(get_translation_provider),
 ):
     block, project = _get_accessible_block(block_id, current_user, session)
-    ensure_credits(current_user.id, CREDIT_COSTS["translate"], session)
+    chars_count = len(block.text) if block.text else 0
+    # Traduction standard Ollama par défaut sur retranslate
+    cost = TariffConfig.calculate_translation_cost(chars_count, engine="ollama")
+    ensure_credits(current_user.id, cost, session)
     try:
-        translated_text = await translator.translate(block.text, project.source_lang, project.target_lang)
+        translated_text = await translator.translate(block.text, project.source_lang, project.target_lang, engine="ollama")
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Échec traduction : {exc}")
 
     translation = session.exec(select(Translation).where(Translation.ocr_block_id == block.id)).first()
+    provider_used = getattr(translator, "last_provider", None) or "ollama"
     if translation:
         translation.translated_text = translated_text
         translation.edited_by_user = False
-        # Le provider réel de CETTE retraduction remplace l'ancien.
-        translation.provider = getattr(translator, "last_provider", None) or translation.provider
+        translation.provider = provider_used
         translation.updated_at = datetime.now(timezone.utc)
     else:
-        translation = Translation(ocr_block_id=block.id, translated_text=translated_text, provider=getattr(translator, "last_provider", None) or "ollama")
+        translation = Translation(ocr_block_id=block.id, translated_text=translated_text, provider=provider_used)
 
     session.add(translation)
     session.commit()
-    deduct_credits(current_user.id, CREDIT_COSTS["translate"], "translate", session, project_id=project.id)
+    deduct_credits(
+        current_user.id,
+        cost,
+        "translate",
+        session,
+        project_id=project.id,
+        page_id=block.page_id,
+        engine_used=provider_used,
+        source_chars_count=chars_count,
+        description=f"Retraduction bulle ({chars_count} car., {cost} crédit(s))",
+    )
     session.refresh(translation)
     return TranslationResponse(**translation.model_dump(mode="json"))
 

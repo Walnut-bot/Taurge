@@ -105,8 +105,15 @@ async def run_ocr(project_id: uuid.UUID, page_id: uuid.UUID, current_user: User 
 
 
 @router.post("/{project_id}/pages/{page_id}/translate", response_model=list[TranslationResponse], status_code=status.HTTP_201_CREATED)
-async def translate_page(project_id: uuid.UUID, page_id: uuid.UUID, current_user: User = Depends(get_current_user), session: Session = Depends(get_session), translator: TranslationProvider = Depends(get_translation_provider)):
-    return await page_service.translate_page(project_id, page_id, current_user, session, translator)
+async def translate_page(
+    project_id: uuid.UUID,
+    page_id: uuid.UUID,
+    engine: str = Query(default="ollama", description="Moteur de traduction : 'ollama' ou 'deepl'"),
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+    translator: TranslationProvider = Depends(get_translation_provider),
+):
+    return await page_service.translate_page(project_id, page_id, current_user, session, translator, engine=engine)
 
 
 @router.post("/{project_id}/export", response_model=ExportResponse, status_code=status.HTTP_201_CREATED)
@@ -115,18 +122,75 @@ def export_project(project_id: uuid.UUID, format: str | None = Query(None), curr
 
 
 @router.post("/{project_id}/pages/{page_id}/clean", response_model=PageResponse, status_code=status.HTTP_201_CREATED)
-def clean_page(project_id: uuid.UUID, page_id: uuid.UUID, current_user: User = Depends(get_current_user), session: Session = Depends(get_session), storage: StorageProvider = Depends(get_storage_provider)):
-    return page_service.clean_page(project_id, page_id, current_user, session, storage)
+def clean_page(
+    project_id: uuid.UUID,
+    page_id: uuid.UUID,
+    clean_engine: str = Query(default="opencv", description="Moteur de nettoyage : 'opencv' ou 'lama'"),
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+    storage: StorageProvider = Depends(get_storage_provider),
+):
+    return page_service.clean_page(project_id, page_id, current_user, session, storage, clean_engine=clean_engine)
 
 
 @router.post("/{project_id}/batch-process", response_model=BatchProcessResponse, status_code=status.HTTP_200_OK)
-async def batch_process_project(project_id: uuid.UUID, include_ocr: bool = True, include_translate: bool = True, include_clean: bool = True, current_user: User = Depends(get_current_user), session: Session = Depends(get_session), storage: StorageProvider = Depends(get_storage_provider), ocr: OCRProvider = Depends(get_ocr_provider), translator: TranslationProvider = Depends(get_translation_provider)):
-    return await page_service.batch_process_project(project_id, include_ocr, include_translate, include_clean, current_user, session, storage, ocr, translator)
+async def batch_process_project(
+    project_id: uuid.UUID,
+    include_ocr: bool = True,
+    include_translate: bool = True,
+    include_clean: bool = True,
+    engine: str = Query(default="ollama"),
+    clean_engine: str = Query(default="opencv"),
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+    storage: StorageProvider = Depends(get_storage_provider),
+    ocr: OCRProvider = Depends(get_ocr_provider),
+    translator: TranslationProvider = Depends(get_translation_provider),
+):
+    return await page_service.batch_process_project(
+        project_id,
+        include_ocr,
+        include_translate,
+        include_clean,
+        current_user,
+        session,
+        storage,
+        ocr,
+        translator,
+        engine=engine,
+        clean_engine=clean_engine,
+    )
 
 
 @router.post("/{project_id}/pages/{page_id}/process-full", response_model=PageResponse, status_code=status.HTTP_200_OK)
-async def process_page_full(project_id: uuid.UUID, page_id: uuid.UUID, include_ocr: bool = True, include_translate: bool = True, include_clean: bool = True, current_user: User = Depends(get_current_user), session: Session = Depends(get_session), storage: StorageProvider = Depends(get_storage_provider), ocr: OCRProvider = Depends(get_ocr_provider), translator: TranslationProvider = Depends(get_translation_provider)):
-    return await page_service.process_page_full(project_id, page_id, include_ocr, include_translate, include_clean, current_user, session, storage, ocr, translator)
+async def process_page_full(
+    project_id: uuid.UUID,
+    page_id: uuid.UUID,
+    include_ocr: bool = True,
+    include_translate: bool = True,
+    include_clean: bool = True,
+    engine: str = Query(default="ollama"),
+    clean_engine: str = Query(default="opencv"),
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+    storage: StorageProvider = Depends(get_storage_provider),
+    ocr: OCRProvider = Depends(get_ocr_provider),
+    translator: TranslationProvider = Depends(get_translation_provider),
+):
+    return await page_service.process_page_full(
+        project_id,
+        page_id,
+        include_ocr,
+        include_translate,
+        include_clean,
+        current_user,
+        session,
+        storage,
+        ocr,
+        translator,
+        engine=engine,
+        clean_engine=clean_engine,
+    )
 
 
 @router.get("/{project_id}/qc", response_model=QCReportResponse)

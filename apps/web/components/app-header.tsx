@@ -19,7 +19,7 @@ import { ProfileAvatar } from '@/components/profile-avatar'
 import { Link as LocaleLink, localizeHref } from '@/i18n/navigation'
 import { useLocale, useTranslations } from '@/i18n/provider'
 import { clearToken } from '@/lib/api'
-import { useMe } from '@/lib/hooks'
+import { useDetailedBalance, useMe } from '@/lib/hooks'
 import { useTheme } from '@/lib/use-theme'
 import { cn } from '@/lib/utils'
 
@@ -77,9 +77,16 @@ export function AppHeader({ children, center }: AppHeaderProps) {
     router.replace(localizeHref('/login', locale))
   }
 
-  const remaining = me?.credits_remaining ?? 30
-  const limit = me?.credits_limit ?? 30
-  const isLow = remaining <= 5
+  const { data: balance } = useDetailedBalance(Boolean(me))
+  const remaining = balance?.available_credits ?? me?.credits_remaining ?? 100
+  const monthlyRemaining = balance?.monthly_credits_remaining ?? remaining
+  const monthlyLimit = balance?.monthly_credits_limit ?? me?.credits_limit ?? 100
+  const purchasedRemaining = balance?.purchased_credits_remaining ?? 0
+  const isLow = remaining <= 10
+
+  const creditsTooltip = locale === 'en'
+    ? `${remaining} available credits\n• Monthly plan: ${monthlyRemaining} / ${monthlyLimit}\n• Purchased packs: ${purchasedRemaining}`
+    : `${remaining} crédits disponibles\n• Forfait mensuel : ${monthlyRemaining} / ${monthlyLimit}\n• Packs achetés : ${purchasedRemaining}`
 
   return (
     <>
@@ -112,9 +119,10 @@ export function AppHeader({ children, center }: AppHeaderProps) {
           <LanguageSwitcher />
           {/* Badge compact de Crédits ("Pill" moderne) */}
           {me && (
-            <div
-              className="group flex items-center gap-1.5 sm:gap-2 rounded-full border border-hairline bg-sheet/90 px-2 py-1 text-xs shadow-xs transition-all hover:border-ink/20 sm:px-2.5"
-              title={t('creditsTitle')}
+            <LocaleLink
+              href="/billing"
+              className="group flex items-center gap-1.5 sm:gap-2 rounded-full border border-hairline bg-sheet/90 px-2 py-1 text-xs shadow-xs transition-all hover:border-seal/40 sm:px-2.5 cursor-pointer"
+              title={creditsTooltip}
             >
               <Coins
                 className={cn('size-3.5 shrink-0 transition-transform group-hover:scale-110', isLow ? 'text-amber-500 animate-pulse' : 'text-seal')}
@@ -123,18 +131,15 @@ export function AppHeader({ children, center }: AppHeaderProps) {
               <span className="font-mono text-xs font-semibold text-ink">
                 {remaining}{' '}
                 <span className="font-sans font-normal text-ink-soft hidden sm:inline">
-                  / {limit} {t('credits')}
+                  {t('credits')}
                 </span>
               </span>
-              <LocaleLink
-                href="/billing"
-                className="ml-0.5 hidden shrink-0 rounded-full bg-seal/10 px-2 py-0.5 font-sans text-[10px] font-medium text-seal transition-colors hover:bg-seal hover:text-seal-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-seal sm:inline-block"
-                title={t('refillTitle')}
-                aria-label={`${t('refillCredits')} — ${t('refillSoon')}`}
+              <span
+                className="ml-0.5 hidden shrink-0 rounded-full bg-seal/10 px-2 py-0.5 font-sans text-[10px] font-medium text-seal transition-colors group-hover:bg-seal group-hover:text-seal-ink sm:inline-block"
               >
-                {t('refillSoon')}
-              </LocaleLink>
-            </div>
+                + {locale === 'en' ? 'Top up' : 'Recharge'}
+              </span>
+            </LocaleLink>
           )}
 
           {/* Trigger de profil avec Dropdown intégré */}

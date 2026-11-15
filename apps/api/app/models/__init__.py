@@ -7,7 +7,7 @@ from app.models.translation import Translation
 from app.models.export import Export
 from app.models.cleaned_page import CleanedPage
 from app.models.glossary import GlossaryEntry
-from app.models.subscription import Subscription, UsageLedger, ProjectMember
+from app.models.subscription import Subscription, UsageLedger, ProjectMember, GlobalApiUsage
 from app.models.job import Job
 from app.models.payment import PaymentTransaction
 from app.models.login_attempt import LoginAttempt
@@ -26,6 +26,7 @@ __all__ = [
     "Subscription",
     "UsageLedger",
     "ProjectMember",
+    "GlobalApiUsage",
     "Job",
     "PaymentTransaction",
     "LoginAttempt",

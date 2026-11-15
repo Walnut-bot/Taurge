@@ -290,10 +290,44 @@ export const api = {
     return patch<Project>(`/projects/${projectId}`, { name })
   },
   billingPacks(): Promise<{
-    packs: { key: string; credits: number; price_eur_cents: number }[]
+    packs: import('./types').CreditPack[]
     providers: Record<string, boolean>
   }> {
     return request('/billing/packs')
+  },
+  getDetailedBalance(): Promise<import('./types').CreditBalanceDetailed> {
+    return request<import('./types').CreditBalanceDetailed>('/billing/balance')
+  },
+  getCostEstimate(
+    action_type: string,
+    options?: {
+      source_chars?: number | string
+      engine?: string
+      zones_count?: number
+      page_count?: number
+    },
+  ): Promise<import('./types').CostEstimate> {
+    const params = new URLSearchParams({ action_type })
+    if (options?.source_chars) params.append('source_chars', String(options.source_chars))
+    if (options?.engine) params.append('engine', options.engine)
+    if (options?.zones_count) params.append('zones_count', String(options.zones_count))
+    if (options?.page_count) params.append('page_count', String(options.page_count))
+    return request<import('./types').CostEstimate>(`/billing/estimate?${params.toString()}`)
+  },
+  getBillingPlans(): Promise<{ plans: import('./types').BillingPlan[] }> {
+    return request<{ plans: import('./types').BillingPlan[] }>('/billing/plans')
+  },
+  getDeepLQuota(): Promise<import('./types').DeepLQuotaStatus> {
+    return request<import('./types').DeepLQuotaStatus>('/billing/deepl-quota')
+  },
+  updateDeepLQuotaLimit(chars_limit: number): Promise<import('./types').DeepLQuotaStatus> {
+    return post<import('./types').DeepLQuotaStatus>('/admin/deepl-quota', { chars_limit })
+  },
+  getAdminProfitability(): Promise<import('./types').ProfitabilityMetrics> {
+    return request<import('./types').ProfitabilityMetrics>('/admin/profitability')
+  },
+  changePlan(plan: string): Promise<{ status: string; message: string; plan: string }> {
+    return post<{ status: string; message: string; plan: string }>('/billing/change-plan', { plan })
   },
   createCheckout(pack: string, provider: 'fedapay' | 'paddle'): Promise<{ checkout_url: string }> {
     return post('/billing/checkout', { pack, provider })
@@ -304,6 +338,9 @@ export const api = {
       id: string
       action_type: string
       amount: number
+      engine_used?: string | null
+      source_chars_count?: number | null
+      cost_provider_actual?: number | null
       description: string | null
       project_id: string | null
       created_at: string
@@ -374,28 +411,61 @@ export const api = {
       }
     }
   },
-  translatePage(projectId: string, pageId: string) {
-    // Traduction LLM locale lente + repli DeepL : le délai par défaut
-    // (30 s) avortait l'appel alors que le serveur finissait ensuite.
+  translatePage(projectId: string, pageId: string, engine?: string) {
+    const query = engine ? `?engine=${encodeURIComponent(engine)}` : ''
     return IS_DEMO
       ? demo.translatePage(projectId, pageId)
-      : post(`/projects/${projectId}/pages/${pageId}/translate`, undefined, 300_000)
+      : post(`/projects/${projectId}/pages/${pageId}/translate${query}`, undefined, 300_000)
   },
-  cleanPage(projectId: string, pageId: string) {
+  cleanPage(projectId: string, pageId: string, cleanEngine?: string) {
+    const query = cleanEngine ? `?clean_engine=${encodeURIComponent(cleanEngine)}` : ''
     return IS_DEMO
       ? demo.cleanPage(projectId, pageId)
-      : post(`/projects/${projectId}/pages/${pageId}/clean`, undefined, 300_000)
+      : post(`/projects/${projectId}/pages/${pageId}/clean${query}`, undefined, 300_000)
   },
-  processPageFull(projectId: string, pageId: string) {
-    return post<import('./types').Page>(`/projects/${projectId}/pages/${pageId}/process-full`, undefined, 300_000)
+  processPageFull(
+    projectId: string,
+    pageId: string,
+    options?: {
+      engine?: string
+      clean_engine?: string
+      include_ocr?: boolean
+      include_translate?: boolean
+      include_clean?: boolean
+    },
+  ) {
+    const params = new URLSearchParams()
+    if (options?.engine) params.append('engine', options.engine)
+    if (options?.clean_engine) params.append('clean_engine', options.clean_engine)
+    if (options?.include_ocr !== undefined) params.append('include_ocr', String(options.include_ocr))
+    if (options?.include_translate !== undefined) params.append('include_translate', String(options.include_translate))
+    if (options?.include_clean !== undefined) params.append('include_clean', String(options.include_clean))
+    const qs = params.toString() ? `?${params.toString()}` : ''
+    return post<import('./types').Page>(`/projects/${projectId}/pages/${pageId}/process-full${qs}`, undefined, 300_000)
   },
-  batchProcess(projectId: string, options?: { include_ocr?: boolean; include_translate?: boolean; include_clean?: boolean }) {
+  batchProcess(
+    projectId: string,
+    options?: {
+      include_ocr?: boolean
+      include_translate?: boolean
+      include_clean?: boolean
+      engine?: string
+      clean_engine?: string
+    },
+  ) {
+    const params = new URLSearchParams()
+    if (options?.engine) params.append('engine', options.engine)
+    if (options?.clean_engine) params.append('clean_engine', options.clean_engine)
+    if (options?.include_ocr !== undefined) params.append('include_ocr', String(options.include_ocr))
+    if (options?.include_translate !== undefined) params.append('include_translate', String(options.include_translate))
+    if (options?.include_clean !== undefined) params.append('include_clean', String(options.include_clean))
+    const qs = params.toString() ? `?${params.toString()}` : ''
     return post<{
       processed_pages: number
       ocr_blocks_count: number
       translations_count: number
       cleaned_pages_count: number
-    }>(`/projects/${projectId}/batch-process`, options ?? {}, 900_000)
+    }>(`/projects/${projectId}/batch-process${qs}`, options ?? {}, 900_000)
   },
   createBlock(payload: {
     page_id: string

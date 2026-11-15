@@ -204,7 +204,7 @@ def test_admin_endpoints_rbac_and_audited_credit_grant(client: TestClient):
         json={"delta": 50, "reason": "Pack test studio"},
     )
     assert grant_resp.status_code == 200, grant_resp.text
-    assert grant_resp.json()["credits_remaining"] == 60  # 10 (signup) + 50
+    assert grant_resp.json()["credits_remaining"] == 150  # 100 (signup Free) + 50
 
     with Session(engine) as session:
         ledgers = session.exec(

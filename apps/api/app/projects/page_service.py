@@ -14,7 +14,14 @@ from fastapi import HTTPException, UploadFile, status
 from PIL import Image, ImageDraw, ImageFont
 from sqlmodel import Session, delete, select
 
-from app.billing.router import CREDIT_COSTS, deduct_credits, ensure_credits
+from app.billing.router import (
+    TariffConfig,
+    deduct_credits,
+    ensure_credits,
+    release_reservation,
+    reserve_credits,
+    settle_reservation,
+)
 from app.core.config import settings
 from app.models.cleaned_page import CleanedPage
 from app.models.export import Export
@@ -186,32 +193,36 @@ async def run_ocr(
     project = _get_owned_project(project_id, current_user, session)
     page = _get_owned_page(project_id, page_id, current_user, session)
 
-    ensure_credits(current_user.id, CREDIT_COSTS["ocr"], session)
+    cost = TariffConfig.OCR_STANDARD
+    reservation_id = reserve_credits(current_user.id, cost, "ocr", session)
 
     image_bytes = _read_storage_or_404(storage, page.storage_key, f"L'image de la page {page.page_number}")
 
     try:
         detected = await ocr.detect_text(image_bytes, project.source_lang)
     except TimeoutError as exc:
+        release_reservation(reservation_id, session)
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail=str(exc)
         )
     except Exception as exc:
+        release_reservation(reservation_id, session)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Échec de l'OCR : {exc}",
         )
 
     # Si l'OCR a déjà été lancé, on purge les anciens blocs et traductions
-    # pour permettre une nouvelle détection propre. (Après une détection
-    # réussie : un échec ne fait plus perdre les anciens blocs et n'est
-    # pas facturé.)
+    # pour permettre une nouvelle détection propre.
     for b in session.exec(select(OCRBlock).where(OCRBlock.page_id == page.id)).all():
         session.exec(delete(Translation).where(Translation.ocr_block_id == b.id))
         session.delete(b)
 
     created_blocks = []
+    engine_used = getattr(ocr, "provider_name", "ocr")
     for block_data in detected:
+        if block_data.provider:
+            engine_used = block_data.provider
         block = OCRBlock(
             page_id=page.id,
             text=block_data.text,
@@ -226,7 +237,13 @@ async def run_ocr(
         created_blocks.append(block)
 
     session.commit()
-    deduct_credits(current_user.id, CREDIT_COSTS["ocr"], "ocr", session, project_id=project.id)
+    settle_reservation(
+        reservation_id,
+        session,
+        project_id=project.id,
+        page_id=page.id,
+        engine_used=engine_used,
+    )
     for block in created_blocks:
         session.refresh(block)
 
@@ -239,6 +256,7 @@ async def translate_page(
     current_user: User,
     session: Session,
     translator: TranslationProvider,
+    engine: str = "ollama",
 ):
     project = _get_owned_project(project_id, current_user, session)
     page = _get_owned_page(project_id, page_id, current_user, session)
@@ -252,9 +270,6 @@ async def translate_page(
             detail="Aucun texte détecté sur cette page — lance d'abord l'OCR.",
         )
 
-    # Ne traduit que les blocs qui n'ont pas encore de traduction :
-    # relancer cet endpoint après un ajout de blocs ne retraduit pas
-    # tout depuis zéro.
     already_translated_ids = {
         t.ocr_block_id
         for t in session.exec(
@@ -270,49 +285,68 @@ async def translate_page(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Tous les blocs de cette page sont déjà traduits.",
         )
-    ensure_credits(current_user.id, CREDIT_COSTS["translate"], session)
 
-    # Récupération du glossaire du projet pour l'injecter dans l'IA contextuelle
+    texts_to_translate = [b.text for b in blocks_to_translate]
+    total_chars = sum(len(t) for t in texts_to_translate)
+    cost = TariffConfig.get_translation_cost(engine, total_chars)
+    reservation_id = reserve_credits(current_user.id, cost, "translate", session)
+
     glossary_entries = session.exec(
         select(GlossaryEntry).where(GlossaryEntry.project_id == project.id)
     ).all()
     glossary_map = {g.source_term: g.target_term for g in glossary_entries if g.is_locked}
 
-    texts_to_translate = [b.text for b in blocks_to_translate]
     try:
-        translated_texts = await translator.translate_batch(
-            texts_to_translate, project.source_lang, project.target_lang, glossary=glossary_map
-        )
+        if hasattr(translator, "translate_batch"):
+            import inspect
+            sig = inspect.signature(translator.translate_batch)
+            if "engine" in sig.parameters:
+                translated_texts = await translator.translate_batch(
+                    texts_to_translate, project.source_lang, project.target_lang, glossary=glossary_map, engine=engine
+                )
+            else:
+                translated_texts = await translator.translate_batch(
+                    texts_to_translate, project.source_lang, project.target_lang, glossary=glossary_map
+                )
+        else:
+            raise RuntimeError("Le fournisseur de traduction n'est pas disponible.")
     except Exception as exc:
+        release_reservation(reservation_id, session)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Échec de la traduction : {exc}",
         )
 
     created_translations = []
+    used_provider = getattr(translator, "last_provider", None) or engine or "ollama"
     for block, translated_text in zip(blocks_to_translate, translated_texts):
         final_text = translated_text
-
-        # Remplacement / verrouillage des termes définis dans le glossaire
         for g in glossary_entries:
             if g.is_locked and g.source_term.lower() in block.text.lower():
-                # Remplacement insensible à la casse si le terme source ou une variante est présente
-                import re
                 pattern = re.compile(re.escape(g.source_term), re.IGNORECASE)
                 if pattern.search(block.text):
-                    # Si la traduction automatique a mal rendu le nom, on injecte le terme cible verrouillé
                     final_text = re.sub(re.escape(g.source_term), g.target_term, final_text, flags=re.IGNORECASE)
 
         translation = Translation(
             ocr_block_id=block.id,
             translated_text=final_text,
-            provider=getattr(translator, "last_provider", None) or "ollama",
+            provider=used_provider,
         )
         session.add(translation)
         created_translations.append(translation)
 
     session.commit()
-    deduct_credits(current_user.id, CREDIT_COSTS["translate"], "translate", session, project_id=project.id)
+    actual_chars = getattr(translator, "last_chars_count", total_chars)
+    provider_cost = TariffConfig.get_provider_cost(used_provider, actual_chars)
+    settle_reservation(
+        reservation_id,
+        session,
+        project_id=project.id,
+        page_id=page.id,
+        engine_used=used_provider,
+        source_chars_count=actual_chars,
+        cost_provider_actual=provider_cost,
+    )
     for t in created_translations:
         session.refresh(t)
 
@@ -325,12 +359,8 @@ def clean_page(
     current_user: User,
     session: Session,
     storage: StorageProvider,
+    clean_engine: str = "opencv",
 ):
-    """Relancer ce endpoint sur une page déjà nettoyée régénère le
-    nettoyage depuis l'image ORIGINALE (jamais depuis une version déjà
-    nettoyée) et remplace le résultat précédent — utile après avoir
-    corrigé des blocs OCR mal positionnés.
-    """
     project = _get_owned_project(project_id, current_user, session)
     page = _get_owned_page(project_id, page_id, current_user, session)
 
@@ -342,14 +372,18 @@ def clean_page(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Aucun texte détecté sur cette page — lance d'abord l'OCR.",
         )
-    ensure_credits(current_user.id, CREDIT_COSTS["clean"], session)
+
+    bboxes = [(b.bbox_x, b.bbox_y, b.bbox_w, b.bbox_h) for b in blocks]
+    cost = TariffConfig.get_cleaning_cost(clean_engine, len(bboxes))
+    reservation_id = reserve_credits(current_user.id, cost, "clean", session)
 
     original_bytes = _read_storage_or_404(storage, page.storage_key, f"L'image de la page {page.page_number}")
-    bboxes = [(b.bbox_x, b.bbox_y, b.bbox_w, b.bbox_h) for b in blocks]
 
+    enable_lama = clean_engine.lower() in ("lama", "lama_onnx")
     try:
-        cleaned_bytes = clean_image(original_bytes, bboxes)
+        cleaned_bytes = clean_image(original_bytes, bboxes, enable_lama=enable_lama)
     except Exception as exc:
+        release_reservation(reservation_id, session)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Échec du nettoyage : {exc}",
@@ -368,7 +402,13 @@ def clean_page(
         cleaned_page = CleanedPage(page_id=page.id, storage_key=storage_key)
     session.add(cleaned_page)
     session.commit()
-    deduct_credits(current_user.id, CREDIT_COSTS["clean"], "clean", session, project_id=project.id)
+    settle_reservation(
+        reservation_id,
+        session,
+        project_id=project.id,
+        page_id=page.id,
+        engine_used="lama_onnx" if enable_lama else "opencv",
+    )
     session.refresh(cleaned_page)
     session.refresh(page)
 
@@ -406,6 +446,8 @@ async def batch_process_project(
     storage: StorageProvider,
     ocr: OCRProvider,
     translator: TranslationProvider,
+    engine: str = "ollama",
+    clean_engine: str = "opencv",
 ):
     project = _get_owned_project(project_id, current_user, session)
     pages = session.exec(
@@ -434,11 +476,15 @@ async def batch_process_project(
 
         # 1. OCR si demandé et pas encore fait
         if include_ocr and not existing_blocks:
+            cost_ocr = TariffConfig.OCR_STANDARD
+            res_ocr = reserve_credits(current_user.id, cost_ocr, "ocr", session)
             try:
-                ensure_credits(current_user.id, CREDIT_COSTS["ocr"], session)
                 image_bytes = _read_storage_or_404(storage, page.storage_key, f"L'image de la page {page.page_number}")
                 detected = await ocr.detect_text(image_bytes, project.source_lang)
+                engine_ocr = getattr(ocr, "provider_name", "ocr")
                 for d in detected:
+                    if d.provider:
+                        engine_ocr = d.provider
                     block = OCRBlock(
                         page_id=page.id,
                         text=d.text,
@@ -451,14 +497,22 @@ async def batch_process_project(
                     )
                     session.add(block)
                 session.commit()
-                deduct_credits(current_user.id, CREDIT_COSTS["ocr"], "ocr", session, project_id=project.id)
+                settle_reservation(
+                    res_ocr,
+                    session,
+                    project_id=project.id,
+                    page_id=page.id,
+                    engine_used=engine_ocr,
+                )
                 existing_blocks = session.exec(
                     select(OCRBlock).where(OCRBlock.page_id == page.id)
                 ).all()
                 total_ocr_blocks += len(existing_blocks)
             except HTTPException:
+                release_reservation(res_ocr, session)
                 raise
             except Exception as exc:
+                release_reservation(res_ocr, session)
                 session.rollback()
                 logger.warning("Erreur OCR sur la page %s: %s", page.page_number, exc)
 
@@ -475,43 +529,71 @@ async def batch_process_project(
             to_translate = [b for b in existing_blocks if b.id not in already_translated_ids]
 
             if to_translate:
+                texts = [b.text for b in to_translate]
+                total_chars = sum(len(t) for t in texts)
+                cost_trans = TariffConfig.get_translation_cost(engine, total_chars)
+                res_trans = reserve_credits(current_user.id, cost_trans, "translate", session)
                 try:
-                    ensure_credits(current_user.id, CREDIT_COSTS["translate"], session)
-                    texts = [b.text for b in to_translate]
-                    translated = await translator.translate_batch(
-                        texts, project.source_lang, project.target_lang, glossary=glossary_map
-                    )
+                    if hasattr(translator, "translate_batch"):
+                        import inspect
+                        sig = inspect.signature(translator.translate_batch)
+                        if "engine" in sig.parameters:
+                            translated = await translator.translate_batch(
+                                texts, project.source_lang, project.target_lang, glossary=glossary_map, engine=engine
+                            )
+                        else:
+                            translated = await translator.translate_batch(
+                                texts, project.source_lang, project.target_lang, glossary=glossary_map
+                            )
+                    else:
+                        raise RuntimeError("Le traducteur n'est pas disponible.")
+
+                    used_provider = getattr(translator, "last_provider", None) or engine or "ollama"
                     for block, trans_text in zip(to_translate, translated):
                         existing_trans = session.exec(
                             select(Translation).where(Translation.ocr_block_id == block.id)
                         ).first()
                         if existing_trans:
                             existing_trans.translated_text = trans_text
-                            existing_trans.provider = getattr(translator, "last_provider", None) or "ollama"
+                            existing_trans.provider = used_provider
                             session.add(existing_trans)
                         else:
                             t_rec = Translation(
                                 ocr_block_id=block.id,
                                 translated_text=trans_text,
-                                provider=getattr(translator, "last_provider", None) or "ollama",
+                                provider=used_provider,
                             )
                             session.add(t_rec)
                     session.commit()
-                    deduct_credits(current_user.id, CREDIT_COSTS["translate"], "translate", session, project_id=project.id)
+                    actual_chars = getattr(translator, "last_chars_count", total_chars)
+                    prov_cost = TariffConfig.get_provider_cost(used_provider, actual_chars)
+                    settle_reservation(
+                        res_trans,
+                        session,
+                        project_id=project.id,
+                        page_id=page.id,
+                        engine_used=used_provider,
+                        source_chars_count=actual_chars,
+                        cost_provider_actual=prov_cost,
+                    )
                     total_translations += len(to_translate)
                 except HTTPException:
+                    release_reservation(res_trans, session)
                     raise
                 except Exception as exc:
+                    release_reservation(res_trans, session)
                     session.rollback()
                     logger.warning("Erreur traduction page %s: %s", page.page_number, exc)
 
         # 3. Nettoyage de la page (Inpainting)
         if include_clean and existing_blocks:
+            bboxes = [(b.bbox_x, b.bbox_y, b.bbox_w, b.bbox_h) for b in existing_blocks]
+            cost_clean = TariffConfig.get_cleaning_cost(clean_engine, len(bboxes))
+            res_clean = reserve_credits(current_user.id, cost_clean, "clean", session)
+            enable_lama = clean_engine.lower() in ("lama", "lama_onnx")
             try:
-                ensure_credits(current_user.id, CREDIT_COSTS["clean"], session)
                 original_bytes = _read_storage_or_404(storage, page.storage_key, f"L'image de la page {page.page_number}")
-                bboxes = [(b.bbox_x, b.bbox_y, b.bbox_w, b.bbox_h) for b in existing_blocks]
-                cleaned_bytes = clean_image(original_bytes, bboxes)
+                cleaned_bytes = clean_image(original_bytes, bboxes, enable_lama=enable_lama)
                 storage_key = f"cleaned/{project.id}/{page.id}.png"
                 storage.save(storage_key, cleaned_bytes)
 
@@ -525,11 +607,19 @@ async def batch_process_project(
                     cleaned_rec = CleanedPage(page_id=page.id, storage_key=storage_key)
                 session.add(cleaned_rec)
                 session.commit()
-                deduct_credits(current_user.id, CREDIT_COSTS["clean"], "clean", session, project_id=project.id)
+                settle_reservation(
+                    res_clean,
+                    session,
+                    project_id=project.id,
+                    page_id=page.id,
+                    engine_used="lama_onnx" if enable_lama else "opencv",
+                )
                 total_cleaned += 1
             except HTTPException:
+                release_reservation(res_clean, session)
                 raise
             except Exception as exc:
+                release_reservation(res_clean, session)
                 session.rollback()
                 logger.warning("Erreur nettoyage page %s: %s", page.page_number, exc)
 
@@ -552,6 +642,8 @@ async def process_page_full(
     storage: StorageProvider,
     ocr: OCRProvider,
     translator: TranslationProvider,
+    engine: str = "ollama",
+    clean_engine: str = "opencv",
 ):
     """Exécute l'OCR, la traduction et le nettoyage sur une seule page de manière unifiée."""
     project = _get_owned_project(project_id, current_user, session)
@@ -568,11 +660,15 @@ async def process_page_full(
 
     # 1. OCR
     if include_ocr and not existing_blocks:
+        cost_ocr = TariffConfig.OCR_STANDARD
+        res_ocr = reserve_credits(current_user.id, cost_ocr, "ocr", session)
         try:
-            ensure_credits(current_user.id, CREDIT_COSTS["ocr"], session)
             image_bytes = _read_storage_or_404(storage, page.storage_key, f"L'image de la page {page.page_number}")
             detected = await ocr.detect_text(image_bytes, project.source_lang)
+            engine_ocr = getattr(ocr, "provider_name", "ocr")
             for d in detected:
+                if d.provider:
+                    engine_ocr = d.provider
                 block = OCRBlock(
                     page_id=page.id,
                     text=d.text,
@@ -585,13 +681,21 @@ async def process_page_full(
                 )
                 session.add(block)
             session.commit()
-            deduct_credits(current_user.id, CREDIT_COSTS["ocr"], "ocr", session, project_id=project.id)
+            settle_reservation(
+                res_ocr,
+                session,
+                project_id=project.id,
+                page_id=page.id,
+                engine_used=engine_ocr,
+            )
             existing_blocks = session.exec(
                 select(OCRBlock).where(OCRBlock.page_id == page.id)
             ).all()
         except HTTPException:
+            release_reservation(res_ocr, session)
             raise
         except Exception as exc:
+            release_reservation(res_ocr, session)
             session.rollback()
             logger.warning("Erreur OCR page %s: %s", page.page_number, exc)
 
@@ -608,29 +712,53 @@ async def process_page_full(
         to_translate = [b for b in existing_blocks if b.id not in already_translated_ids]
 
         if to_translate:
+            texts = [b.text for b in to_translate]
+            total_chars = sum(len(t) for t in texts)
+            cost_trans = TariffConfig.get_translation_cost(engine, total_chars)
+            res_trans = reserve_credits(current_user.id, cost_trans, "translate", session)
             try:
-                ensure_credits(current_user.id, CREDIT_COSTS["translate"], session)
-                texts = [b.text for b in to_translate]
-                translated = await translator.translate_batch(
-                    texts, project.source_lang, project.target_lang, glossary=glossary_map
-                )
+                if hasattr(translator, "translate_batch"):
+                    import inspect
+                    sig = inspect.signature(translator.translate_batch)
+                    if "engine" in sig.parameters:
+                        translated = await translator.translate_batch(
+                            texts, project.source_lang, project.target_lang, glossary=glossary_map, engine=engine
+                        )
+                    else:
+                        translated = await translator.translate_batch(
+                            texts, project.source_lang, project.target_lang, glossary=glossary_map
+                        )
+                else:
+                    raise RuntimeError("Le traducteur n'est pas disponible.")
+
+                used_provider = getattr(translator, "last_provider", None) or engine or "ollama"
                 for block, trans_text in zip(to_translate, translated):
                     existing_trans = session.exec(
                         select(Translation).where(Translation.ocr_block_id == block.id)
                     ).first()
                     if existing_trans:
                         existing_trans.translated_text = trans_text
-                        existing_trans.provider = getattr(translator, "last_provider", None) or "ollama"
+                        existing_trans.provider = used_provider
                         session.add(existing_trans)
                     else:
                         t_rec = Translation(
                             ocr_block_id=block.id,
                             translated_text=trans_text,
-                            provider=getattr(translator, "last_provider", None) or "ollama",
+                            provider=used_provider,
                         )
                         session.add(t_rec)
-                session.commit()
-                deduct_credits(current_user.id, CREDIT_COSTS["translate"], "translate", session, project_id=project.id)
+                    session.commit()
+                actual_chars = getattr(translator, "last_chars_count", total_chars)
+                prov_cost = TariffConfig.get_provider_cost(used_provider, actual_chars)
+                settle_reservation(
+                    res_trans,
+                    session,
+                    project_id=project.id,
+                    page_id=page.id,
+                    engine_used=used_provider,
+                    source_chars_count=actual_chars,
+                    cost_provider_actual=prov_cost,
+                )
             except HTTPException:
                 raise
             except Exception as exc:
@@ -643,22 +771,32 @@ async def process_page_full(
     ).first()
 
     if include_clean and existing_blocks and not cleaned_page:
+        bboxes = [(b.bbox_x, b.bbox_y, b.bbox_w, b.bbox_h) for b in existing_blocks]
+        cost_clean = TariffConfig.get_cleaning_cost(clean_engine, len(bboxes))
+        res_clean = reserve_credits(current_user.id, cost_clean, "clean", session)
+        enable_lama = clean_engine.lower() in ("lama", "lama_onnx")
         try:
-            ensure_credits(current_user.id, CREDIT_COSTS["clean"], session)
             original_bytes = _read_storage_or_404(storage, page.storage_key, f"L'image de la page {page.page_number}")
-            bboxes = [(b.bbox_x, b.bbox_y, b.bbox_w, b.bbox_h) for b in existing_blocks]
-            cleaned_bytes = clean_image(original_bytes, bboxes)
+            cleaned_bytes = clean_image(original_bytes, bboxes, enable_lama=enable_lama)
             storage_key = f"cleaned/{project.id}/{page.id}.png"
             storage.save(storage_key, cleaned_bytes)
 
             cleaned_page = CleanedPage(page_id=page.id, storage_key=storage_key)
             session.add(cleaned_page)
             session.commit()
-            deduct_credits(current_user.id, CREDIT_COSTS["clean"], "clean", session, project_id=project.id)
+            settle_reservation(
+                res_clean,
+                session,
+                project_id=project.id,
+                page_id=page.id,
+                engine_used="lama_onnx" if enable_lama else "opencv",
+            )
             session.refresh(cleaned_page)
         except HTTPException:
+            release_reservation(res_clean, session)
             raise
         except Exception as exc:
+            release_reservation(res_clean, session)
             session.rollback()
             logger.warning("Erreur nettoyage page %s: %s", page.page_number, exc)
 
