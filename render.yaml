@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: taurge-api
+    runtime: docker
+    rootDir: apps/api
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: ENVIRONMENT
+        value: production
+      - key: USE_CELERY
+        value: "false"
+      - key: CORS_ORIGINS
+        value: "https://taurge.vercel.app,http://localhost:3000,http://127.0.0.1:3000"
+      - key: PUBLIC_APP_URL
+        value: "https://taurge.vercel.app"
+      - key: SECRET_KEY
+        generateValue: true

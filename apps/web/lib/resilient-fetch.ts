@@ -60,7 +60,7 @@ async function withTimeout(
  * ce PC (http://127.0.0.1:8000 ou http://localhost:8000).
  */
 async function probeDirectLocalBackend(fetchFn: FetchFn, currentApiUrl: string): Promise<string | null> {
-  if (!currentApiUrl.includes('trycloudflare.com')) return null
+  if (!currentApiUrl.includes('trycloudflare.com') && !currentApiUrl.includes('ngrok-free')) return null
   for (const candidate of LOCAL_CANDIDATES) {
     try {
       const res = await withTimeout(fetchFn, `${candidate}/health`, { method: 'GET' }, 2_500)
@@ -85,7 +85,12 @@ export async function wakeServer(
   const deadline = Date.now() + wakeTimeoutMs
   for (;;) {
     try {
-      const res = await withTimeout(fetchFn, `${apiUrl}/health`, { method: 'GET' }, 15_000)
+      const res = await withTimeout(
+        fetchFn,
+        `${apiUrl}/health`,
+        { method: 'GET', headers: { 'ngrok-skip-browser-warning': 'true' } },
+        15_000,
+      )
       if (res.ok) return true
     } catch {
       // Serveur encore en train de démarrer : on retente.

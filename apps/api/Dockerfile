@@ -3,7 +3,12 @@ FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     DEBIAN_FRONTEND=noninteractive \
-    PORT=8000
+    HOME=/tmp \
+    XDG_CACHE_HOME=/tmp/.cache \
+    HF_HOME=/tmp/.cache/huggingface \
+    MPLCONFIGDIR=/tmp/.config/matplotlib \
+    USE_CELERY=false \
+    PORT=7860
 
 # Installation des dépendances système et polices typographiques.
 # Tesseract + packs de langues : c'est le moteur OCR de repli (et le
@@ -23,6 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr-chi-sim \
     tesseract-ocr-chi-tra \
     tesseract-ocr-jpn \
+    tesseract-ocr-jpn-vert \
     tesseract-ocr-spa \
     tesseract-ocr-por \
     tesseract-ocr-deu \
@@ -45,9 +51,10 @@ RUN if [ "$INSTALL_OCR" = "true" ]; then pip install --no-cache-dir -r requireme
 # Code source et assets
 COPY . .
 
-# Dossier local de stockage
-RUN mkdir -p /app/storage_data /app/app/assets/fonts
+# Dossier local de stockage (permissions 777 pour compatibilité utilisateur non-root uid=1000 sur Hugging Face Spaces)
+RUN mkdir -p /app/storage_data /app/app/assets/fonts /tmp/.cache /tmp/.config/matplotlib \
+    && chmod -R 777 /app/storage_data /app/app/assets /tmp/.cache /tmp/.config
 
-EXPOSE 8000
+EXPOSE 7860
 
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-7860}"]

@@ -91,7 +91,10 @@ export function getClientLocale(): string {
 }
 
 function localeHeaders(): Record<string, string> {
-  return { 'Accept-Language': getClientLocale() }
+  return {
+    'Accept-Language': getClientLocale(),
+    'ngrok-skip-browser-warning': 'true',
+  }
 }
 
 async function parseError(res: Response) {
