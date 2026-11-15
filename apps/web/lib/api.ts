@@ -307,12 +307,13 @@ export const api = {
       page_count?: number
     },
   ): Promise<import('./types').CostEstimate> {
-    const params = new URLSearchParams({ action_type })
-    if (options?.source_chars) params.append('source_chars', String(options.source_chars))
-    if (options?.engine) params.append('engine', options.engine)
-    if (options?.zones_count) params.append('zones_count', String(options.zones_count))
-    if (options?.page_count) params.append('page_count', String(options.page_count))
-    return request<import('./types').CostEstimate>(`/billing/estimate?${params.toString()}`)
+    return post<import('./types').CostEstimate>('/billing/estimate', {
+      action_type,
+      engine: options?.engine ?? 'standard',
+      source_chars: Number(options?.source_chars ?? 0),
+      zones_count: Number(options?.zones_count ?? 1),
+      page_count: Number(options?.page_count ?? 1),
+    })
   },
   getBillingPlans(): Promise<{ plans: import('./types').BillingPlan[] }> {
     return request<{ plans: import('./types').BillingPlan[] }>('/billing/plans')

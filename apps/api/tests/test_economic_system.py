@@ -81,6 +81,17 @@ def test_tariffs_calculation_rules():
     )
     assert cost_batch_deepl == 1 + 4 + 2  # = 7 crédits
 
+    # Test de l'estimateur d'opération
+    from app.billing.credit_service import estimate_operation_cost
+    est_deepl = estimate_operation_cost("translate", source_chars=59, engine="deepl")
+    assert est_deepl["total_cost"] == 4
+    est_ollama = estimate_operation_cost("translate", source_chars=59, engine="ollama")
+    assert est_ollama["total_cost"] == 1
+    est_lama = estimate_operation_cost("clean", zones_count=4, engine="lama")
+    assert est_lama["total_cost"] == 2
+    est_opencv = estimate_operation_cost("clean", engine="opencv")
+    assert est_opencv["total_cost"] == 1
+
 
 def test_credit_priority_consumption(db_session: Session):
     """Vérifie la priorité de consommation : Mensuel d'abord, puis Acheté."""

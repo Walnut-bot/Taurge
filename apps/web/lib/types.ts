@@ -245,6 +245,13 @@ export type CostEstimate = {
   unit_cost: number
   total_cost: number
   page_count: number
+  current_balance?: number
+  available_credits?: number
+  monthly_remaining?: number
+  purchased_remaining?: number
+  estimated_cost?: number
+  balance_after?: number
+  can_afford?: boolean
 }
 
 export type BillingPlan = {

@@ -104,6 +104,48 @@ def get_deepl_quota(
     }
 
 
+@router.get("/estimate")
+def estimate_cost_get(
+    action_type: str = Query("ocr"),
+    engine: str = Query("standard"),
+    source_chars: int = Query(0),
+    zones_count: int = Query(1),
+    page_count: int = Query(1),
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Prévisualisation de coût via GET (paramètres d'URL)."""
+    sub = get_or_create_subscription(session, current_user.id)
+    estimate = estimate_operation_cost(
+        action_type=action_type,
+        source_chars=source_chars,
+        engine=engine,
+        zones_count=zones_count,
+        page_count=page_count,
+    )
+
+    available = max(
+        0,
+        (sub.monthly_credits_remaining + sub.purchased_credits_remaining) - sub.reserved_credits,
+    )
+    cost = estimate["total_cost"]
+    remaining_after = available - cost
+
+    return {
+        **estimate,
+        "current_balance": available,
+        "available_credits": available,
+        "monthly_remaining": sub.monthly_credits_remaining,
+        "monthly_credits_remaining": sub.monthly_credits_remaining,
+        "purchased_remaining": sub.purchased_credits_remaining,
+        "purchased_credits_remaining": sub.purchased_credits_remaining,
+        "reserved_credits": sub.reserved_credits,
+        "estimated_cost": cost,
+        "balance_after": remaining_after,
+        "can_afford": remaining_after >= 0,
+    }
+
+
 @router.post("/estimate")
 def estimate_cost(
     payload: EstimateRequest,
@@ -130,8 +172,12 @@ def estimate_cost(
     return {
         **estimate,
         "current_balance": available,
+        "available_credits": available,
         "monthly_remaining": sub.monthly_credits_remaining,
+        "monthly_credits_remaining": sub.monthly_credits_remaining,
         "purchased_remaining": sub.purchased_credits_remaining,
+        "purchased_credits_remaining": sub.purchased_credits_remaining,
+        "reserved_credits": sub.reserved_credits,
         "estimated_cost": cost,
         "balance_after": remaining_after,
         "can_afford": remaining_after >= 0,

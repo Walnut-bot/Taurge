@@ -1,18 +1,18 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Coins,
   Cpu,
   Sparkles,
   AlertTriangle,
   ArrowRight,
-  Info,
   CheckCircle2,
   X,
+  Layers,
 } from 'lucide-react'
 import { api } from '@/lib/api'
-import { useDetailedBalance } from '@/lib/hooks'
+import { useDetailedBalance, useMe } from '@/lib/hooks'
 import { useLocale } from '@/i18n/provider'
 import { Link as LocaleLink } from '@/i18n/navigation'
 import type { CostEstimate } from '@/lib/types'
@@ -30,6 +30,50 @@ interface CostPreviewDialogProps {
   isLoading?: boolean
 }
 
+/**
+ * Calcule instantanément le coût exact selon le barème officiel Taurge.
+ */
+function calculateLocalCost(
+  action: string,
+  engine: string,
+  chars: number,
+  zones: number,
+  pages: number,
+): number {
+  const normEngine = (engine || '').toLowerCase()
+  const pCount = Math.max(1, pages)
+
+  if (action === 'ocr') {
+    return pCount * 1
+  }
+
+  if (action === 'translate') {
+    // 1 crédit par 1 000 caractères (arrondi au supérieur) pour Ollama, 4 pour DeepL
+    const charCount = Math.max(1, chars)
+    const units = Math.max(1, Math.ceil(charCount / 1000))
+    const costPerUnit = normEngine === 'deepl' ? 4 : 1
+    return units * costPerUnit
+  }
+
+  if (action === 'clean') {
+    // OpenCV = 1 crédit / page. LaMa = 2 crédits (jusqu'à 5 zones), +1 par 5 zones supplémentaires.
+    if (normEngine.includes('lama')) {
+      const base = 2
+      const extra = zones > 5 ? Math.ceil((zones - 5) / 5) : 0
+      return (base + extra) * pCount
+    }
+    return 1 * pCount
+  }
+
+  if (action === 'batch') {
+    // Lot complet : OCR (1) + Traduction (1 Ollama ou 4 DeepL) + Clean LaMa (2) = 4 ou 7 crédits / page
+    const perPage = normEngine === 'deepl' ? 7 : 4
+    return pCount * perPage
+  }
+
+  return 1
+}
+
 export function CostPreviewDialog({
   isOpen,
   onClose,
@@ -43,7 +87,8 @@ export function CostPreviewDialog({
   isLoading = false,
 }: CostPreviewDialogProps) {
   const locale = useLocale()
-  const { data: balance } = useDetailedBalance(isOpen)
+  const { data: balance, mutate: refreshBalance } = useDetailedBalance(isOpen)
+  const { data: me } = useMe(isOpen)
 
   // Moteur sélectionné par défaut selon l'action
   const [selectedEngine, setSelectedEngine] = useState<string>(() => {
@@ -55,7 +100,17 @@ export function CostPreviewDialog({
   const [estimate, setEstimate] = useState<CostEstimate | null>(null)
   const [isEstimating, setIsEstimating] = useState(false)
 
-  // Récupération de l'estimation en direct à chaque changement de moteur ou de paramètres
+  // Forcer la synchronisation du solde réel du compte à l'ouverture de la modale
+  useEffect(() => {
+    if (isOpen) {
+      refreshBalance?.()
+    }
+  }, [isOpen, refreshBalance])
+
+  // Coût calculé en direct côté client (instantané et infaillible)
+  const localCost = calculateLocalCost(actionType, selectedEngine, sourceChars, zonesCount, pageCount)
+
+  // Récupération de l'estimation côté backend en temps réel
   useEffect(() => {
     if (!isOpen) return
 
@@ -76,7 +131,7 @@ export function CostPreviewDialog({
         }
       })
       .catch((err) => {
-        console.error('Erreur estimation coût:', err)
+        console.error('Erreur estimation coût API:', err)
         if (!cancelled) setIsEstimating(false)
       })
 
@@ -87,10 +142,28 @@ export function CostPreviewDialog({
 
   if (!isOpen) return null
 
-  const currentAvailable = balance?.available_credits ?? 100
-  const cost = estimate?.total_cost ?? 1
-  const balanceAfter = currentAvailable - cost
-  const hasEnoughCredits = balanceAfter >= 0
+  // Solde réel synchronisé : priorité aux données de l'estimation backend, puis au hook de balance, puis à l'utilisateur
+  const currentAvailable =
+    estimate?.current_balance ??
+    estimate?.available_credits ??
+    balance?.available_credits ??
+    me?.credits_remaining ??
+    0
+
+  const monthlyRemaining =
+    estimate?.monthly_remaining ??
+    balance?.monthly_credits_remaining ??
+    currentAvailable
+
+  const purchasedRemaining =
+    estimate?.purchased_remaining ??
+    balance?.purchased_credits_remaining ??
+    0
+
+  // Coût final : vérifié par le backend ou calculé par le barème officiel
+  const finalCost = estimate?.total_cost ?? estimate?.estimated_cost ?? localCost
+  const balanceAfter = currentAvailable - finalCost
+  const hasEnoughCredits = currentAvailable >= finalCost
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
@@ -175,7 +248,7 @@ export function CostPreviewDialog({
                       <Sparkles className="h-3.5 w-3.5 text-amber-500" />
                       DeepL API
                     </span>
-                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sheet border border-hairline text-amber-600 dark:text-amber-400">
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sheet border border-hairline text-amber-600 dark:text-amber-400 font-bold">
                       4 créd / 1k car.
                     </span>
                   </div>
@@ -235,7 +308,7 @@ export function CostPreviewDialog({
                       <Sparkles className="h-3.5 w-3.5 text-amber-500" />
                       LaMa ONNX
                     </span>
-                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sheet border border-hairline text-amber-600 dark:text-amber-400">
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sheet border border-hairline text-amber-600 dark:text-amber-400 font-bold">
                       2 crédits (≤5 zones)
                     </span>
                   </div>
@@ -249,15 +322,23 @@ export function CostPreviewDialog({
             </div>
           )}
 
-          {/* Tableau récapitulatif des soldes (Comptabilité claire) */}
+          {/* Tableau récapitulatif des soldes (Comptabilité réelle synchronisée) */}
           <div className="rounded-xl border border-hairline bg-sheet/50 p-4 space-y-3">
             <div className="flex items-center justify-between text-xs">
               <span className="text-ink-soft">
                 {locale === 'en' ? 'Current available balance:' : 'Solde actuel disponible :'}
               </span>
-              <span className="font-mono font-semibold text-ink">
-                {currentAvailable} {locale === 'en' ? 'credits' : 'crédits'}
-              </span>
+              <div className="text-right">
+                <span className="font-mono font-bold text-sm text-ink">
+                  {currentAvailable} {locale === 'en' ? 'credits' : 'crédits'}
+                </span>
+                {(monthlyRemaining > 0 || purchasedRemaining > 0) && (
+                  <p className="text-[10px] text-ink-soft font-mono">
+                    {monthlyRemaining} {locale === 'en' ? 'monthly' : 'mensuels'}
+                    {purchasedRemaining > 0 ? ` · ${purchasedRemaining} ${locale === 'en' ? 'purchased' : 'achetés'}` : ''}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center justify-between text-xs">
@@ -265,8 +346,8 @@ export function CostPreviewDialog({
                 {locale === 'en' ? 'Operation estimated cost:' : 'Coût estimé de l’opération :'}
                 {isEstimating && <span className="animate-spin text-seal">⏳</span>}
               </span>
-              <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
-                - {cost} {locale === 'en' ? 'credit(s)' : 'crédit(s)'}
+              <span className="font-mono font-bold text-base text-amber-600 dark:text-amber-400">
+                - {finalCost} {locale === 'en' ? 'credit(s)' : 'crédit(s)'}
               </span>
             </div>
 
@@ -317,7 +398,7 @@ export function CostPreviewDialog({
             <button
               type="button"
               onClick={() => onConfirm(selectedEngine)}
-              disabled={isLoading || isEstimating}
+              disabled={isLoading}
               className="flex items-center gap-2 rounded-xl bg-seal px-4 py-2 text-xs font-semibold text-seal-ink hover:opacity-90 active:scale-95 transition-all shadow-sm"
             >
               {isLoading ? (
@@ -330,8 +411,8 @@ export function CostPreviewDialog({
                   <CheckCircle2 className="h-4 w-4" />
                   <span>
                     {locale === 'en'
-                      ? `Confirm & Deduct ${cost} credits`
-                      : `Confirmer & Débiter ${cost} crédit${cost > 1 ? 's' : ''}`}
+                      ? `Confirm & Deduct ${finalCost} credits`
+                      : `Confirmer & Débiter ${finalCost} crédit${finalCost > 1 ? 's' : ''}`}
                   </span>
                 </>
               )}
