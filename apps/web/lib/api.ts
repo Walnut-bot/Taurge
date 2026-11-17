@@ -119,6 +119,15 @@ function unreachableError(err: unknown, timeoutMs: number): ApiError {
       408,
     )
   }
+  const isCloud = /render\.com|railway\.app|fly\.dev|herokuapp\.com/i.test(currentUrl)
+  if (isCloud) {
+    return new ApiError(
+      isEn
+        ? `Cannot reach the Taurge cloud server (${currentUrl}). The server may be waking up or temporarily restarting. Please wait a few seconds and try again.`
+        : `Impossible de joindre le serveur Taurge (${currentUrl}). Le serveur cloud se réveille ou redémarre. Patientez quelques secondes et réessayez.`,
+      0,
+    )
+  }
   return new ApiError(
     isEn
       ? `Cannot reach the Taurge server at ${currentUrl}. Start the local backend on this PC (LANCER_TAURGE_EN_LIGNE_NGROK.bat), then try again.`
@@ -497,7 +506,7 @@ export const api = {
     return IS_DEMO ? demo.retranslate(blockId) : post(`/ocr-blocks/${blockId}/retranslate`, undefined, 300_000)
   },
   deleteProject(projectId: string): Promise<void> {
-    return request<void>(`/projects/${projectId}`, { method: 'DELETE' })
+    return request<void>(`/projects/${projectId}`, { method: 'DELETE', timeoutMs: 60_000 })
   },
   deleteBlock(blockId: string): Promise<void> {
     return request<void>(`/ocr-blocks/${blockId}`, { method: 'DELETE' })

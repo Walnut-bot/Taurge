@@ -257,64 +257,63 @@ def delete_project_cascade(
         else []
     )
     block_ids = [block.id for block in blocks]
+
+    # Historique de facturation : on conserve les lignes (audit des
+    # crédits) mais on les détache du projet et des pages. Sans ça, PostgreSQL
+    # rejette la suppression (FK usage_ledgers.project_id / page_id) dès qu'un
+    # membre a consommé des crédits sur le projet.
+    for ledger in session.exec(
+        select(UsageLedger).where(UsageLedger.project_id == project.id)
+    ).all():
+        ledger.project_id = None
+        ledger.page_id = None
+        session.add(ledger)
+    session.flush()
+
     if block_ids:
-        for translation in session.exec(
-            select(Translation).where(Translation.ocr_block_id.in_(block_ids))
-        ).all():
-            session.delete(translation)
-    for block in blocks:
-        session.delete(block)
+        session.exec(delete(Translation).where(Translation.ocr_block_id.in_(block_ids)))
+        session.flush()
+        session.exec(delete(OCRBlock).where(OCRBlock.id.in_(block_ids)))
+        session.flush()
+
     if page_ids:
         for cleaned in session.exec(
             select(CleanedPage).where(CleanedPage.page_id.in_(page_ids))
         ).all():
             storage.delete(cleaned.storage_key)
             session.delete(cleaned)
+        session.flush()
+
+    session.exec(delete(PageComment).where(PageComment.project_id == project.id))
+    session.exec(delete(PageVersion).where(PageVersion.project_id == project.id))
+    session.flush()
+
+    session.exec(delete(Job).where(Job.project_id == project.id))
+    session.flush()
+
     for page in pages:
-        # Une page image unique peut partager la clé du fichier source :
-        # la suppression est idempotente, aucun risque à passer deux fois.
         storage.delete(page.storage_key)
         storage.delete(thumbnail_key(page.project_id, page.id))
         session.delete(page)
+    session.flush()
+
     for source in session.exec(
         select(SourceFile).where(SourceFile.project_id == project.id)
     ).all():
         storage.delete(source.storage_key)
         session.delete(source)
-    for entry in session.exec(
-        select(GlossaryEntry).where(GlossaryEntry.project_id == project.id)
-    ).all():
-        session.delete(entry)
+    session.flush()
+
     for export in session.exec(
         select(Export).where(Export.project_id == project.id)
     ).all():
         storage.delete(export.storage_key)
         session.delete(export)
-    for job in session.exec(select(Job).where(Job.project_id == project.id)).all():
-        session.delete(job)
-    for member in session.exec(
-        select(ProjectMember).where(ProjectMember.project_id == project.id)
-    ).all():
-        session.delete(member)
-    for comment in session.exec(
-        select(PageComment).where(PageComment.project_id == project.id)
-    ).all():
-        session.delete(comment)
-    for version in session.exec(
-        select(PageVersion).where(PageVersion.project_id == project.id)
-    ).all():
-        session.delete(version)
-    # Historique de facturation : on conserve les lignes (audit des
-    # crédits) mais on les détache du projet. Sans ça, PostgreSQL
-    # rejette la suppression (FK usage_ledgers.project_id) dès qu'un
-    # membre — pas forcément le propriétaire — a consommé des crédits
-    # sur le projet ; SQLite ne contrôle pas les FK, d'où le bug
-    # invisible en local et le 500 en production.
-    for ledger in session.exec(
-        select(UsageLedger).where(UsageLedger.project_id == project.id)
-    ).all():
-        ledger.project_id = None
-        session.add(ledger)
+    session.flush()
+
+    session.exec(delete(GlossaryEntry).where(GlossaryEntry.project_id == project.id))
+    session.exec(delete(ProjectMember).where(ProjectMember.project_id == project.id))
+    session.flush()
 
 
 def delete_project_record(
