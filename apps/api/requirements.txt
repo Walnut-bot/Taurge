@@ -27,3 +27,5 @@ pytesseract==0.3.13
 #   celery -A app.jobs.celery_app worker --pool=solo -l info
 celery==5.7.0
 redis==6.4.0
+# Stockage S3 (AWS S3, Supabase Storage S3, Cloudflare R2)
+boto3>=1.34,<2
