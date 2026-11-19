@@ -170,8 +170,10 @@ def render_text_in_bubble(
     eff_w = bbox_h if is_sideways else bbox_w
     eff_h = bbox_w if is_sideways else bbox_h
 
-    usable_w = max(24, int(eff_w * 0.82))
-    usable_h = max(24, int(eff_h * 0.82))
+    # Le cadre OCR correspond déjà à la zone intérieure de la bulle (avec 20 %
+    # d'espace par rapport aux bords de la bulle) : on occupe 92 % de ce cadre.
+    usable_w = max(24, int(eff_w * 0.92))
+    usable_h = max(24, int(eff_h * 0.92))
 
     min_size = 11
     max_size = max(14, int(eff_h * 0.52))

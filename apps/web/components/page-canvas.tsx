@@ -273,16 +273,17 @@ export function PageCanvas({
         })
       } else if (resizingCorner) {
         const { id, corner } = resizingCorner
-        let newX = origX, newY = origY, newW = origW, newH = origH
-        if (corner === 'se') {
-          newW = Math.max(30, Math.min(width - origX, Math.round(origW + deltaX)))
-          newH = Math.max(20, Math.min(height - origY, Math.round(origH + deltaY)))
-        } else if (corner === 'nw') {
-          newX = Math.max(0, Math.min(origX + origW - 30, Math.round(origX + deltaX)))
-          newY = Math.max(0, Math.min(origY + origH - 20, Math.round(origY + deltaY)))
-          newW = origX + origW - newX
-          newH = origY + origH - newY
-        }
+        // Redimensionnement centré automatiquement : le centre de la bulle
+        // reste fixe pendant que l'utilisateur agrandit ou réduit le cadre,
+        // tout en lui laissant la liberté de déplacer la boîte ensuite.
+        const centerX = origX + origW / 2
+        const centerY = origY + origH / 2
+        const signX = corner === 'se' || corner === 'ne' ? 1 : -1
+        const signY = corner === 'se' || corner === 'sw' ? 1 : -1
+        const newW = Math.max(30, Math.min(width, Math.round(origW + 2 * signX * deltaX)))
+        const newH = Math.max(20, Math.min(height, Math.round(origH + 2 * signY * deltaY)))
+        const newX = Math.max(0, Math.min(width - newW, Math.round(centerX - newW / 2)))
+        const newY = Math.max(0, Math.min(height - newH, Math.round(centerY - newH / 2)))
         setLiveBbox({ id, x: newX, y: newY, w: newW, h: newH })
       }
     }
@@ -803,6 +804,21 @@ export function PageCanvas({
                                 }
                               }}
                               className="absolute -top-2 -left-2 size-4 rounded-full bg-seal border-2 border-white shadow-md cursor-nwse-resize hover:scale-125 z-30"
+                            />
+                            <div
+                              onMouseDown={(e) => {
+                                e.stopPropagation()
+                                setResizingCorner({ id: b.id, corner: 'sw' })
+                                dragStartRef.current = {
+                                  startX: e.clientX,
+                                  startY: e.clientY,
+                                  origX: currentX,
+                                  origY: currentY,
+                                  origW: currentW,
+                                  origH: currentH,
+                                }
+                              }}
+                              className="absolute -bottom-2 -left-2 size-4 rounded-full bg-seal border-2 border-white shadow-md cursor-nesw-resize hover:scale-125 z-30"
                             />
                             <div
                               onMouseDown={(e) => {

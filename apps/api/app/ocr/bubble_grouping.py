@@ -420,6 +420,112 @@ def _light_ring_fraction(gray, block: OCRBlockData) -> float | None:
     return float((ring > 200).sum()) / float(total)
 
 
+def fit_block_to_bubble_geometry(
+    image,
+    bbox_x: int,
+    bbox_y: int,
+    bbox_w: int,
+    bbox_h: int,
+) -> tuple[int, int, int, int]:
+    """Analyse le corps réel de la bulle entourant `(bbox_x, bbox_y, bbox_w, bbox_h)`.
+
+    1. Détecte la composante claire/translucide de la bulle et élimine sa
+       pointe (queue de bulle) par ouverture morphologique elliptique.
+    2. Calcule le centre géométrique exact `(bcx, bcy)` et les dimensions
+       `(bw, bh)` du corps de la bulle.
+    3. Ajuste et centre automatiquement le cadre du texte traduit afin qu'il
+       remplisse la bulle en laissant ~20 % d'espace avec les bords courbes
+       de la bulle tout en couvrant 100 % des glyphes originaux (pour le nettoyage).
+    """
+    gray = _to_gray(image)
+    if gray is None:
+        return (bbox_x, bbox_y, bbox_w, bbox_h)
+
+    try:
+        import cv2
+        import numpy as np
+
+        H, W = gray.shape
+        tx, ty, tw, th = int(bbox_x), int(bbox_y), int(bbox_w), int(bbox_h)
+        if tw < 12 or th < 12 or tx >= W or ty >= H:
+            return (tx, ty, tw, th)
+
+        tcx = tx + tw / 2.0
+        tcy = ty + th / 2.0
+
+        for thresh in (225, 205, 185):
+            light = (gray >= thresh).astype(np.uint8) * 255
+            light[gray < 145] = 0
+            num, labels, stats, _ = cv2.connectedComponentsWithStats(light, 4)
+            roi = labels[max(0, ty) : min(H, ty + th), max(0, tx) : min(W, tx + tw)]
+            vals, counts = np.unique(roi[roi > 0], return_counts=True)
+            if len(vals) == 0:
+                continue
+            best_lbl = int(vals[np.argmax(counts)])
+            x, y, w, h, area = (int(v) for v in stats[best_lbl])
+            if w > W * 0.92 or h > H * 0.85 or area < 1200:
+                continue
+
+            roi_comp = (labels[y : y + h, x : x + w] == best_lbl).astype(np.uint8) * 255
+            padded = cv2.copyMakeBorder(roi_comp, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=0)
+            inv = cv2.bitwise_not(padded)
+            ff = inv.copy()
+            fmask = np.zeros((h + 4, w + 4), dtype=np.uint8)
+            cv2.floodFill(ff, fmask, (0, 0), 0)
+            filled = cv2.bitwise_or(roi_comp, ff[1:-1, 1:-1])
+            if np.count_nonzero(filled) / float(max(1, w * h)) < 0.52:
+                continue
+
+            # Suppression de la pointe/queue de bulle par ouverture morphologique
+            k = max(15, int(min(w, h) * 0.14))
+            if k % 2 == 0:
+                k += 1
+            body = cv2.morphologyEx(
+                filled,
+                cv2.MORPH_OPEN,
+                cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)),
+            )
+            ys, xs = np.where(body > 0)
+            if len(xs) == 0:
+                continue
+
+            bx0, bx1 = x + int(xs.min()), x + int(xs.max()) + 1
+            by0, by1 = y + int(ys.min()), y + int(ys.max()) + 1
+            bw, bh = bx1 - bx0, by1 - by0
+
+            # Le corps de la bulle doit englober le texte détecté
+            if not (bx0 <= tx + 10 and by0 <= ty + 10 and bx1 >= tx + tw - 10 and by1 >= ty + th - 10):
+                continue
+            # Garde-fou : ne pas confondre un fond de case géant avec une bulle
+            if bw > max(tw * 2.4, tw + 280) or bh > max(th * 2.4, th + 280):
+                continue
+
+            bcx = (bx0 + bx1) / 2.0
+            bcy = (by0 + by1) / 2.0
+            if abs(bcx - tcx) > 0.30 * bw or abs(bcy - tcy) > 0.30 * bh:
+                continue
+
+            # Remplir la bulle en laissant ~20 % d'espace avec les bords courbes
+            nw = max(tw, int(round(bw * 0.76)))
+            nh = max(th, int(round(bh * 0.74)))
+
+            # Centrage symétrique autour de (bcx, bcy) tout en englobant le texte source
+            half_w = max(nw / 2.0, abs(tx - bcx), abs((tx + tw) - bcx))
+            half_h = max(nh / 2.0, abs(ty - bcy), abs((ty + th) - bcy))
+            half_w = min(half_w, (bw * 0.84) / 2.0)
+            half_h = min(half_h, (bh * 0.84) / 2.0)
+
+            final_w = max(16, int(round(half_w * 2)))
+            final_h = max(16, int(round(half_h * 2)))
+            final_x = max(0, min(W - final_w, int(round(bcx - final_w / 2.0))))
+            final_y = max(0, min(H - final_h, int(round(bcy - final_h / 2.0))))
+            return (final_x, final_y, final_w, final_h)
+    except Exception as exc:
+        logger.debug("[BubbleGrouping] Ajustement géométrique bulle ignoré : %s", exc)
+
+    return (bbox_x, bbox_y, bbox_w, bbox_h)
+
+
 def refine_blocks(
     blocks: list[OCRBlockData],
     bubbles: list[BubbleRegion] | None = None,
@@ -520,4 +626,11 @@ def refine_blocks(
                 continue
         results.append(block)
 
-    return _reading_order(results, source_lang=source_lang)
+    ordered_results = _reading_order(results, source_lang=source_lang)
+    if gray is not None:
+        for blk in ordered_results:
+            bx, by, bw, bh = fit_block_to_bubble_geometry(
+                gray, blk.bbox_x, blk.bbox_y, blk.bbox_w, blk.bbox_h
+            )
+            blk.bbox_x, blk.bbox_y, blk.bbox_w, blk.bbox_h = bx, by, bw, bh
+    return ordered_results

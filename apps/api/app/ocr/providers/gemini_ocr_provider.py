@@ -23,6 +23,7 @@ import urllib.request
 from PIL import Image
 
 from app.ocr.bubble_grouping import (
+    fit_block_to_bubble_geometry,
     normalize_cjk_spacing,
     normalize_korean_spacing,
 )
@@ -257,13 +258,16 @@ class GeminiVisionOCRProvider:
             if cy < 0.045 * height and (y1 - y0) < 0.05 * height:
                 continue
 
+            bx, by, bw, bh = fit_block_to_bubble_geometry(
+                img, x0, y0, x1 - x0, y1 - y0
+            )
             blocks.append(
                 OCRBlockData(
                     text=text,
-                    bbox_x=x0,
-                    bbox_y=y0,
-                    bbox_w=x1 - x0,
-                    bbox_h=y1 - y0,
+                    bbox_x=bx,
+                    bbox_y=by,
+                    bbox_w=bw,
+                    bbox_h=bh,
                     confidence=0.96,
                     provider=PROVIDER_NAME,
                 )

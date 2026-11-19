@@ -50,7 +50,7 @@ export function TextOverlay({
   lineHeight = 1.08,
   minFontSize = 8,
   maxFontSize = 160,
-  paddingRatio = 0.1,
+  paddingRatio = 0.04,
   className,
   textClassName,
   textStyle,

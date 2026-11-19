@@ -81,8 +81,16 @@ async def create_ocr_block(
     extracted_text = (payload.text or "").strip()
     detected_conf = 1.0 if extracted_text else 0.5
     detected_provider = "manual"
+    final_bx, final_by, final_bw, final_bh = (
+        payload.bbox_x,
+        payload.bbox_y,
+        payload.bbox_w,
+        payload.bbox_h,
+    )
     if not extracted_text:
         try:
+            from app.ocr.bubble_grouping import fit_block_to_bubble_geometry
+
             image_bytes = storage.read(page.storage_key)
             img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
             # Légère marge de sécurité (4px) autour du rectangle tracé pour ne
@@ -109,16 +117,19 @@ async def create_ocr_block(
                 if raw_ocr:
                     extracted_text = " ".join(raw_ocr.split())
                     detected_conf = max((b.confidence for b in detected), default=0.9)
+            final_bx, final_by, final_bw, final_bh = fit_block_to_bubble_geometry(
+                img, payload.bbox_x, payload.bbox_y, payload.bbox_w, payload.bbox_h
+            )
         except Exception as exc:
             logger.warning("[create_ocr_block] Échec OCR sur la zone dessinée : %s", exc)
 
     block = OCRBlock(
         page_id=page.id,
         text=extracted_text,
-        bbox_x=payload.bbox_x,
-        bbox_y=payload.bbox_y,
-        bbox_w=payload.bbox_w,
-        bbox_h=payload.bbox_h,
+        bbox_x=final_bx,
+        bbox_y=final_by,
+        bbox_w=final_bw,
+        bbox_h=final_bh,
         bubble_type=payload.bubble_type or "B",
         manhwa_style=payload.manhwa_style or "dialogue",
         rotation_angle=payload.rotation_angle or 0,
