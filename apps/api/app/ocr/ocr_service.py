@@ -25,8 +25,15 @@ import os
 
 from PIL import Image
 
-from app.ocr.bubble_grouping import BubbleRegion, detect_bubble_regions, refine_blocks
+from app.ocr.bubble_grouping import (
+    BubbleRegion,
+    detect_bubble_regions,
+    normalize_cjk_spacing,
+    normalize_korean_spacing,
+    refine_blocks,
+)
 from app.ocr.provider import OCRBlockData, OCRProvider
+from app.ocr.providers.gemini_ocr_provider import GeminiVisionOCRProvider
 from app.ocr.providers.manga_ocr_provider import MangaOCRProvider
 from app.ocr.providers.paddle_ocr_provider import PaddleOCRProvider
 from app.ocr.providers.tesseract_provider import TesseractOCRProvider
@@ -66,10 +73,15 @@ class OCRService:
         manga_provider: OCRProvider | None = None,
         paddle_provider: OCRProvider | None = None,
         tesseract_provider: OCRProvider | None = None,
+        gemini_provider: GeminiVisionOCRProvider | None = None,
     ) -> None:
+        self._custom_injected = any(
+            p is not None for p in (manga_provider, paddle_provider, tesseract_provider)
+        ) and gemini_provider is None
         self._manga = manga_provider or MangaOCRProvider()
         self._paddle = paddle_provider or PaddleOCRProvider()
         self._tesseract = tesseract_provider or TesseractOCRProvider()
+        self._gemini = gemini_provider or GeminiVisionOCRProvider()
         self._unavailable: set[str] = set()
 
     def provider_name_for(self, source_lang: str) -> str:
@@ -211,6 +223,21 @@ class OCRService:
     async def _detect_text_unbounded(
         self, image_bytes: bytes, source_lang: str
     ) -> list[OCRBlockData]:
+        if (
+            not self._custom_injected
+            and "gemini-vision" not in self._unavailable
+            and self._gemini.is_configured()
+        ):
+            try:
+                gemini_blocks = await self._gemini.detect_text(image_bytes, source_lang)
+                if gemini_blocks:
+                    return gemini_blocks
+            except Exception as exc:
+                logger.warning(
+                    "[OCRService] Gemini Vision indisponible sur detect_text (%s) — repli local.",
+                    exc,
+                )
+
         blocks, used_tesseract = await self._run_primary_or_fallback(image_bytes, source_lang)
 
         image = None
@@ -261,19 +288,34 @@ class OCRService:
         Contrairement à `detect_text` (qui cherche des contours de bulles fermées
         sur une planche complète et écarte les régions sans bordure fermée),
         `recognize_region` lit directement l'extrait délimité par l'utilisateur,
-        y compris les bulles d'exclamation dentelées, textes flottants ou SFX.
-        Renvoie `(texte, confiance, provider)`.
+        y compris les bulles semi-transparentes, bulles d'exclamation dentelées,
+        textes flottants ou SFX. Renvoie `(texte, confiance, provider)`.
         """
         if not crop_bytes:
             return "", 0.0, "manual"
 
         from PIL import ImageOps
-        from app.ocr.bubble_grouping import normalize_cjk_spacing
 
         crop_img = Image.open(io.BytesIO(crop_bytes)).convert("RGB")
         w, h = crop_img.size
         if w < 8 or h < 8:
             return "", 0.0, "manual"
+
+        # 0. Priorité Gemini Vision si configuré : précision maximale sur les
+        # polices manhwa/manga stylisées, bulles translucides et multi-lignes.
+        if (
+            not self._custom_injected
+            and "gemini-vision" not in self._unavailable
+            and self._gemini.is_configured()
+        ):
+            try:
+                g_blk = await self._gemini.recognize_crop(crop_bytes, source_lang)
+                if g_blk and g_blk.text.strip():
+                    return g_blk.text.strip(), float(g_blk.confidence), g_blk.provider
+            except Exception as exc:
+                logger.warning(
+                    "[OCRService] Échec Gemini Vision sur recognize_region : %s", exc
+                )
 
         # 1. Japonais : lecture directe via MangaOCR sur l'extrait recadré
         if _is_japanese(source_lang):
@@ -306,8 +348,6 @@ class OCRService:
             return "", 0.0, "manual"
 
         # 2. Autres langues (Coréen, Chinois, Anglais, Français, etc.) :
-        # On ajoute une marge blanche de 24px et on agrandit les petits extraits
-        # pour que PaddleOCR / Tesseract ne tronquent jamais les caractères au bord.
         padded_img = ImageOps.expand(crop_img, border=24, fill="white")
         if min(w, h) < 220:
             padded_img = padded_img.resize((padded_img.width * 2, padded_img.height * 2), Image.LANCZOS)
@@ -315,17 +355,26 @@ class OCRService:
         padded_img.save(padded_buf, format="PNG")
         padded_bytes = padded_buf.getvalue()
 
-        is_cjk = (source_lang or "").strip().lower()[:2] in {"ko", "zh"}
-        sep = "" if is_cjk and (source_lang or "").strip().lower()[:2] == "zh" else " "
+        lang_prefix = (source_lang or "").strip().lower()[:2]
+        is_ko = lang_prefix == "ko"
+        is_zh = lang_prefix == "zh"
+        sep = "" if is_zh else " "
+
+        def _format_lang_text(raw_str: str) -> str:
+            collapsed = " ".join(raw_str.split())
+            if is_ko:
+                return normalize_korean_spacing(collapsed)
+            if is_zh:
+                return normalize_cjk_spacing(collapsed)
+            return collapsed
 
         if "paddleocr" not in self._unavailable:
             try:
                 p_blocks = await self._paddle.detect_text(padded_bytes, source_lang)
                 if p_blocks:
-                    # Tri en ordre de lecture naturel (haut -> bas, gauche -> droite)
                     p_blocks.sort(key=lambda b: (b.bbox_y // 18, b.bbox_x))
                     raw = sep.join(b.text.strip() for b in p_blocks if b.text.strip()).strip()
-                    text = normalize_cjk_spacing(" ".join(raw.split())) if is_cjk else " ".join(raw.split())
+                    text = _format_lang_text(raw)
                     if text:
                         avg_conf = sum(b.confidence for b in p_blocks) / len(p_blocks)
                         return text, float(avg_conf), "paddleocr"
@@ -335,13 +384,16 @@ class OCRService:
             except Exception as exc:
                 logger.warning("[OCRService] Échec PaddleOCR sur recognize_region : %s", exc)
 
-        # Repli Tesseract sur l'extrait avec marge blanche
+        # Repli Tesseract multi-lignes (retrait des bordures de case + lecture ligne par ligne)
         try:
-            t_blocks = await self._tesseract.detect_text(padded_bytes, source_lang)
+            if hasattr(self._tesseract, "recognize_crop"):
+                t_blocks = await self._tesseract.recognize_crop(crop_bytes, source_lang)  # type: ignore[attr-defined]
+            else:
+                t_blocks = await self._tesseract.detect_text(padded_bytes, source_lang)
             if t_blocks:
                 t_blocks.sort(key=lambda b: (b.bbox_y // 18, b.bbox_x))
                 raw = sep.join(b.text.strip() for b in t_blocks if b.text.strip()).strip()
-                text = normalize_cjk_spacing(" ".join(raw.split())) if is_cjk else " ".join(raw.split())
+                text = _format_lang_text(raw)
                 if text:
                     avg_conf = sum(b.confidence for b in t_blocks) / len(t_blocks)
                     return text, float(avg_conf), "tesseract"

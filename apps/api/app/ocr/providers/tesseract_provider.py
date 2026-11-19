@@ -391,6 +391,106 @@ class TesseractOCRProvider:
             )
         return blocks
 
+    def _recognize_crop_sync(
+        self, crop_bytes: bytes, source_lang: str
+    ) -> list[OCRBlockData]:
+        """Lecture robuste d'un extrait de bulle (+ Bulle) ligne par ligne.
+
+        Élimine les filets horizontaux de bordure de case qui traversent
+        parfois une bulle semi-transparente (et faisaient sauter la ligne
+        centrale sous Tesseract --psm 11), puis segmente les lignes par
+        projection horizontale d'encre et lit chacune en --psm 7.
+        """
+        binary = find_tesseract_binary()
+        if binary is None:
+            return self._recognize_sync(crop_bytes, source_lang)
+        try:
+            import pytesseract
+        except ImportError:
+            return self._recognize_sync(crop_bytes, source_lang)
+
+        pytesseract.pytesseract.tesseract_cmd = binary
+        if _is_japanese_lang(source_lang):
+            return self._recognize_sync(crop_bytes, source_lang)
+
+        crop = Image.open(io.BytesIO(crop_bytes)).convert("RGB")
+        arr = np.array(crop)
+        H, W, _ = arr.shape
+        gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
+        t_lang = get_tesseract_lang(source_lang)
+
+        # Isolation de l'encre sombre et retrait des lignes horizontales de case
+        ink = (gray < 148).astype(np.uint8) * 255
+        num, labels, stats, _ = cv2.connectedComponentsWithStats(ink, 8)
+        clean_ink = np.zeros_like(ink)
+        for i in range(1, num):
+            cx, cy, cw, ch, area = (int(v) for v in stats[i])
+            if area >= 15 and cw < W * 0.62 and ch >= 8:
+                clean_ink[labels == i] = 255
+
+        row_proj = (np.sum(clean_ink > 0, axis=1) >= 4).astype(np.uint8)
+        row_mask = cv2.dilate(
+            row_proj.reshape(-1, 1), np.ones((7, 1), np.uint8), iterations=1
+        ).flatten()
+        bands: list[tuple[int, int]] = []
+        in_b, s = False, 0
+        for y_idx, val in enumerate(row_mask):
+            if val and not in_b:
+                in_b, s = True, y_idx
+            elif not val and in_b:
+                in_b = False
+                if y_idx - s >= 14:
+                    bands.append((max(0, s - 6), min(H, y_idx + 6)))
+        if in_b and H - s >= 14:
+            bands.append((max(0, s - 6), H))
+
+        row_blocks: list[OCRBlockData] = []
+        for y0, y1 in bands:
+            band_raw = crop.crop((0, y0, W, y1))
+            band_2x = band_raw.resize((W * 2, max(1, (y1 - y0) * 2)), Image.LANCZOS)
+            t_raw = pytesseract.image_to_string(
+                band_2x, lang=t_lang, config="--psm 7"
+            ).strip()
+            alnum_raw = [c for c in t_raw if c.isalnum()]
+            if len(alnum_raw) >= 2:
+                chosen = t_raw
+                conf = 0.85
+            else:
+                band_bin = 255 - clean_ink[y0:y1, :]
+                band_pad = cv2.copyMakeBorder(
+                    band_bin, 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=255
+                )
+                t_bin = pytesseract.image_to_string(
+                    Image.fromarray(band_pad), lang=t_lang, config="--psm 7"
+                ).strip()
+                chosen = t_bin if len([c for c in t_bin if c.isalnum()]) > len(alnum_raw) else t_raw
+                conf = 0.78
+            chosen = " ".join(chosen.split()).strip("- ").strip()
+            if chosen and any(c.isalnum() for c in chosen):
+                row_blocks.append(
+                    OCRBlockData(
+                        text=chosen,
+                        bbox_x=0,
+                        bbox_y=y0,
+                        bbox_w=W,
+                        bbox_h=max(1, y1 - y0),
+                        confidence=conf,
+                        provider=PROVIDER_NAME,
+                    )
+                )
+
+        std_blocks = self._recognize_sync(crop_bytes, source_lang)
+        row_chars = sum(len([c for c in b.text if c.isalnum()]) for b in row_blocks)
+        std_chars = sum(len([c for c in b.text if c.isalnum()]) for b in std_blocks)
+        return row_blocks if row_chars >= std_chars and row_blocks else std_blocks
+
+    async def recognize_crop(
+        self, image_bytes: bytes, source_lang: str
+    ) -> list[OCRBlockData]:
+        if not image_bytes:
+            return []
+        return await asyncio.to_thread(self._recognize_crop_sync, image_bytes, source_lang)
+
     async def detect_text(
         self, image_bytes: bytes, source_lang: str
     ) -> list[OCRBlockData]:
