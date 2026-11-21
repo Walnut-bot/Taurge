@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Logo } from '@/components/brand/logo'
 import { LanguageSwitcher } from '@/components/language-switcher'
@@ -28,6 +28,10 @@ export function AuthForm({ mode }: { mode: Mode }) {
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [ageConfirmed, setAgeConfirmed] = useState(false)
   const [newsletter, setNewsletter] = useState(false)
+
+  useEffect(() => {
+    api.pingHealth()
+  }, [])
 
   const copy =
     mode === 'login'

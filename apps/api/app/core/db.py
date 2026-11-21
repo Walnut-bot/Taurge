@@ -13,10 +13,16 @@ _database_url = settings.database_url
 if _database_url.startswith("postgres://"):
     _database_url = "postgresql://" + _database_url[len("postgres://"):]
 
+_is_sqlite = _database_url.startswith("sqlite")
 connect_args = (
     {"check_same_thread": False, "timeout": 30}
-    if _database_url.startswith("sqlite")
+    if _is_sqlite
     else {}
+)
+_pool_kwargs = (
+    {}
+    if _is_sqlite
+    else {"pool_recycle": 300, "pool_size": 5, "max_overflow": 10}
 )
 
 engine = create_engine(
@@ -24,6 +30,7 @@ engine = create_engine(
     echo=False,
     connect_args=connect_args,
     pool_pre_ping=True,
+    **_pool_kwargs,
 )
 
 

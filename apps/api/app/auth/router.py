@@ -5,6 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import Response
 from PIL import Image, UnidentifiedImageError
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.auth.dependencies import get_current_user
@@ -164,7 +165,10 @@ def register(payload: RegisterRequest, request: Request, session: Session = Depe
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Veuillez accepter les conditions d'utilisation et confirmer votre âge pour créer un compte.",
         )
-    existing = session.exec(select(User).where(User.email == payload.email)).first()
+    normalized_email = payload.email.strip().lower()
+    existing = session.exec(
+        select(User).where(func.lower(User.email) == normalized_email)
+    ).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -174,7 +178,7 @@ def register(payload: RegisterRequest, request: Request, session: Session = Depe
 
     now = datetime.now(timezone.utc)
     user = User(
-        email=payload.email,
+        email=normalized_email,
         password_hash=hash_password(payload.password),
         terms_accepted_at=now,
         age_confirmed_at=now,
@@ -202,7 +206,7 @@ def register(payload: RegisterRequest, request: Request, session: Session = Depe
 
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, request: Request, session: Session = Depends(get_session)):
-    email = payload.email.lower()
+    email = payload.email.strip().lower()
     ip = get_client_ip(request) if request else "unknown"
     if _recent_failed_logins(session, email) >= settings.login_max_failed_attempts:
         log_auth_failure(email, ip, "account_temporarily_locked")
@@ -210,7 +214,7 @@ def login(payload: LoginRequest, request: Request, session: Session = Depends(ge
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Trop de tentatives de connexion. Réessayez dans quelques minutes.",
         )
-    user = session.exec(select(User).where(User.email == payload.email)).first()
+    user = session.exec(select(User).where(func.lower(User.email) == email)).first()
     if not user or not verify_password(payload.password, user.password_hash):
         _record_failed_login(session, email)
         log_auth_failure(email, ip, "invalid_credentials")

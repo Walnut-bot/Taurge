@@ -56,3 +56,30 @@ def test_register_then_login(client):
     )
     assert response.status_code == 200
     assert response.json()["access_token"]
+
+
+def test_register_and_login_are_case_insensitive_on_email(client):
+    tag = uuid.uuid4().hex[:10]
+    mixed_email = f"Tester.{tag}@Example.COM"
+    payload = {
+        "email": mixed_email,
+        "password": "password123",
+        "accepted_terms": True,
+        "age_confirmed": True,
+        "newsletter_opt_in": False,
+    }
+    reg = client.post("/auth/register", json=payload)
+    assert reg.status_code == 201
+    assert reg.json()["email"] == mixed_email.lower()
+
+    # Un doublon avec casse différente doit être rejeté
+    dup = client.post("/auth/register", json={**payload, "email": mixed_email.upper()})
+    assert dup.status_code == 400
+
+    # La connexion doit fonctionner quelle que soit la casse saisie
+    login_res = client.post(
+        "/auth/login",
+        json={"email": mixed_email.upper(), "password": "password123"},
+    )
+    assert login_res.status_code == 200
+    assert login_res.json()["access_token"]

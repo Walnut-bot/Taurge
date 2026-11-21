@@ -91,10 +91,13 @@ export function getClientLocale(): string {
 }
 
 function localeHeaders(): Record<string, string> {
-  return {
+  const headers: Record<string, string> = {
     'Accept-Language': getClientLocale(),
-    'ngrok-skip-browser-warning': 'true',
   }
+  if (getApiUrl().includes('ngrok')) {
+    headers['ngrok-skip-browser-warning'] = 'true'
+  }
+  return headers
 }
 
 async function parseError(res: Response) {
@@ -213,10 +216,18 @@ const patch = <T = unknown>(path: string, body: unknown) =>
   request<T>(path, { method: 'PATCH', body: JSON.stringify(body) })
 
 export const api = {
+  pingHealth(): void {
+    if (IS_DEMO || typeof window === 'undefined') return
+    const baseUrl = getApiUrl()
+    fetch(`${baseUrl}/health`, { method: 'GET' }).catch(() => {
+      // Pré-réveil silencieux du conteneur Render pendant la saisie du formulaire
+    })
+  },
   async login(email: string, password: string) {
+    const cleanEmail = email.trim().toLowerCase()
     const token = IS_DEMO
-      ? await demo.login(email, password)
-      : (await post<{ access_token: string }>('/auth/login', { email, password })).access_token
+      ? await demo.login(cleanEmail, password)
+      : (await post<{ access_token: string }>('/auth/login', { email: cleanEmail, password }, 60_000)).access_token
     saveToken(token)
   },
   register(
@@ -224,9 +235,10 @@ export const api = {
     password: string,
     consents?: { accepted_terms: boolean; age_confirmed: boolean; newsletter_opt_in: boolean },
   ) {
+    const cleanEmail = email.trim().toLowerCase()
     return IS_DEMO
-      ? demo.register(email, password)
-      : post('/auth/register', { email, password, ...(consents ?? {}) })
+      ? demo.register(cleanEmail, password)
+      : post('/auth/register', { email: cleanEmail, password, ...(consents ?? {}) }, 60_000)
   },
   deleteAccount(confirmEmail: string): Promise<void> {
     return request<void>('/auth/me', { method: 'DELETE', body: JSON.stringify({ confirm_email: confirmEmail }) })

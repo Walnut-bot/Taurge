@@ -54,12 +54,20 @@ async function withTimeout(
   }
 }
 
+function isBrowserOnPublicHost(): boolean {
+  if (typeof window === 'undefined') return false
+  const host = window.location?.hostname || ''
+  return Boolean(host) && host !== 'localhost' && host !== '127.0.0.1'
+}
+
 /**
  * Si une URL de tunnel (*.trycloudflare.com) mémorisée dans localStorage est
  * expirée ou inaccessible, vérifie si le backend local tourne directement sur
- * ce PC (http://127.0.0.1:8000 ou http://localhost:8000).
+ * ce PC (http://127.0.0.1:8000 ou http://localhost:8000) — UNIQUEMENT en dev
+ * local (jamais sur un domaine public HTTPS comme taurge.vercel.app).
  */
 async function probeDirectLocalBackend(fetchFn: FetchFn, currentApiUrl: string): Promise<string | null> {
+  if (isBrowserOnPublicHost()) return null
   if (!currentApiUrl.includes('trycloudflare.com') && !currentApiUrl.includes('ngrok-free')) return null
   for (const candidate of LOCAL_CANDIDATES) {
     try {
@@ -75,7 +83,7 @@ async function probeDirectLocalBackend(fetchFn: FetchFn, currentApiUrl: string):
   return null
 }
 
-/** Attend que l'API réponde sur /health (réveil de l'API locale). Best effort. */
+/** Attend que l'API réponde sur /health (réveil de l'API). Best effort. */
 export async function wakeServer(
   fetchFn: FetchFn,
   apiUrl: string,
@@ -83,12 +91,15 @@ export async function wakeServer(
   sleep: (ms: number) => Promise<void> = defaultSleep,
 ): Promise<boolean> {
   const deadline = Date.now() + wakeTimeoutMs
+  const headers: Record<string, string> = apiUrl.includes('ngrok')
+    ? { 'ngrok-skip-browser-warning': 'true' }
+    : {}
   for (;;) {
     try {
       const res = await withTimeout(
         fetchFn,
         `${apiUrl}/health`,
-        { method: 'GET', headers: { 'ngrok-skip-browser-warning': 'true' } },
+        { method: 'GET', headers },
         15_000,
       )
       if (res.ok) return true

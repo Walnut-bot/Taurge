@@ -24,3 +24,22 @@ test('override tunnel du navigateur: prioritaire, sans slash final', () => {
 test('variable de build: utilisee sans override', () => {
   assert.equal(resolveApiUrl('https://api.example.com/', null), 'https://api.example.com')
 })
+
+test('production cloud: ignore les overrides locaux ou tunnels obsoletes en localStorage', () => {
+  assert.equal(
+    resolveApiUrl('https://taurge-api.onrender.com', 'http://127.0.0.1:8000'),
+    'https://taurge-api.onrender.com',
+  )
+  assert.equal(
+    resolveApiUrl('https://taurge-api.onrender.com', 'http://localhost:8000'),
+    'https://taurge-api.onrender.com',
+  )
+  assert.equal(
+    resolveApiUrl('https://taurge-api.onrender.com', 'https://old.trycloudflare.com/'),
+    'https://taurge-api.onrender.com',
+  )
+  assert.equal(
+    resolveApiUrl('https://taurge-api.onrender.com', 'https://old.ngrok-free.app'),
+    'https://taurge-api.onrender.com',
+  )
+})
