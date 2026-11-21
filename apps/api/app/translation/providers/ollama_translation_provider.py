@@ -13,6 +13,7 @@ lent (timeout) ou renvoie une réponse inexploitable.
 
 import json
 import logging
+import os
 import re
 
 import httpx
@@ -91,8 +92,59 @@ class OllamaProvider:
             base_url=self.base_url, timeout=self.timeout, transport=self._transport
         )
 
+    async def _translate_via_gemini_cloud(
+        self, system_prompt: str, user_prompt: str, expected_count: int
+    ) -> list[str]:
+        """Repli LLM cloud (Gemini Flash-Lite) lorsque l'instance Ollama locale
+        n'est pas présente sur un conteneur cloud (Render 512 Mo)."""
+        api_key = (os.environ.get("GEMINI_API_KEY") or "").strip()
+        if not api_key:
+            raise RuntimeError("GEMINI_API_KEY non configurée.")
+
+        body = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": f"{system_prompt}\n\n{user_prompt}"}
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0.2,
+                "responseMimeType": "application/json",
+            },
+        }
+        models = ("gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-3.1-flash-lite")
+        last_err: Exception | None = None
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as g_client:
+            for model in models:
+                url = (
+                    f"https://generativelanguage.googleapis.com/v1beta/models/"
+                    f"{model}:generateContent?key={api_key}"
+                )
+                try:
+                    resp = await g_client.post(url, json=body)
+                    if resp.status_code in (400, 404):
+                        continue
+                    resp.raise_for_status()
+                    data = resp.json()
+                    parts = (
+                        ((data.get("candidates") or [{}])[0].get("content") or {}).get("parts")
+                        or []
+                    )
+                    content = "".join(
+                        p.get("text", "") for p in parts if not p.get("thought")
+                    ).strip()
+                    return _parse_translations(content, expected_count)
+                except Exception as exc:
+                    last_err = exc
+                    continue
+        raise RuntimeError(f"Échec du repli LLM cloud : {last_err}")
+
     async def is_available(self) -> bool:
-        """Sonde rapide de l'instance (`GET /api/tags`, 3 s max)."""
+        """Sonde rapide de l'instance (`GET /api/tags`, 3 s max) ou repli LLM cloud."""
+        if self._transport is None and (os.environ.get("GEMINI_API_KEY") or "").strip():
+            return True
         try:
             async with httpx.AsyncClient(
                 base_url=self.base_url,
@@ -144,12 +196,21 @@ class OllamaProvider:
                 response = await client.post("/api/chat", json=payload)
                 response.raise_for_status()
         except httpx.TimeoutException as exc:
+            if self._transport is None and (os.environ.get("GEMINI_API_KEY") or "").strip():
+                return await self._translate_via_gemini_cloud(
+                    system_prompt, f"Répliques à traduire :\n{numbered}", len(texts)
+                )
             raise RuntimeError(f"Ollama — délai dépassé ({self.base_url}) : {exc}") from exc
         except httpx.HTTPStatusError as exc:
             raise RuntimeError(
                 f"Ollama — erreur HTTP {exc.response.status_code} : {exc.response.text[:300]}"
             ) from exc
         except httpx.HTTPError as exc:
+            if self._transport is None and (os.environ.get("GEMINI_API_KEY") or "").strip():
+                logger.info("[Ollama] Instance locale absente, bascule sur LLM Cloud (Gemini).")
+                return await self._translate_via_gemini_cloud(
+                    system_prompt, f"Répliques à traduire :\n{numbered}", len(texts)
+                )
             raise RuntimeError(f"Ollama — instance injoignable ({self.base_url}) : {exc}") from exc
 
         try:
